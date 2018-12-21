@@ -1,31 +1,33 @@
 from datetime import datetime
 
-from flask_sqlalchemy.model import Model
-from sqlalchemy.orm import Query
+from sqlalchemy import Column, DateTime, Integer, Interval, Float, ForeignKey
+from sqlalchemy.orm import relationship, backref, Query
+
+from base import Base
 
 
-class TimedBelief(Model):
+class TimedBelief(Base):
     """"""
 
-    event_start = db.Column(db.DateTime(timezone=True), primary_key=True)
-    belief_horizon = db.Column(db.Interval(), nullable=False, primary_key=True)
-    event_value = db.Column(db.Float, nullable=False)
-    sensor_id = db.Column(
-        db.Integer(), db.ForeignKey("sensor.id", ondelete="CASCADE"), primary_key=True
+    event_start = Column(DateTime(timezone=True), primary_key=True)
+    belief_horizon = Column(Interval(), nullable=False, primary_key=True)
+    event_value = Column(Float, nullable=False)
+    sensor_id = Column(
+        Integer(), ForeignKey("sensor.id", ondelete="CASCADE"), primary_key=True
     )
-    source_id = db.Column(db.Integer, db.ForeignKey("sources.id"), primary_key=True)
-    sensor = db.relationship(
+    source_id = Column(Integer, ForeignKey("sources.id"), primary_key=True)
+    sensor = relationship(
         "Sensor",
-        backref=db.backref(
+        backref=backref(
             "beliefs",
             lazy=True,
             cascade="all, delete-orphan",
             passive_deletes=True,
         ),
     )
-    source = db.relationship(
+    source = relationship(
         "Source",
-        backref=db.backref(
+        backref=backref(
             "beliefs",
             lazy=True,
             cascade="all, delete-orphan",
