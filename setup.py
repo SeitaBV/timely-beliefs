@@ -11,7 +11,6 @@ setup(
         "pandas",
         "numpy",
         "SQLAlchemy",
-        "Flask-SQLAlchemy",
     ],
     tests_require=["pytest"],
     packages=["timely_beliefs"],
