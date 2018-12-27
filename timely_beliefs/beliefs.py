@@ -6,6 +6,7 @@ from sqlalchemy.orm import relationship, backref, Query
 
 from base import Base
 from timely_beliefs.sensors import Sensor
+from timely_beliefs.sources import BeliefSource
 
 
 class TimedBelief(Base):
@@ -25,10 +26,7 @@ class TimedBelief(Base):
     sensor = relationship(
         "Sensor",
         backref=backref(
-            "beliefs",
-            lazy=True,
-            cascade="all, delete-orphan",
-            passive_deletes=True,
+            "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
     )
     source = relationship(
@@ -50,8 +48,10 @@ class TimedBelief(Base):
     def belief_time(self) -> datetime:
         return self.knowledge_time - self.belief_horizon
 
-    def __init__(self, sensor: Sensor, **kwargs):
+    def __init__(self, sensor: Sensor, source: BeliefSource, value: float, **kwargs):
         self.sensor = sensor
+        self.source = source
+        self.event_value = value
         if "event_start" in kwargs:
             self.event_start = kwargs["event_start"]
         elif "event_time" in kwargs:

@@ -59,3 +59,10 @@ Try logging in as the postgres superuser:
 
     psql -U postgres --password -h 127.0.0.1 -d tbtest
     \q
+
+Create tables
+===================
+
+Run the following:
+
+    python timely_beliefs/tests/create_tables.py

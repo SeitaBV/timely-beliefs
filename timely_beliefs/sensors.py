@@ -38,10 +38,10 @@ class Sensor(Base):
                 event_end, **self.knowledge_horizon_fnc[1]
             )
 
-    def knowledge_time(cls, event_end: datetime) -> datetime:
-        if isinstance(cls.knowledge_horizon_fnc, timedelta):
-            return event_end - cls.knowledge_horizon_fnc
+    def knowledge_time(self, event_end: datetime) -> datetime:
+        if isinstance(self.knowledge_horizon_fnc, timedelta):
+            return event_end - self.knowledge_horizon_fnc
         else:
-            return event_end - cls.knowledge_horizon_fnc[0](
-                event_end, **cls.knowledge_horizon_fnc[1]
+            return event_end - self.knowledge_horizon_fnc[0](
+                event_end, **self.knowledge_horizon_fnc[1]
             )
