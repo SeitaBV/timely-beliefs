@@ -1,13 +1,19 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import Column, DateTime, Integer, Interval, Float, ForeignKey
+from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship, backref, Query
 
 from base import Base
+from timely_beliefs.sensors import Sensor
 
 
 class TimedBelief(Base):
     """"""
+
+    @declared_attr
+    def __tablename__(cls):
+        return cls.__name__.lower()
 
     event_start = Column(DateTime(timezone=True), primary_key=True)
     belief_horizon = Column(Interval(), nullable=False, primary_key=True)
@@ -15,7 +21,7 @@ class TimedBelief(Base):
     sensor_id = Column(
         Integer(), ForeignKey("sensor.id", ondelete="CASCADE"), primary_key=True
     )
-    source_id = Column(Integer, ForeignKey("sources.id"), primary_key=True)
+    source_id = Column(Integer, ForeignKey("belief_source.id"), primary_key=True)
     sensor = relationship(
         "Sensor",
         backref=backref(
@@ -26,12 +32,9 @@ class TimedBelief(Base):
         ),
     )
     source = relationship(
-        "Source",
+        "BeliefSource",
         backref=backref(
-            "beliefs",
-            lazy=True,
-            cascade="all, delete-orphan",
-            passive_deletes=True,
+            "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
     )
 
@@ -47,8 +50,23 @@ class TimedBelief(Base):
     def belief_time(self) -> datetime:
         return self.knowledge_time - self.belief_horizon
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, sensor: Sensor, **kwargs):
+        self.sensor = sensor
+        if "event_start" in kwargs:
+            self.event_start = kwargs["event_start"]
+        elif "event_time" in kwargs:
+            if self.sensor.event_resolution != timedelta():
+                raise KeyError(
+                    "Sensor has a non-zero resolution, so it doesn't measure instantaneous events. "
+                    "Use event_start instead of event_time."
+                )
+            self.event_start = kwargs["event_time"]
+        if "belief_horizon" in kwargs:
+            self.belief_horizon = kwargs["belief_horizon"]
+        elif "belief_time" in kwargs:
+            self.belief_horizon = (
+                self.sensor.knowledge_time(self.event_end) - kwargs["belief_time"]
+            )
 
     def make_query(self) -> Query:
         pass

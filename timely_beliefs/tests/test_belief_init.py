@@ -1,0 +1,76 @@
+import pytest
+from datetime import datetime, timedelta
+
+from timely_beliefs import TimedBelief, Sensor
+
+
+@pytest.fixture(scope="function")
+def day_ahead_belief_about_instantaneous_event(instantaneous_sensor: Sensor):
+    """Define day-ahead belief about an instantaneous event."""
+    return TimedBelief(
+        sensor=instantaneous_sensor,
+        belief_time=datetime(2018, 1, 1, 15),
+        event_time=datetime(2018, 1, 2, 0),
+    )
+
+
+@pytest.fixture(scope="function")
+def day_ahead_belief_about_time_slot_event(time_slot_sensor: Sensor):
+    """Define day-ahead belief about a time slot event."""
+    return TimedBelief(
+        sensor=time_slot_sensor,
+        belief_time=datetime(2018, 1, 1, 15),
+        event_start=datetime(2018, 1, 2, 0),
+    )
+
+
+@pytest.fixture(scope="function")
+def day_ahead_belief_about_ex_post_time_slot_event(ex_post_time_slot_sensor: Sensor):
+    """Define day-ahead belief about an ex post time slot event."""
+    return TimedBelief(
+        sensor=ex_post_time_slot_sensor,
+        belief_time=datetime(2018, 1, 1, 15),
+        event_start=datetime(2018, 1, 2, 0),
+    )
+
+
+def test_day_ahead_instantaneous_event_belief(
+    day_ahead_belief_about_instantaneous_event: TimedBelief
+):
+    assert (
+        day_ahead_belief_about_instantaneous_event.event_start
+        == day_ahead_belief_about_instantaneous_event.event_end
+    )
+    assert day_ahead_belief_about_instantaneous_event.belief_horizon == timedelta(
+        hours=9
+    )
+
+
+def test_day_ahead_belief_about_time_slot_event(
+    day_ahead_belief_about_time_slot_event: TimedBelief
+):
+    assert (
+        day_ahead_belief_about_time_slot_event.event_start
+        < day_ahead_belief_about_time_slot_event.event_end
+    )
+    assert (
+        day_ahead_belief_about_time_slot_event.belief_horizon
+        == timedelta(hours=9)
+        + day_ahead_belief_about_time_slot_event.sensor.event_resolution
+    )
+
+
+def test_day_ahead_belief_about_ex_post_time_slot_event(
+    day_ahead_belief_about_ex_post_time_slot_event: TimedBelief
+):
+    assert day_ahead_belief_about_ex_post_time_slot_event.knowledge_time == datetime(
+        2018, 1, 1, 12
+    )
+    assert day_ahead_belief_about_ex_post_time_slot_event.belief_horizon == -timedelta(
+        hours=3
+    )
+    assert day_ahead_belief_about_ex_post_time_slot_event.belief_horizon == timedelta(
+        hours=9
+    ) + day_ahead_belief_about_ex_post_time_slot_event.sensor.event_resolution - day_ahead_belief_about_ex_post_time_slot_event.sensor.knowledge_horizon(
+        day_ahead_belief_about_ex_post_time_slot_event.event_end
+    )
