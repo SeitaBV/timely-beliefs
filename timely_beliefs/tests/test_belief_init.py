@@ -1,7 +1,9 @@
 import pytest
 from datetime import datetime, timedelta
 
-from timely_beliefs import BeliefSource, TimedBelief, Sensor
+from pytz import utc
+
+from timely_beliefs import BeliefSource, Sensor, TimedBelief
 
 
 @pytest.fixture(scope="function")
@@ -13,8 +15,8 @@ def day_ahead_belief_about_instantaneous_event(
         source=test_source,
         sensor=instantaneous_sensor,
         value=1,
-        belief_time=datetime(2018, 1, 1, 15),
-        event_time=datetime(2018, 1, 2, 0),
+        belief_time=datetime(2018, 1, 1, 15, tzinfo=utc),
+        event_time=datetime(2018, 1, 2, 0, tzinfo=utc),
     )
 
 
@@ -27,8 +29,8 @@ def day_ahead_belief_about_time_slot_event(
         source=test_source,
         sensor=time_slot_sensor,
         value=1,
-        belief_time=datetime(2018, 1, 1, 15),
-        event_start=datetime(2018, 1, 2, 0),
+        belief_time=datetime(2018, 1, 1, 15, tzinfo=utc),
+        event_start=datetime(2018, 1, 2, 0, tzinfo=utc),
     )
 
 
@@ -41,8 +43,8 @@ def day_ahead_belief_about_ex_post_time_slot_event(
         source=test_source,
         sensor=ex_post_time_slot_sensor,
         value=1,
-        belief_time=datetime(2018, 1, 1, 15),
-        event_start=datetime(2018, 1, 2, 0),
+        belief_time=datetime(2018, 1, 1, 15, tzinfo=utc),
+        event_start=datetime(2018, 1, 2, 0, tzinfo=utc),
     )
 
 
@@ -68,7 +70,6 @@ def test_day_ahead_belief_about_time_slot_event(
     assert (
         day_ahead_belief_about_time_slot_event.belief_horizon
         == timedelta(hours=9)
-        + day_ahead_belief_about_time_slot_event.sensor.event_resolution
     )
 
 
@@ -76,13 +77,13 @@ def test_day_ahead_belief_about_ex_post_time_slot_event(
     day_ahead_belief_about_ex_post_time_slot_event: TimedBelief
 ):
     assert day_ahead_belief_about_ex_post_time_slot_event.knowledge_time == datetime(
-        2018, 1, 1, 12
+        2018, 1, 1, 11, tzinfo=utc
     )
     assert day_ahead_belief_about_ex_post_time_slot_event.belief_horizon == -timedelta(
-        hours=3
+        hours=4
     )
     assert day_ahead_belief_about_ex_post_time_slot_event.belief_horizon == timedelta(
         hours=9
-    ) + day_ahead_belief_about_ex_post_time_slot_event.sensor.event_resolution - day_ahead_belief_about_ex_post_time_slot_event.sensor.knowledge_horizon(
-        day_ahead_belief_about_ex_post_time_slot_event.event_end
+    ) - day_ahead_belief_about_ex_post_time_slot_event.sensor.knowledge_horizon(
+        day_ahead_belief_about_ex_post_time_slot_event.event_start
     )

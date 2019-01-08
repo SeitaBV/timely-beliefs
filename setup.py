@@ -8,10 +8,12 @@ setup(
     keywords=["time series", "uncertainty", "lineage"],
     version="0.0.1",
     install_requires=[
+        "pytz",
         "pandas",
         "numpy",
         "SQLAlchemy",
         "psycopg2",
+        "isodate",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],

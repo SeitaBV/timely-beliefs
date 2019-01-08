@@ -62,28 +62,35 @@ That is:
 For economical events, the time at which we say an event could be known is typically not at the `end`.
 Most contracts deal with future events, such that:
 
-    knowledge_time < event_end
+    knowledge_time < event_start
 
-The `knowledge horizon` says how long before (the event ends) the event could be known:
+The `knowledge horizon` says how long before (the event starts) the event could be known:
 
-    knowledge_horizon > 0 
+    knowledge_horizon > 0  # for most economical events
+    knowledge_horizon = -resolution  # for physical events
 
 We define the knowledge horizon to be a fixed property of the sensor.
-For example, hourly prices on the day-ahead electricity market are determined at noon one day before delivery, such that:
+For example, hourly prices on the day-ahead electricity market are determined at noon one day before delivery starts, such that:
 
-    knowledge_time = event_end.replace(hour=12) - timedelta(days=1)
+    knowledge_time = event_start.replace(hour=12) - timedelta(days=1)
 
 Then for an hourly price between 3 and 4 PM on June 10th 2017:
     
     event_start = datetime(2017, 6, 10, hour=15)
-    event_end = datetime(2017, 6, 11, hour=16)
+    event_end = datetime(2017, 6, 10, hour=16)
     knowledge_time = datetime(2017, 6, 9, hour=12)
-    knowledge_horizon = timedelta(hours=28)
+    knowledge_horizon = timedelta(hours=27)
 
 Continuing this example, a price forecast with a forecast horizon of 1 hour constitutes a belief formed at 11 AM:
 
     belief_horizon = timedelta(hours=1)
     belief_time = datetime(2017, 6, 9, hour=11)
+
+In general, we have the following relationships:
+
+    belief_time + belief_horizon = knowledge_time
+    belief_time + belief_horizon + knowledge_horizon = event_start 
+    belief_time + belief_horizon + knowledge_horizon + event_resolution = event_end
 
 ## Special cases
 
@@ -97,16 +104,17 @@ Instantaneous events can be modelled by defining a sensor with:
 Beliefs about past events can be modelled using a negative horizon:
 
     belief_horizon < 0
-    belief_time > knowledge_time
+    knowledge_time < belief_time
 
 That is, your beliefs can still change after you (think you) know about an event.
 NB in the following case a price has been determined (you could know about it) for a future event:
 
-    event_end > belief_time > knowledge_time
+    knowledge_time < belief_time < event_start 
 
 ### Ex-post knowledge
 
-Our concept of `knowledge_time` supports to define sensors for agreements about past events, such as ex-post contracts.
+Our concept of `knowledge_time` supports to define sensors for agreements about ongoing or past events, such as ex-post contracts.
 
-    knowledge_time > event_end
-    knowledge_horizon < 0
+    event_start < knowledge_time
+    -resolution < knowledge_horizon < 0  # for ongoing events
+    knowledge_horizon < -resolution  # for past events
