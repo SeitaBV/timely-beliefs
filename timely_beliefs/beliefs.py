@@ -1,6 +1,7 @@
+from typing import List
 from datetime import datetime, timedelta
 
-from pandas import DataFrame
+from pandas import DataFrame, MultiIndex
 from sqlalchemy import Column, DateTime, Integer, Interval, Float, ForeignKey
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
@@ -9,7 +10,7 @@ from sqlalchemy.orm import relationship, backref
 from base import Base, session
 from timely_beliefs import Sensor
 from timely_beliefs import BeliefSource
-from timely_beliefs.utils import eval_verified_knowledge_horizon_fnc, enforce_utc, create_beliefs_df
+from timely_beliefs.utils import eval_verified_knowledge_horizon_fnc, enforce_utc
 
 
 class TimedBelief(Base):
@@ -38,6 +39,11 @@ class TimedBelief(Base):
             "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
     )
+
+    @property
+    def belief_percentile(self) -> float:
+        """Overwrite in ProbabilisticTimedBelief subclass."""
+        return 0.5
 
     @hybrid_property
     def event_end(self) -> datetime:
@@ -112,17 +118,91 @@ class TimedBelief(Base):
 
         # Apply rough belief time filter
         if before is not None:
-            q = q.filter(self.event_start + event_resolution <= before + self.belief_horizon + knowledge_horizon_max)
+            q = q.filter(self.event_start <= before + self.belief_horizon + knowledge_horizon_max)
         if not_before is not None:
-            q = q.filter(self.event_start + event_resolution >= not_before + self.belief_horizon + knowledge_horizon_min)
+            q = q.filter(self.event_start >= not_before + self.belief_horizon + knowledge_horizon_min)
 
         # Build our DataFrame of beliefs
-        df = create_beliefs_df(q.all())
+        df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
 
         # Actually filter by belief time
         if before is not None:
-            df = df.loc[df["belief_time"] <= before]
+            df = df[df.index.get_level_values("belief_time") <= before]
         if not_before is not None:
-            df = df.loc[df["belief_time"] >= not_before]
+            df = df[df.index.get_level_values("belief_time") >= not_before]
 
         return df
+
+
+class BeliefsDataFrame(DataFrame):
+    """Beliefs about a sensor.
+    A BeliefsDataFrame object is a pandas.DataFrame that has specific data columns and MultiIndex levels.
+    In addition to the standard DataFrame constructor arguments,
+    BeliefsDataFrame also accepts the following keyword arguments:
+
+    :param: sensor: the Sensor object that the beliefs pertain to
+    :param: beliefs: a list of TimedBelief objects used to initialise the BeliefsDataFrame
+    """
+
+    _metadata = ["sensor"]
+
+    @property
+    def _constructor(self):
+        return BeliefsDataFrame
+
+    @property
+    def change_index_from_belief_time_to_horizon(self):
+        belief_times = self.index.get_level_values("belief_time")
+        from_belief_time_to_horizon = {
+            i: j for i in belief_times for j in self.knowledge_times - belief_times
+        }
+        df = self.rename(from_belief_time_to_horizon, axis="index")
+        df.index.rename("belief_horizon", level="belief_time", inplace=True)
+        return df
+
+    @property
+    def knowledge_times(self):
+        event_starts = self.index.get_level_values("event_start").to_series(name="").reset_index()[
+            "event_start"]  # extra step needed because to_series fails to copy timezone information
+        return event_starts.apply(lambda event_start : self.sensor.knowledge_time(event_start))
+
+    @hybrid_method
+    def belief_history(self, event_start):
+        return self.xs(event_start, level="event_start")
+
+    @hybrid_method
+    def rolling_horizon(self, belief_horizon):
+        df = self.change_index_from_belief_time_to_horizon
+        return df[df.index.get_level_values("belief_horizon") >= belief_horizon]
+
+    def __init__(self, *args, **kwargs):
+        """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
+
+        # Obtain parameters that are specific to our DataFrame subclass
+        sensor: Sensor = kwargs.pop("sensor", None)
+        beliefs: List[TimedBelief] = kwargs.pop("beliefs", None)
+
+        # Use our constructor if initialising from a previous DataFrame (e.g. when slicing), copying the Sensor metadata
+        if beliefs is None:
+            super().__init__(*args, **kwargs)
+            return
+
+        # Define our columns and indices
+        columns = ["event_value"]
+        indices = ["event_start", "belief_time", "source_id", "belief_percentile"]
+
+        # Call the pandas DataFrame constructor with the right input
+        if beliefs:
+            data = [[getattr(i, j) for j in columns] for i in beliefs]
+            index = MultiIndex.from_tuples([[getattr(i, j) for j in indices] for i in beliefs], names=indices)
+            kwargs["data"] = data
+            kwargs["columns"] = columns
+            kwargs["index"] = index
+        else:
+            index = MultiIndex(levels=[[] for i in indices], labels=[[] for i in indices], names=indices)
+            kwargs["columns"] = columns
+            kwargs["index"] = index
+        super().__init__(*args, **kwargs)
+
+        # Set the Sensor metadata (including timing properties of the sensor)
+        self.sensor = sensor

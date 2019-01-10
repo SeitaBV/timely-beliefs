@@ -5,7 +5,7 @@ from inspect import getmembers, isfunction
 from pytz import timezone, utc
 from isodate import duration_isoformat, time_isoformat, parse_duration, parse_datetime
 from isodate.isoerror import ISO8601Error
-from pandas import DataFrame, Timestamp
+from pandas import Timestamp
 
 from timely_beliefs.func_store import knowledge_horizons
 
@@ -84,25 +84,3 @@ def enforce_utc(dt: datetime) -> Timestamp:
     if dt.tzinfo is None:
         raise Exception("Cannot initialize belief with timezone-naive datetime. Please localize your datetime.")
     return Timestamp(dt.astimezone(utc))
-
-
-def create_beliefs_df(beliefs: list) -> DataFrame:
-    attributes = [
-        "belief_time",
-        "knowledge_time",
-        "event_start",
-        "event_end",
-        "belief_horizon",
-        "knowledge_horizon",
-        "event_resolution",
-        "event_value",
-        "source_id"
-    ]
-    df = DataFrame([[getattr(i, j) for j in attributes] for i in beliefs], columns=attributes)
-
-    # # Print for debugging
-    # import pandas as pd
-    # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-    #     print(df)
-
-    return df

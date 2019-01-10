@@ -35,9 +35,9 @@ class Sensor(Base):
         self.timezone = timezone
         if event_resolution is None:
             event_resolution = timedelta(hours=0)
-        if knowledge_horizon is None:
-            knowledge_horizon = timedelta(hours=0)
         self.event_resolution = event_resolution
+        if knowledge_horizon is None:
+            knowledge_horizon = -event_resolution
         if isinstance(knowledge_horizon, timedelta):
             self.knowledge_horizon_fnc = constant_timedelta.__name__
             self.knowledge_horizon_par = {

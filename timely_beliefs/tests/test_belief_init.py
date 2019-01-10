@@ -69,7 +69,7 @@ def test_day_ahead_belief_about_time_slot_event(
     )
     assert (
         day_ahead_belief_about_time_slot_event.belief_horizon
-        == timedelta(hours=9)
+        == timedelta(hours=9) + day_ahead_belief_about_time_slot_event.event_resolution
     )
 
 
