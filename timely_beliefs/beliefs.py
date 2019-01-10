@@ -162,8 +162,7 @@ class BeliefsDataFrame(DataFrame):
 
     @property
     def knowledge_times(self):
-        event_starts = self.index.get_level_values("event_start").to_series(name="").reset_index()[
-            "event_start"]  # extra step needed because to_series fails to copy timezone information
+        event_starts = self.index.get_level_values("event_start").to_series(keep_tz=True)
         return event_starts.apply(lambda event_start : self.sensor.knowledge_time(event_start))
 
     @hybrid_method
