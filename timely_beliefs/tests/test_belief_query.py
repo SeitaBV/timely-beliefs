@@ -23,7 +23,6 @@ def day_ahead_belief_about_ex_post_time_slot_event(
         event_start=datetime(2018, 1, 2, 22, 45, tzinfo=utc),
     )
     session.add(belief)
-    session.flush()
     return belief
 
 
@@ -44,7 +43,6 @@ def multiple_day_ahead_beliefs_about_ex_post_time_slot_event(
         )
         session.add(belief)
         beliefs.append(belief)
-    session.flush()
     return beliefs
 
 
@@ -65,7 +63,6 @@ def rolling_day_ahead_beliefs_about_time_slot_events(
         )
         session.add(belief)
         beliefs.append(belief)
-    session.flush()
     return beliefs
 
 
