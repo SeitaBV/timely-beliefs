@@ -87,19 +87,32 @@ class TimedBelief(Base):
             )
 
     @hybrid_method
-    def query(self, sensor: Sensor, before: datetime = None, not_before: datetime = None) -> DataFrame:
+    def query(
+            self,
+            sensor: Sensor,
+            event_before: datetime = None,
+            event_not_before: datetime = None,
+            belief_before: datetime = None,
+            belief_not_before: datetime = None
+    ) -> DataFrame:
         """Query beliefs about sensor events.
         :param sensor: sensor to which the beliefs pertain
-        :param before: only return beliefs formed before this datetime (inclusive)
-        :param not_before: only return beliefs formed after this datetime (inclusive)
+        :param event_before: only return beliefs about events that end before this datetime (inclusive)
+        :param event_not_before: only return beliefs about events that start after this datetime (inclusive)
+        :param belief_before: only return beliefs formed before this datetime (inclusive)
+        :param belief_not_before: only return beliefs formed after this datetime (inclusive)
         :returns: a multi-index DataFrame with all relevant beliefs
         """
 
         # Check for timezone-aware datetime input
-        if before is not None:
-            before = enforce_utc(before)
-        if not_before is not None:
-            not_before = enforce_utc(not_before)
+        if event_before is not None:
+            event_before = enforce_utc(event_before)
+        if event_not_before is not None:
+            event_not_before = enforce_utc(event_not_before)
+        if belief_before is not None:
+            belief_before = enforce_utc(belief_before)
+        if belief_not_before is not None:
+            belief_not_before = enforce_utc(belief_not_before)
 
         # Query sensor for relevant timing properties
         event_resolution, knowledge_horizon_fnc, knowledge_horizon_par = session.query(
@@ -116,27 +129,37 @@ class TimedBelief(Base):
         # Query based on start_time_window
         q = session.query(self).filter(self.sensor_id == sensor.id)
 
+        # Apply event time filter
+        if event_before is not None:
+            q = q.filter(self.event_start + event_resolution <= event_before)
+        if event_not_before is not None:
+            q = q.filter(self.event_start >= event_not_before)
+
         # Apply rough belief time filter
-        if before is not None:
-            q = q.filter(self.event_start <= before + self.belief_horizon + knowledge_horizon_max)
-        if not_before is not None:
-            q = q.filter(self.event_start >= not_before + self.belief_horizon + knowledge_horizon_min)
+        if belief_before is not None:
+            q = q.filter(self.event_start <= belief_before + self.belief_horizon + knowledge_horizon_max)
+        if belief_not_before is not None:
+            q = q.filter(self.event_start >= belief_not_before + self.belief_horizon + knowledge_horizon_min)
 
         # Build our DataFrame of beliefs
         df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
 
         # Actually filter by belief time
-        if before is not None:
-            df = df[df.index.get_level_values("belief_time") <= before]
-        if not_before is not None:
-            df = df[df.index.get_level_values("belief_time") >= not_before]
+        if belief_before is not None:
+            df = df[df.index.get_level_values("belief_time") <= belief_before]
+        if belief_not_before is not None:
+            df = df[df.index.get_level_values("belief_time") >= belief_not_before]
 
         return df
 
 
 class BeliefsDataFrame(DataFrame):
     """Beliefs about a sensor.
-    A BeliefsDataFrame object is a pandas.DataFrame that has specific data columns and MultiIndex levels.
+    A BeliefsDataFrame object is a pandas.DataFrame with the following specific data columns and MultiIndex levels:
+
+    columns: ["event_value"]
+    index levels: ["event_start", "belief_time", "source_id", "belief_percentile"]
+
     In addition to the standard DataFrame constructor arguments,
     BeliefsDataFrame also accepts the following keyword arguments:
 
@@ -151,7 +174,7 @@ class BeliefsDataFrame(DataFrame):
         return BeliefsDataFrame
 
     @property
-    def change_index_from_belief_time_to_horizon(self):
+    def convert_index_from_belief_time_to_horizon(self):
         belief_times = self.index.get_level_values("belief_time")
         from_belief_time_to_horizon = {
             i: j for i in belief_times for j in self.knowledge_times - belief_times
@@ -163,7 +186,7 @@ class BeliefsDataFrame(DataFrame):
     @property
     def knowledge_times(self):
         event_starts = self.index.get_level_values("event_start").to_series(keep_tz=True)
-        return event_starts.apply(lambda event_start : self.sensor.knowledge_time(event_start))
+        return event_starts.apply(lambda event_start: self.sensor.knowledge_time(event_start))
 
     @hybrid_method
     def belief_history(self, event_start):
@@ -171,7 +194,7 @@ class BeliefsDataFrame(DataFrame):
 
     @hybrid_method
     def rolling_horizon(self, belief_horizon):
-        df = self.change_index_from_belief_time_to_horizon
+        df = self.convert_index_from_belief_time_to_horizon
         return df[df.index.get_level_values("belief_horizon") >= belief_horizon]
 
     def __init__(self, *args, **kwargs):
@@ -191,16 +214,12 @@ class BeliefsDataFrame(DataFrame):
         indices = ["event_start", "belief_time", "source_id", "belief_percentile"]
 
         # Call the pandas DataFrame constructor with the right input
+        kwargs["columns"] = columns
         if beliefs:
-            data = [[getattr(i, j) for j in columns] for i in beliefs]
-            index = MultiIndex.from_tuples([[getattr(i, j) for j in indices] for i in beliefs], names=indices)
-            kwargs["data"] = data
-            kwargs["columns"] = columns
-            kwargs["index"] = index
+            kwargs["data"] = [[getattr(i, j) for j in columns] for i in beliefs]
+            kwargs["index"] = MultiIndex.from_tuples([[getattr(i, j) for j in indices] for i in beliefs], names=indices)
         else:
-            index = MultiIndex(levels=[[] for i in indices], labels=[[] for i in indices], names=indices)
-            kwargs["columns"] = columns
-            kwargs["index"] = index
+            kwargs["index"] = MultiIndex(levels=[[] for i in indices], labels=[[] for i in indices], names=indices)
         super().__init__(*args, **kwargs)
 
         # Set the Sensor metadata (including timing properties of the sensor)

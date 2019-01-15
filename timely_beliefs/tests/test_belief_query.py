@@ -74,7 +74,7 @@ def test_persist_belief():
 
 
 def test_query_belief_by_belief_time(ex_post_time_slot_sensor: Sensor, day_ahead_belief_about_ex_post_time_slot_event: TimedBelief):
-    belief_df = TimedBelief.query(sensor=ex_post_time_slot_sensor, before=datetime(2018, 1, 1, 13, tzinfo=utc))
+    belief_df = TimedBelief.query(sensor=ex_post_time_slot_sensor, belief_before=datetime(2018, 1, 1, 13, tzinfo=utc))
 
     # By calling a pandas Series for its values we lose the timezone (a pandas bug still present in version 0.23.4)
     # This next test warns us when it has been fixed (if it fails, just replace != with ==).
@@ -86,19 +86,19 @@ def test_query_belief_by_belief_time(ex_post_time_slot_sensor: Sensor, day_ahead
     assert len(belief_df.index) == 1
 
     # No beliefs a year earlier
-    assert len(TimedBelief.query(sensor=ex_post_time_slot_sensor, before=datetime(2017, 1, 1, 10, tzinfo=utc)).index) == 0
+    assert len(TimedBelief.query(sensor=ex_post_time_slot_sensor, belief_before=datetime(2017, 1, 1, 10, tzinfo=utc)).index) == 0
 
     # No beliefs 2 months later
-    assert len(TimedBelief.query(sensor=ex_post_time_slot_sensor, not_before=datetime(2018, 1, 3, 10, tzinfo=utc)).index) == 0
+    assert len(TimedBelief.query(sensor=ex_post_time_slot_sensor, belief_not_before=datetime(2018, 1, 3, 10, tzinfo=utc)).index) == 0
 
     # One belief after 10am UTC
-    assert len(TimedBelief.query(sensor=ex_post_time_slot_sensor, not_before=datetime(2018, 1, 1, 10, tzinfo=utc)).index) == 1
+    assert len(TimedBelief.query(sensor=ex_post_time_slot_sensor, belief_not_before=datetime(2018, 1, 1, 10, tzinfo=utc)).index) == 1
 
     # No beliefs an hour earlier
-    assert len(TimedBelief.query(sensor=ex_post_time_slot_sensor, before=datetime(2018, 1, 1, 9, tzinfo=utc)).index) == 0
+    assert len(TimedBelief.query(sensor=ex_post_time_slot_sensor, belief_before=datetime(2018, 1, 1, 9, tzinfo=utc)).index) == 0
 
     # No beliefs after 1pm UTC
-    assert len(TimedBelief.query(sensor=ex_post_time_slot_sensor, not_before=datetime(2018, 1, 1, 13, tzinfo=utc)).index) == 0
+    assert len(TimedBelief.query(sensor=ex_post_time_slot_sensor, belief_not_before=datetime(2018, 1, 1, 13, tzinfo=utc)).index) == 0
 
 
 def test_query_belief_history(ex_post_time_slot_sensor: Sensor, multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[TimedBelief]):
@@ -108,6 +108,6 @@ def test_query_belief_history(ex_post_time_slot_sensor: Sensor, multiple_day_ahe
 
 
 def test_query_rolling_horizon(time_slot_sensor: Sensor, rolling_day_ahead_beliefs_about_time_slot_events):
-    belief_df = TimedBelief.query(sensor=time_slot_sensor, before=datetime(2050, 1, 1, 15, tzinfo=utc)).rolling_horizon(belief_horizon=timedelta(days=2))
+    belief_df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc)).rolling_horizon(belief_horizon=timedelta(days=2))
     assert len(belief_df) == 6
     assert (belief_df["event_value"].values == arange(10, 16)).all()
