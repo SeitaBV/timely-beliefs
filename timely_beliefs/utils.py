@@ -5,7 +5,7 @@ from inspect import getmembers, isfunction
 from pytz import timezone, utc
 from isodate import duration_isoformat, time_isoformat, parse_duration, parse_datetime
 from isodate.isoerror import ISO8601Error
-from pandas import Timestamp
+from pandas import DataFrame, DatetimeIndex, Index, Timestamp
 
 from timely_beliefs.func_store import knowledge_horizons
 
@@ -84,3 +84,42 @@ def enforce_utc(dt: datetime) -> Timestamp:
     if dt.tzinfo is None:
         raise Exception("Cannot initialize belief with timezone-naive datetime. Please localize your datetime.")
     return Timestamp(dt.astimezone(utc))
+
+
+def select_most_recent_belief(df: DataFrame) -> DataFrame:
+
+    # Remember original index levels
+    indices = df.index.names
+
+    # Convert index levels to columns
+    df = df.reset_index()
+
+    # Drop all but most recent belief
+    df = df.sort_values(by=["belief_horizon"], ascending=True).drop_duplicates(subset=["event_start"], keep="first").sort_values(by=["event_start"])
+
+    # Convert columns to index levels (only columns that represent index levels)
+    return df.set_index(indices)
+
+
+def replace_multi_index_level(df: DataFrame, level: str, index: Index) -> DataFrame:
+
+    # Remember original index levels and the new index
+    indices = []
+    for i in df.index.names:
+        if i == level:
+            indices.append(index.name)
+        else:
+            indices.append(i)
+
+    # Convert index levels to columns
+    df = df.reset_index()
+
+    # Replace desired index level (as a column)
+    if isinstance(index, DatetimeIndex):
+        df[level] = index.to_series(keep_tz=True, name="").reset_index()[index.name]
+    else:
+        df[level] = index.to_series(name="").reset_index()[index.name]
+    df = df.rename({level: index.name}, axis="columns")
+
+    # Convert columns to index levels (only columns that represent index levels)
+    return df.set_index(indices)

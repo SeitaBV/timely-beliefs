@@ -3,7 +3,7 @@ from typing import List
 from datetime import datetime, timedelta
 
 from pytz import utc
-from numpy import arange
+from numpy import arange, append
 from pandas import Timestamp
 
 from timely_beliefs import BeliefSource, Sensor, TimedBelief
@@ -51,14 +51,27 @@ def rolling_day_ahead_beliefs_about_time_slot_events(
     time_slot_sensor: Sensor, test_source: BeliefSource
 ):
     """Define multiple day-ahead beliefs about an ex post time slot event."""
-    n = 10
+    n = 10  # number of events
     beliefs = []
     for i in range(n):
+
+        # Older belief
         belief = TimedBelief(
             source=test_source,
             sensor=time_slot_sensor,
             value=10+i,
             belief_time=datetime(2050, 1, 1, 10, tzinfo=utc) + timedelta(hours=i),
+            event_start=datetime(2050, 1, 3, 10, tzinfo=utc) + timedelta(hours=i),
+        )
+        session.add(belief)
+        beliefs.append(belief)
+
+        # More recent belief
+        belief = TimedBelief(
+            source=test_source,
+            sensor=time_slot_sensor,
+            value=100 + i,
+            belief_time=datetime(2050, 1, 1, 10, tzinfo=utc) + timedelta(hours=i-1),
             event_start=datetime(2050, 1, 3, 10, tzinfo=utc) + timedelta(hours=i),
         )
         session.add(belief)
@@ -106,5 +119,5 @@ def test_query_belief_history(ex_post_time_slot_sensor: Sensor, multiple_day_ahe
 
 def test_query_rolling_horizon(time_slot_sensor: Sensor, rolling_day_ahead_beliefs_about_time_slot_events):
     belief_df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc)).rolling_horizon(belief_horizon=timedelta(days=2))
-    assert len(belief_df) == 6
-    assert (belief_df["event_value"].values == arange(10, 16)).all()
+    assert len(belief_df) == 7
+    assert (belief_df["event_value"].values == append(arange(10, 16), 106)).all()
