@@ -10,7 +10,9 @@ from sqlalchemy.orm import relationship, backref
 from base import Base, session
 from timely_beliefs import Sensor
 from timely_beliefs import BeliefSource
-from timely_beliefs.utils import eval_verified_knowledge_horizon_fnc, enforce_utc, replace_multi_index_level, select_most_recent_belief
+from timely_beliefs.utils import enforce_utc
+from timely_beliefs.sensors import utils as sensor_utils
+from timely_beliefs.beliefs import utils as belief_utils
 
 
 class TimedBelief(Base):
@@ -120,7 +122,7 @@ class TimedBelief(Base):
         ).filter(Sensor.id == sensor.id).one_or_none()
 
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
-        knowledge_horizon_min, knowledge_horizon_max = eval_verified_knowledge_horizon_fnc(
+        knowledge_horizon_min, knowledge_horizon_max = sensor_utils.eval_verified_knowledge_horizon_fnc(
             knowledge_horizon_fnc,
             knowledge_horizon_par,
             None
@@ -175,11 +177,11 @@ class BeliefsDataFrame(DataFrame):
 
     @property
     def convert_index_from_belief_time_to_horizon(self) -> "BeliefsDataFrame":
-        return replace_multi_index_level(self, "belief_time", self.belief_horizons)
+        return belief_utils.replace_multi_index_level(self, "belief_time", self.belief_horizons)
 
     @property
     def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
-        return replace_multi_index_level(self, "event_start", self.event_ends)
+        return belief_utils.replace_multi_index_level(self, "event_start", self.event_ends)
 
     @property
     def knowledge_times(self) -> DatetimeIndex:
@@ -212,7 +214,7 @@ class BeliefsDataFrame(DataFrame):
     @hybrid_method
     def rolling_horizon(self, belief_horizon: timedelta) -> "BeliefsDataFrame":
         df = self.convert_index_from_belief_time_to_horizon
-        df = select_most_recent_belief(df)
+        df = belief_utils.select_most_recent_belief(df)
         return df[df.index.get_level_values("belief_horizon") >= belief_horizon]
 
     def __init__(self, *args, **kwargs):

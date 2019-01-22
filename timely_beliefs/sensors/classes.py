@@ -6,8 +6,9 @@ from sqlalchemy import Column, Integer, Interval, JSON, String
 from sqlalchemy.ext.hybrid import hybrid_method
 
 from base import Base
-from timely_beliefs.func_store.knowledge_horizons import constant_timedelta
-from timely_beliefs.utils import eval_verified_knowledge_horizon_fnc, jsonify_time_dict, enforce_utc
+from timely_beliefs.utils import enforce_utc
+from timely_beliefs.sensors.func_store.knowledge_horizons import constant_timedelta
+from timely_beliefs.sensors.utils import jsonify_time_dict, eval_verified_knowledge_horizon_fnc
 
 
 class Sensor(Base):
