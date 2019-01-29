@@ -1,4 +1,4 @@
-from typing import Any, Callable, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
 from isodate import duration_isoformat
@@ -12,7 +12,11 @@ from timely_beliefs.sensors.utils import jsonify_time_dict, eval_verified_knowle
 
 
 class Sensor(Base):
-    """Mixin class for a table with sensors of physical or economical events, e.g. a thermometer or price index."""
+    """Mixin class for a table with sensors of physical or economical events, e.g. a thermometer or price index.
+
+    Todo: describe init parameters
+    Todo: describe default sensor
+    """
 
     __tablename__ = "sensor"
 
@@ -27,10 +31,10 @@ class Sensor(Base):
         self,
         unit: str = "",
         timezone: str = "UTC",
-        event_resolution: timedelta = None,
-        knowledge_horizon: Union[
+        event_resolution: Optional[timedelta] = None,
+        knowledge_horizon: Optional[Union[
             timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]
-        ] = None,
+        ]] = None,
     ):
         self.unit = unit
         self.timezone = timezone

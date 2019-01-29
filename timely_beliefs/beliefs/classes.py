@@ -209,12 +209,16 @@ class BeliefsDataFrame(DataFrame):
 
     @hybrid_method
     def belief_history(self, event_start) -> "BeliefsDataFrame":
+        """Select all beliefs about a single event, identified by the event's start time."""
         return self.xs(event_start, level="event_start")
 
     @hybrid_method
     def rolling_horizon(self, belief_horizon: timedelta) -> "BeliefsDataFrame":
-        df = self.convert_index_from_belief_time_to_horizon
-        df = belief_utils.select_most_recent_belief(df)
+        """Select the most recent belief about each event,
+        at least some duration in advance of knowledge time (pass a positive belief_horizon),
+        or at most some duration after knowledge time (pass a negative belief_horizon)."""
+        df = belief_utils.select_most_recent_belief(self)
+        df = df.convert_index_from_belief_time_to_horizon
         return df[df.index.get_level_values("belief_horizon") >= belief_horizon]
 
     def __init__(self, *args, **kwargs):

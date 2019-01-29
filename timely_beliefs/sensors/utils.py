@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from inspect import getmembers, isfunction
-from typing import Union, Callable, Optional
+from typing import Union, Optional
 
 from isodate import time_isoformat, duration_isoformat, parse_duration, ISO8601Error, parse_datetime
 from pytz import timezone
@@ -64,11 +64,11 @@ def func_store_list() -> dict:
     return functions_dict
 
 
-def eval_verified_knowledge_horizon_fnc(fnc: Callable, par: dict, event_start: Optional[datetime]):
-    for k, v in func_store_list().items():
-        if k == fnc:
-            return v(event_start, **(unjsonify_time_dict(par)))
+def eval_verified_knowledge_horizon_fnc(requested_fnc_name: str, par: dict, event_start: Optional[datetime]):
+    for verified_fnc_name, verified_fnc in func_store_list().items():
+        if verified_fnc_name == requested_fnc_name:
+            return verified_fnc(event_start, **(unjsonify_time_dict(par)))
     raise Exception(
         "knowledge_horizon_fnc %s cannot be executed safely. Please register the function in the func_store."
-        % fnc
+        % requested_fnc_name
     )
