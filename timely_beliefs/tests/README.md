@@ -52,7 +52,7 @@ Proceed to create a database as the postgres superuser (using your postgres user
 
 Or, from within Postgres console:
 
-    CREATE USER tbtest WITH UNENCRYPTED PASSWORD 'whatever';
+    CREATE USER tbtest WITH UNENCRYPTED PASSWORD 'tbtest';
     CREATE DATABASE tbtest WITH OWNER = tbtest;
 
 Try logging in as the postgres superuser:
