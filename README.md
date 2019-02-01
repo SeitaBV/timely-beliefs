@@ -1,5 +1,7 @@
 # Timely beliefs
 
+[![Build Status](https://travis-ci.com/SeitaBV/timely-beliefs.svg?branch=master)](https://travis-ci.com/SeitaBV/timely-beliefs)
+
 *Model data as beliefs (at a certain time) about events (at a certain time).*
 
 The `timely-beliefs` package provides a convenient data model for numerical time series,
