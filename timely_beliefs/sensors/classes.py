@@ -1,4 +1,4 @@
-from typing import Any, Callable, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
 from isodate import duration_isoformat
@@ -6,12 +6,17 @@ from sqlalchemy import Column, Integer, Interval, JSON, String
 from sqlalchemy.ext.hybrid import hybrid_method
 
 from base import Base
-from timely_beliefs.func_store.knowledge_horizons import constant_timedelta
-from timely_beliefs.utils import eval_verified_knowledge_horizon_fnc, jsonify_time_dict, enforce_utc
+from timely_beliefs.utils import enforce_utc
+from timely_beliefs.sensors.func_store.knowledge_horizons import constant_timedelta
+from timely_beliefs.sensors.utils import jsonify_time_dict, eval_verified_knowledge_horizon_fnc
 
 
 class Sensor(Base):
-    """Mixin class for a table with sensors of physical or economical events, e.g. a thermometer or price index."""
+    """Mixin class for a table with sensors of physical or economical events, e.g. a thermometer or price index.
+
+    Todo: describe init parameters
+    Todo: describe default sensor
+    """
 
     __tablename__ = "sensor"
 
@@ -26,10 +31,10 @@ class Sensor(Base):
         self,
         unit: str = "",
         timezone: str = "UTC",
-        event_resolution: timedelta = None,
-        knowledge_horizon: Union[
+        event_resolution: Optional[timedelta] = None,
+        knowledge_horizon: Optional[Union[
             timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]
-        ] = None,
+        ]] = None,
     ):
         self.unit = unit
         self.timezone = timezone

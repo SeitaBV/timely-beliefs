@@ -1,7 +1,7 @@
 from typing import List
 from datetime import datetime, timedelta
 
-from pandas import DataFrame, MultiIndex
+from pandas import DataFrame, DatetimeIndex, MultiIndex, TimedeltaIndex
 from sqlalchemy import Column, DateTime, Integer, Interval, Float, ForeignKey
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
@@ -10,7 +10,9 @@ from sqlalchemy.orm import relationship, backref
 from base import Base, session
 from timely_beliefs import Sensor
 from timely_beliefs import BeliefSource
-from timely_beliefs.utils import eval_verified_knowledge_horizon_fnc, enforce_utc
+from timely_beliefs.utils import enforce_utc
+from timely_beliefs.sensors import utils as sensor_utils
+from timely_beliefs.beliefs import utils as belief_utils
 
 
 class TimedBelief(Base):
@@ -94,7 +96,7 @@ class TimedBelief(Base):
             event_not_before: datetime = None,
             belief_before: datetime = None,
             belief_not_before: datetime = None
-    ) -> DataFrame:
+    ) -> "BeliefsDataFrame":
         """Query beliefs about sensor events.
         :param sensor: sensor to which the beliefs pertain
         :param event_before: only return beliefs about events that end before this datetime (inclusive)
@@ -120,7 +122,7 @@ class TimedBelief(Base):
         ).filter(Sensor.id == sensor.id).one_or_none()
 
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
-        knowledge_horizon_min, knowledge_horizon_max = eval_verified_knowledge_horizon_fnc(
+        knowledge_horizon_min, knowledge_horizon_max = sensor_utils.eval_verified_knowledge_horizon_fnc(
             knowledge_horizon_fnc,
             knowledge_horizon_par,
             None
@@ -174,27 +176,49 @@ class BeliefsDataFrame(DataFrame):
         return BeliefsDataFrame
 
     @property
-    def convert_index_from_belief_time_to_horizon(self):
-        belief_times = self.index.get_level_values("belief_time")
-        from_belief_time_to_horizon = {
-            i: j for i in belief_times for j in self.knowledge_times - belief_times
-        }
-        df = self.rename(from_belief_time_to_horizon, axis="index")
-        df.index.rename("belief_horizon", level="belief_time", inplace=True)
-        return df
+    def convert_index_from_belief_time_to_horizon(self) -> "BeliefsDataFrame":
+        return belief_utils.replace_multi_index_level(self, "belief_time", self.belief_horizons)
 
     @property
-    def knowledge_times(self):
-        event_starts = self.index.get_level_values("event_start").to_series(keep_tz=True)
-        return event_starts.apply(lambda event_start: self.sensor.knowledge_time(event_start))
+    def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
+        return belief_utils.replace_multi_index_level(self, "event_start", self.event_ends)
+
+    @property
+    def knowledge_times(self) -> DatetimeIndex:
+        return DatetimeIndex(self.event_starts.to_series(keep_tz=True, name="knowledge_time").apply(lambda event_start: self.sensor.knowledge_time(event_start)))
+
+    @property
+    def knowledge_horizons(self) -> TimedeltaIndex:
+        return TimedeltaIndex(self.event_starts.to_series(keep_tz=True, name="knowledge_horizon").apply(lambda event_start : self.sensor.knowledge_horizon(event_start)))
+
+    @property
+    def belief_times(self) -> DatetimeIndex:
+        return self.index.get_level_values("belief_time")
+
+    @property
+    def belief_horizons(self) -> TimedeltaIndex:
+        return (self.knowledge_times - self.belief_times).rename("belief_horizon")
+
+    @property
+    def event_starts(self) -> DatetimeIndex:
+        return self.index.get_level_values("event_start")
+
+    @property
+    def event_ends(self) -> DatetimeIndex:
+        return DatetimeIndex(self.event_starts.to_series(keep_tz=True, name="event_end").apply(lambda event_start: event_start + self.sensor.event_resolution))
 
     @hybrid_method
-    def belief_history(self, event_start):
+    def belief_history(self, event_start) -> "BeliefsDataFrame":
+        """Select all beliefs about a single event, identified by the event's start time."""
         return self.xs(event_start, level="event_start")
 
     @hybrid_method
-    def rolling_horizon(self, belief_horizon):
-        df = self.convert_index_from_belief_time_to_horizon
+    def rolling_horizon(self, belief_horizon: timedelta) -> "BeliefsDataFrame":
+        """Select the most recent belief about each event,
+        at least some duration in advance of knowledge time (pass a positive belief_horizon),
+        or at most some duration after knowledge time (pass a negative belief_horizon)."""
+        df = belief_utils.select_most_recent_belief(self)
+        df = df.convert_index_from_belief_time_to_horizon
         return df[df.index.get_level_values("belief_horizon") >= belief_horizon]
 
     def __init__(self, *args, **kwargs):

@@ -4,7 +4,7 @@ i.e. a duration window in which the knowledge horizon must lie (e.g. between 0 a
 from typing import Optional, Tuple, Union
 from datetime import datetime, timedelta
 
-from timely_beliefs.utils import datetime_x_days_ago_at_y_oclock
+from timely_beliefs.sensors.utils import datetime_x_days_ago_at_y_oclock
 
 
 def constant_timedelta(
