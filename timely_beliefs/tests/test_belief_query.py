@@ -126,6 +126,7 @@ def test_query_rolling_horizon(time_slot_sensor: Sensor, rolling_day_ahead_belie
     assert (belief_df["event_value"].values == append(arange(10, 16), 106)).all()
 
 
+@pytest.mark.skip
 def test_downsample(time_slot_sensor) :
     """Downsample from 15 minutes to 2 hours."""
     new_resolution = timedelta(hours=2)
