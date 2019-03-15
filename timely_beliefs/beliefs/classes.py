@@ -170,7 +170,7 @@ class DBTimedBelief(Base, TimedBelief):
 
         # Actually filter by belief time
         if belief_before is not None:
-            df = df[df.index.get_level_values("belief_time") <= belief_before]
+            df = df[df.index.get_level_values("belief_time") < belief_before]
         if belief_not_before is not None:
             df = df[df.index.get_level_values("belief_time") >= belief_not_before]
 
@@ -232,19 +232,19 @@ class BeliefsDataFrame(pd.DataFrame):
         # Set the Sensor metadata (including timing properties of the sensor)
         self.sensor = sensor
 
-    @staticmethod
-    def from_time_series(
-        series: pd.Series, sensor: Sensor, source: BeliefSource, horizon: timedelta
-    ) -> "BeliefsDataFrame":
-        """Turn series entries into a TimedBeliefsDataFrame"""
+    def add_from_time_series(self,
+        series: pd.Series, source: BeliefSource, horizon: timedelta
+    ):
+        """Add beliefs from time series entries into this TimedBeliefsDataFrame.
+        Append makes no sense with this class atm."""
         beliefs = []
         for time, value in series.iteritems():
             beliefs.append(
                 TimedBelief(
-                    sensor=sensor, source=source, value=value, event_time=time, belief_horizon=horizon
+                    sensor=self.sensor, source=source, value=value, event_time=time, belief_horizon=horizon
                 )
             )
-        return BeliefsDataFrame(sensor=sensor, beliefs=beliefs)
+        self.append(BeliefsDataFrame(sensor=self.sensor, beliefs=beliefs))
 
     @property
     def convert_index_from_belief_time_to_horizon(self) -> "BeliefsDataFrame":
@@ -304,8 +304,7 @@ class BeliefsDataFrame(pd.DataFrame):
         """Select the most recent belief about each event,
         at least some duration in advance of knowledge time (pass a positive belief_horizon),
         or at most some duration after knowledge time (pass a negative belief_horizon)."""
-        df = belief_utils.select_most_recent_belief(self)
-        df = df.convert_index_from_belief_time_to_horizon
+        df = self.convert_index_from_belief_time_to_horizon
         return df[df.index.get_level_values("belief_horizon") >= belief_horizon]
 
 

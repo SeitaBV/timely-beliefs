@@ -51,11 +51,10 @@ def rolling_day_ahead_beliefs_about_time_slot_events(
     time_slot_sensor: DBSensor, test_source: DBBeliefSource
 ):
     """Define multiple day-ahead beliefs about an ex post time slot event."""
-    n = 10  # number of events
     beliefs = []
-    for i in range(n):
+    for i in range(1, 11):  # ten events
 
-        # Older belief
+        # Recent belief
         belief = DBTimedBelief(
             source=test_source,
             sensor=time_slot_sensor,
@@ -66,7 +65,7 @@ def rolling_day_ahead_beliefs_about_time_slot_events(
         session.add(belief)
         beliefs.append(belief)
 
-        # More recent belief
+        # Slightly older beliefs (belief_time an hour earlier)
         belief = DBTimedBelief(
             source=test_source,
             sensor=time_slot_sensor,
@@ -77,10 +76,6 @@ def rolling_day_ahead_beliefs_about_time_slot_events(
         session.add(belief)
         beliefs.append(belief)
     return beliefs
-
-
-#def test_persist_belief():
-#    assert session.query(DBTimedBelief).first()
 
 
 def test_query_belief_by_belief_time(ex_post_time_slot_sensor: DBSensor, day_ahead_belief_about_ex_post_time_slot_event: DBTimedBelief):
@@ -118,6 +113,10 @@ def test_query_belief_history(ex_post_time_slot_sensor: DBSensor, multiple_day_a
 
 
 def test_query_rolling_horizon(time_slot_sensor: DBSensor, rolling_day_ahead_beliefs_about_time_slot_events):
-    belief_df = DBTimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc)).rolling_horizon(belief_horizon=timedelta(days=2))
-    assert len(belief_df) == 7
-    assert (belief_df["event_value"].values == append(arange(10, 16), 106)).all()
+    belief_df = DBTimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc))
+    rolling_df = belief_df.rolling_horizon(belief_horizon=timedelta(hours=49))
+    assert len(rolling_df) == 5  # 5 older (10,11,12,13,14 o'clock)
+    assert (rolling_df["event_value"].values == arange(101, 106)).all()
+    rolling_df = belief_df.rolling_horizon(belief_horizon=timedelta(hours=48))
+    assert len(rolling_df) == 9  # 4 early (11,12,13,14 o'clock), 5 late (10,11,12,13,14 o'clock)
+    assert (rolling_df["event_value"].values == [11, 101, 12, 102, 13, 103, 14, 104, 105]).all()

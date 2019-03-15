@@ -6,10 +6,10 @@ setup(
     author="Seita BV",
     author_email="felix@seita.nl",
     keywords=["time series", "uncertainty", "lineage"],
-    version="0.0.1",
+    version="0.0.2",
     install_requires=[
         "pytz",
-        "pandas",
+        "pandas>=0.23",
         "numpy",
         "SQLAlchemy",
         "psycopg2-binary",
