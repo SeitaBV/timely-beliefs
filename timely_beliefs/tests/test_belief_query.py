@@ -12,11 +12,11 @@ from base import session
 
 @pytest.fixture(scope="function")
 def day_ahead_belief_about_ex_post_time_slot_event(
-    ex_post_time_slot_sensor: Sensor, test_source: BeliefSource
+    ex_post_time_slot_sensor: Sensor, test_source_a
 ):
     """Define day-ahead belief about an ex post time slot event."""
     belief = TimedBelief(
-        source=test_source,
+        source=test_source_a,
         sensor=ex_post_time_slot_sensor,
         value=10,
         belief_time=datetime(2018, 1, 1, 10, tzinfo=utc),
@@ -28,14 +28,14 @@ def day_ahead_belief_about_ex_post_time_slot_event(
 
 @pytest.fixture(scope="function")
 def multiple_day_ahead_beliefs_about_ex_post_time_slot_event(
-    ex_post_time_slot_sensor: Sensor, test_source: BeliefSource
+    ex_post_time_slot_sensor: Sensor, test_source_a
 ):
     """Define multiple day-ahead beliefs about an ex post time slot event."""
     n = 10
     beliefs = []
     for i in range(n):
         belief = TimedBelief(
-            source=test_source,
+            source=test_source_a,
             sensor=ex_post_time_slot_sensor,
             value=10+i,
             belief_time=datetime(2025, 1, 1, 10, tzinfo=utc) - timedelta(hours=i),
@@ -46,18 +46,21 @@ def multiple_day_ahead_beliefs_about_ex_post_time_slot_event(
     return beliefs
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module", params=[1, 2])
 def rolling_day_ahead_beliefs_about_time_slot_events(
-    time_slot_sensor: Sensor, test_source: BeliefSource
+    request, time_slot_sensor: Sensor
 ):
     """Define multiple day-ahead beliefs about an ex post time slot event."""
     n = 10  # number of events
+
+    source = session.query(BeliefSource).filter(BeliefSource.id == request.param).one_or_none()
+
     beliefs = []
     for i in range(n):
 
         # Older belief
         belief = TimedBelief(
-            source=test_source,
+            source=source,
             sensor=time_slot_sensor,
             value=10+i,
             belief_time=datetime(2050, 1, 1, 10, tzinfo=utc) + timedelta(hours=i),
@@ -68,7 +71,7 @@ def rolling_day_ahead_beliefs_about_time_slot_events(
 
         # More recent belief
         belief = TimedBelief(
-            source=test_source,
+            source=source,
             sensor=time_slot_sensor,
             value=100 + i,
             belief_time=datetime(2050, 1, 1, 10, tzinfo=utc) + timedelta(hours=i-1),
@@ -121,3 +124,21 @@ def test_query_rolling_horizon(time_slot_sensor: Sensor, rolling_day_ahead_belie
     belief_df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc)).rolling_horizon(belief_horizon=timedelta(days=2))
     assert len(belief_df) == 7
     assert (belief_df["event_value"].values == append(arange(10, 16), 106)).all()
+
+
+def test_downsample(time_slot_sensor) :
+    """Downsample from 15 minutes to 2 hours."""
+    new_resolution = timedelta(hours=2)
+    belief_df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2100, 1, 1, 13, tzinfo=utc))
+    belief_df = belief_df.resample_events(new_resolution)
+    assert belief_df.sensor.event_resolution == timedelta(minutes=15)
+    assert belief_df.event_resolution == new_resolution
+
+
+def test_upsample(time_slot_sensor):
+    """Upsample from 15 minutes to 5 minutes."""
+    new_resolution = timedelta(minutes=5)
+    belief_df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2100, 1, 1, 13, tzinfo=utc))
+    belief_df = belief_df.resample_events(new_resolution)
+    assert belief_df.sensor.event_resolution == timedelta(minutes=15)
+    assert belief_df.event_resolution == new_resolution

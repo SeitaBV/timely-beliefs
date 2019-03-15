@@ -45,7 +45,7 @@ A weather forecast is a good example, where:
 
     belief_time < event_end
 
-For physical events, the time at which we can say the event could be known is at the `event_end`.
+For physical events, the time at which we can say the event could be known (which we call `knowledge_time`) is at the `event_end`.
 
     knowledge_time = event_end
 
@@ -53,7 +53,7 @@ The forecast horizon, or `belief_horizon`, says how long before (the event could
 
     belief_horizon = knowledge_time - belief_time
 
-For example, a forecast of solar irradiation on June 10th 2017 with a horizon of 27 hours means a belief_time of 9 PM on June 9th 2017.
+For example, a forecast of solar irradiation on June 10th 2017 with a horizon of 27 hours means a belief time of 9 PM on June 9th 2017.
 That is:
 
     event_start = datetime(2017, 6, 10, hour=0)

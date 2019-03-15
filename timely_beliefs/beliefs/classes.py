@@ -1,7 +1,9 @@
 from typing import List
 from datetime import datetime, timedelta
 
-from pandas import DataFrame, DatetimeIndex, MultiIndex, TimedeltaIndex
+import pandas as pd
+from pandas import DatetimeIndex, MultiIndex, TimedeltaIndex
+from pandas.tseries.frequencies import to_offset
 from sqlalchemy import Column, DateTime, Integer, Interval, Float, ForeignKey
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
@@ -24,6 +26,7 @@ class TimedBelief(Base):
 
     event_start = Column(DateTime(timezone=True), primary_key=True)
     belief_horizon = Column(Interval(), nullable=False, primary_key=True)
+    belief_percentile = Column(Float, nullable=False, primary_key=True)
     event_value = Column(Float, nullable=False)
     sensor_id = Column(
         Integer(), ForeignKey("sensor.id", ondelete="CASCADE"), primary_key=True
@@ -41,11 +44,6 @@ class TimedBelief(Base):
             "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
     )
-
-    @property
-    def belief_percentile(self) -> float:
-        """Overwrite in ProbabilisticTimedBelief subclass."""
-        return 0.5
 
     @hybrid_property
     def event_end(self) -> datetime:
@@ -70,7 +68,12 @@ class TimedBelief(Base):
     def __init__(self, sensor: Sensor, source: BeliefSource, value: float, **kwargs):
         self.sensor = sensor
         self.source = source
+        self.source_id = source.id
         self.event_value = value
+        if "belief_percentile" in kwargs:
+            self.belief_percentile = kwargs["belief_percentile"]
+        else:
+            self.belief_percentile = 0.5
         if "event_start" in kwargs:
             self.event_start = enforce_utc(kwargs["event_start"])
         elif "event_time" in kwargs:
@@ -155,7 +158,31 @@ class TimedBelief(Base):
         return df
 
 
-class BeliefsDataFrame(DataFrame):
+class BeliefsSeries(pd.Series):
+    """Just for slicing."""
+
+    _metadata = ["sensor", "_event_resolution"]
+
+    @property
+    def _constructor(self) :
+        return BeliefsSeries
+
+    @property
+    def _constructor_expanddim(self) :
+        return BeliefsDataFrame
+
+    def __finalize__(self, other, method=None, **kwargs) :
+        """Propagate metadata from other to self."""
+        for name in self._metadata :
+            object.__setattr__(self, name, getattr(other, name, None))
+        return self
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        return
+
+
+class BeliefsDataFrame(pd.DataFrame):
     """Beliefs about a sensor.
     A BeliefsDataFrame object is a pandas.DataFrame with the following specific data columns and MultiIndex levels:
 
@@ -169,11 +196,41 @@ class BeliefsDataFrame(DataFrame):
     :param: beliefs: a list of TimedBelief objects used to initialise the BeliefsDataFrame
     """
 
-    _metadata = ["sensor"]
+    _metadata = ["sensor", "_event_resolution"]
 
     @property
     def _constructor(self):
         return BeliefsDataFrame
+
+    @property
+    def _constructor_sliced(self):
+        return BeliefsSeries
+
+    def __finalize__(self, other, method=None, **kwargs) :
+        """Propagate metadata from other to self."""
+        for name in self._metadata :
+            object.__setattr__(self, name, getattr(other, name, None))
+        return self
+
+    def copy(self, deep=True) :
+        """
+        Make a copy of this ElectricDataFrame object
+
+        Parameters
+        ----------
+        deep : boolean, default True
+            Make a deep copy, i.e. also copy data
+
+        Returns
+        -------
+        copy : ElectricDataFrame
+        """
+        # Borrowed from GeoPandas.GeoDataFrame.copy
+        # FIXME: this will likely be unnecessary in pandas >= 0.13
+        data = self._data
+        if deep:
+            data = data.copy()
+        return BeliefsDataFrame(data).__finalize__(self)
 
     @property
     def convert_index_from_belief_time_to_horizon(self) -> "BeliefsDataFrame":
@@ -182,6 +239,17 @@ class BeliefsDataFrame(DataFrame):
     @property
     def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
         return belief_utils.replace_multi_index_level(self, "event_start", self.event_ends)
+
+    @property
+    def event_resolution(self) -> timedelta:
+        """Resolution of events in the BeliefsDataFrame.
+         Note that this is not necessarily the same as the event resolution of the sensor, as the BeliefsDataFrame may
+         hold resampled data."""
+        return self._event_resolution
+
+    @event_resolution.setter
+    def event_resolution(self, res: timedelta):
+        self._event_resolution = res
 
     @property
     def knowledge_times(self) -> DatetimeIndex:
@@ -221,6 +289,22 @@ class BeliefsDataFrame(DataFrame):
         df = df.convert_index_from_belief_time_to_horizon
         return df[df.index.get_level_values("belief_horizon") >= belief_horizon]
 
+    @hybrid_method
+    def resample_events(self, event_resolution: timedelta) -> "BeliefsDataFrame":
+        """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample)."""
+
+        df = self.groupby(
+            [pd.Grouper(freq=to_offset(event_resolution).freqstr, level="event_start"), "source_id"], group_keys=False
+        ).apply(lambda x: belief_utils.beliefs_resampler(x, event_resolution, input_resolution=self.event_resolution))
+
+        # Update metadata with new resolution
+        df.event_resolution = event_resolution
+
+        # Put back lost metadata (because groupby statements still tend to lose it)
+        df.sensor = self.sensor
+
+        return df
+
     def __init__(self, *args, **kwargs):
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
 
@@ -248,3 +332,4 @@ class BeliefsDataFrame(DataFrame):
 
         # Set the Sensor metadata (including timing properties of the sensor)
         self.sensor = sensor
+        self._event_resolution = self.sensor.event_resolution
