@@ -1,7 +1,7 @@
 import pytest
 from datetime import timedelta
 
-from base import Base, engine, session
+from timely_beliefs.base import Base, engine, session
 from timely_beliefs import BeliefSource, Sensor
 from timely_beliefs.sensors.func_store.knowledge_horizons import timedelta_x_days_ago_at_y_oclock
 

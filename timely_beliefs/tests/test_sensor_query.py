@@ -1,5 +1,5 @@
 from timely_beliefs import Sensor
-from base import session
+from timely_beliefs.base import session
 
 
 def test_persist_sensor():

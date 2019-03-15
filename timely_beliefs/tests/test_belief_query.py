@@ -7,7 +7,7 @@ from numpy import arange, append
 from pandas import Timestamp
 
 from timely_beliefs import BeliefSource, Sensor, TimedBelief
-from base import session
+from timely_beliefs.base import session
 
 
 @pytest.fixture(scope="function")

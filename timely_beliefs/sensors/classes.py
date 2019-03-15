@@ -5,30 +5,29 @@ from isodate import duration_isoformat
 from sqlalchemy import Column, Integer, Interval, JSON, String
 from sqlalchemy.ext.hybrid import hybrid_method
 
-from base import Base
+from timely_beliefs.base import Base
 from timely_beliefs.utils import enforce_utc
 from timely_beliefs.sensors.func_store.knowledge_horizons import constant_timedelta
 from timely_beliefs.sensors.utils import jsonify_time_dict, eval_verified_knowledge_horizon_fnc
 
 
-class Sensor(Base):
-    """Mixin class for a table with sensors of physical or economical events, e.g. a thermometer or price index.
+class Sensor(object):
+    """Sensors of physical or economical events, e.g. a thermometer or price index.
 
     Todo: describe init parameters
     Todo: describe default sensor
     """
 
-    __tablename__ = "sensor"
-
-    id = Column(Integer, primary_key=True)
-    unit = Column(String(80), nullable=False)
-    timezone = Column(String(80), nullable=False)
-    event_resolution = Column(Interval(), nullable=False)
-    knowledge_horizon_fnc = Column(String(80), nullable=False)
-    knowledge_horizon_par = Column(JSON(), default={}, nullable=False)
+    name: str
+    unit: str
+    timezone: str
+    event_resolution: timedelta
+    knowledge_horizon_fnc: str
+    knowledge_horizon_par: dict
 
     def __init__(
         self,
+        name: str,
         unit: str = "",
         timezone: str = "UTC",
         event_resolution: Optional[timedelta] = None,
@@ -36,6 +35,7 @@ class Sensor(Base):
             timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]
         ]] = None,
     ):
+        self.name = name
         self.unit = unit
         self.timezone = timezone
         if event_resolution is None:
@@ -61,3 +61,22 @@ class Sensor(Base):
     def knowledge_time(self, event_start: datetime) -> datetime:
         event_start = enforce_utc(event_start)
         return event_start - self.knowledge_horizon(event_start)
+
+
+class DBSensor(Base, Sensor):
+    """Mixin class for a table with sensors.
+    """
+
+    __tablename__ = "sensor"
+
+    id = Column(Integer, primary_key=True)
+    unit = Column(String(80), nullable=False)
+    timezone = Column(String(80), nullable=False)
+    event_resolution = Column(Interval(), nullable=False)
+    knowledge_horizon_fnc = Column(String(80), nullable=False)
+    knowledge_horizon_par = Column(JSON(), default={}, nullable=False)
+
+    @property
+    def name(self):
+        """Overwrite if your table actually has a name column"""
+        return str(self.id)
