@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 from sqlalchemy import Column, DateTime, Integer, Interval, Float, ForeignKey
-from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import relationship, backref
 
@@ -24,24 +23,6 @@ class TimedBelief(object):
     event_value: float
     sensor: Sensor
     source: str  # TODO: needs to be an object as well?
-
-    """
-    def __init__(
-        self,
-        event_start: datetime,
-        event_value: float,
-        sensor: Sensor,
-        source: str,
-        belief_horizon: Optional[timedelta] = None,
-    ):
-        self.event_start = event_start
-        self.event_value = event_value
-        self.sensor = sensor
-        self.source = source
-        self.belief_horizon = belief_horizon
-        if self.belief_horizon is None:
-            self.belief_horizon = timedelta()
-    """
 
     def __init__(self, sensor: Sensor, source: BeliefSource, value: float, **kwargs):
         self.sensor = sensor
@@ -93,10 +74,11 @@ class TimedBelief(object):
 class DBTimedBelief(Base, TimedBelief):
     """Database representation of TimedBelief"""
 
-    @classmethod
-    @declared_attr
-    def __tablename__(cls):
-        return cls.__name__.lower()
+    __tablename__ = "timed_beliefs"
+
+    def __init__(self, sensor: Sensor, source: BeliefSource, value: float, **kwargs):
+        TimedBelief.__init__(self, sensor, source, value, **kwargs)
+        Base.__init__(self)
 
     event_start = Column(DateTime(timezone=True), primary_key=True)
     belief_horizon = Column(Interval(), nullable=False, primary_key=True)
@@ -106,13 +88,13 @@ class DBTimedBelief(Base, TimedBelief):
     )
     source_id = Column(Integer, ForeignKey("belief_source.id"), primary_key=True)
     sensor = relationship(
-        "Sensor",
+        "DBSensor",
         backref=backref(
             "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
     )
     source = relationship(
-        "BeliefSource",
+        "DBBeliefSource",
         backref=backref(
             "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
@@ -149,9 +131,9 @@ class DBTimedBelief(Base, TimedBelief):
         # Query sensor for relevant timing properties
         event_resolution, knowledge_horizon_fnc, knowledge_horizon_par = (
             session.query(
-                Sensor.event_resolution,
-                Sensor.knowledge_horizon_fnc,
-                Sensor.knowledge_horizon_par,
+                DBSensor.event_resolution,
+                DBSensor.knowledge_horizon_fnc,
+                DBSensor.knowledge_horizon_par,
             )
             .filter(DBSensor.id == sensor.id)
             .one_or_none()

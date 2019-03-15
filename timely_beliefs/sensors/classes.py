@@ -8,7 +8,10 @@ from sqlalchemy.ext.hybrid import hybrid_method
 from timely_beliefs.base import Base
 from timely_beliefs.utils import enforce_utc
 from timely_beliefs.sensors.func_store.knowledge_horizons import constant_timedelta
-from timely_beliefs.sensors.utils import jsonify_time_dict, eval_verified_knowledge_horizon_fnc
+from timely_beliefs.sensors.utils import (
+    jsonify_time_dict,
+    eval_verified_knowledge_horizon_fnc,
+)
 
 
 class Sensor(object):
@@ -27,13 +30,13 @@ class Sensor(object):
 
     def __init__(
         self,
-        name: str,
+        name: str = "",
         unit: str = "",
         timezone: str = "UTC",
         event_resolution: Optional[timedelta] = None,
-        knowledge_horizon: Optional[Union[
-            timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]
-        ]] = None,
+        knowledge_horizon: Optional[
+            Union[timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]]
+        ] = None,
     ):
         self.name = name
         self.unit = unit
@@ -46,7 +49,9 @@ class Sensor(object):
         if isinstance(knowledge_horizon, timedelta):
             self.knowledge_horizon_fnc = constant_timedelta.__name__
             self.knowledge_horizon_par = {
-                constant_timedelta.__code__.co_varnames[-1]: duration_isoformat(knowledge_horizon)
+                constant_timedelta.__code__.co_varnames[-1]: duration_isoformat(
+                    knowledge_horizon
+                )
             }
         if isinstance(knowledge_horizon, Tuple):
             self.knowledge_horizon_fnc = knowledge_horizon[0].__name__
@@ -55,7 +60,9 @@ class Sensor(object):
     @hybrid_method
     def knowledge_horizon(self, event_start: datetime = None) -> timedelta:
         event_start = enforce_utc(event_start)
-        return eval_verified_knowledge_horizon_fnc(self.knowledge_horizon_fnc, self.knowledge_horizon_par, event_start)
+        return eval_verified_knowledge_horizon_fnc(
+            self.knowledge_horizon_fnc, self.knowledge_horizon_par, event_start
+        )
 
     @hybrid_method
     def knowledge_time(self, event_start: datetime) -> datetime:
@@ -70,13 +77,22 @@ class DBSensor(Base, Sensor):
     __tablename__ = "sensor"
 
     id = Column(Integer, primary_key=True)
-    unit = Column(String(80), nullable=False)
-    timezone = Column(String(80), nullable=False)
-    event_resolution = Column(Interval(), nullable=False)
+    name = Column(String(120), nullable=False, default="")
+    unit = Column(String(80), nullable=False, default="")
+    timezone = Column(String(80), nullable=False, default="UTC")
+    event_resolution = Column(Interval(), nullable=False, default=timedelta(hours=0))
     knowledge_horizon_fnc = Column(String(80), nullable=False)
     knowledge_horizon_par = Column(JSON(), default={}, nullable=False)
 
-    @property
-    def name(self):
-        """Overwrite if your table actually has a name column"""
-        return str(self.id)
+    def __init__(
+        self,
+        name: str = "",
+        unit: str = "",
+        timezone: str = "UTC",
+        event_resolution: Optional[timedelta] = None,
+        knowledge_horizon: Optional[
+            Union[timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]]
+        ] = None,
+    ):
+        Sensor.__init__(self, name, unit, timezone, event_resolution, knowledge_horizon)
+        Base.__init__(self)

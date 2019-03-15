@@ -12,7 +12,7 @@ setup(
         "pandas",
         "numpy",
         "SQLAlchemy",
-        "psycopg2",
+        "psycopg2-binary",
         "isodate",
     ],
     setup_requires=["pytest-runner"],
