@@ -3,7 +3,7 @@ from typing import List
 from datetime import datetime, timedelta
 
 from pytz import utc
-from numpy import arange, append
+from numpy import arange
 import pandas as pd
 
 from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
