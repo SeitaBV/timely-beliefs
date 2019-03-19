@@ -19,7 +19,7 @@ def multivariate_test_cdfs() -> Tuple[np.ndarray, np.ndarray]:
     # Todo: note max number of timeslots is dim = 32 because of numpy array limitations
     # Todo: test unequal number of outcomes for the variables
 
-    dim = 4
+    dim = 3
     n_outcomes = 2
     min_v = 10  # Lowest possible outcome
     max_v = 100  # Highest possible outcome
