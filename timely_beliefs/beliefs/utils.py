@@ -251,6 +251,7 @@ def multivariate_marginal_to_univariate_joint_cdf(
     copula: ot.CopulaImplementation = None,
     agg_function: Callable[[np.ndarray], np.ndarray] = None,
     simplify: bool = True,
+    n_draws: int = 100,
 ) -> Tuple[np.array, np.array]:
     """Calculate univariate joint CDF given a list of multivariate marginal CDFs and a copula,
     returning both the cumulative probabilities and the aggregated outcome of the random variables.
@@ -269,14 +270,15 @@ def multivariate_marginal_to_univariate_joint_cdf(
     :param: copula: The default copula is the independence copula (i.e. we assume independent random variables).
     :param: agg_function: The default aggregation function is to take the sum of the outcomes of the random variables.
     :param: simplify: Simplify the resulting cdf by removing possible outcomes with zero probability (True by default)
+    :param: n_draws: Number of draws (sample size) to compute the empirical CDF when aggregating >3 random variables.
     """
 
     # Set up marginal cdf values
-    num_values = len(marginal_cdfs_p[0])
+    n_outcomes = len(marginal_cdfs_p[0])
     dim = len(marginal_cdfs_p)
     shared_bins = True
     if marginal_cdfs_v is None:
-        values = np.linspace(a, b, num_values)
+        values = np.linspace(a, b, n_outcomes)
     elif isinstance(marginal_cdfs_v[0], (list, np.ndarray)):
         shared_bins = False
         values = marginal_cdfs_v
@@ -315,21 +317,28 @@ def multivariate_marginal_to_univariate_joint_cdf(
     # Todo: If too slow, it may be possible to check specific points only, given the aggregation policy for event values
     if shared_bins is True:
         matrix = list(product(values, repeat=dim))
-        shape = (num_values,) * dim
+        shape = (n_outcomes,) * dim
     else:
         matrix = list(product(*marginal_cdfs_v))
         shape = [len(m) for m in marginal_cdfs_v]
 
-    # Evaluate probabilities at each point
-    joint_multivariate_cdf = np.reshape(d.computeCDF(matrix), shape)
-    joint_multivariate_pdf = joint_cdf_to_pdf(joint_multivariate_cdf)
+    # Evaluate exact probabilities at each point only for small bivariate and tri-variate joint distributions
+    if dim <= 3:
+        joint_multivariate_cdf = np.reshape(d.computeCDF(matrix), shape)
+        joint_multivariate_pdf = joint_cdf_to_pdf(joint_multivariate_cdf)
 
-    # Sort the probabilities ascending, keeping track of the corresponding values
-    p, v = zip(*sorted(zip(joint_multivariate_pdf.flatten(), agg_function(matrix, 1))))
+        # Sort the probabilities ascending, keeping track of the corresponding values
+        p, v = zip(*sorted(zip(joint_multivariate_pdf.flatten(), agg_function(matrix, 1))))
 
-    # Calculate the total probability for each unique value (by adding probability of cases that yield the same value)
-    cdf_v = np.unique(v)
-    pdf_p = np.array([sum(np.array(p)[np.where(v == i)[0]]) for i in cdf_v])
+        # Calculate total probability of each unique value (by adding probability of cases that yield the same value)
+        cdf_v = np.unique(v)
+        pdf_p = np.array([sum(np.array(p)[np.where(v == i)[0]]) for i in cdf_v])
+    else:  # Otherwise, compute the empirical cdf for a generated sample
+        points = d.getSample(n_draws)
+        aggregated_points = agg_function(points, axis=1)
+        empirical_cdf = ot.UserDefined([[v] for v in aggregated_points])
+        pdf_p = np.array(empirical_cdf.getP())
+        cdf_v = np.array(empirical_cdf.getX()).flatten()
 
     # Simplify resulting pdf
     if simplify is True:

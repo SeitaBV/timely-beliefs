@@ -32,7 +32,7 @@ def df_4323(time_slot_sensor: Sensor, test_source_a: BeliefSource, test_source_b
         for b in range(3)  # 3 beliefs
         for e in range(4)  # 4 events
     ]
-    return BeliefsDataFrame(sensor=time_slot_sensor, beliefs=beliefs)
+    return BeliefsDataFrame(sensor=time_slot_sensor, beliefs=beliefs).sortlevel()
 
 
 def test_replace_index_level_with_intersect(df_4323):

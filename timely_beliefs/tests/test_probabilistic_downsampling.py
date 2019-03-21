@@ -154,3 +154,5 @@ def test_multivariate_aggregation_with_unmatched_bins_and_dependence(multivariat
         R[0, 1] = 0.25
     cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(marginal_cdf_p, marginal_cdfs_v=marginal_cdf_v, copula=ot.NormalCopula(R))
     assert all(np.diff(cdf_v) >= 0) and all(np.diff(cdf_p) >= 0)  # Check for non-decreasing cdf
+    assert cdf_v[0] >= 10 * dim and cdf_v[-1] <= 100 * dim  # Check range of aggregated outcomes
+    assert cdf_p[0] >= 0 and (cdf_p[-1] < 1 or cdf_p[-1] == approx(1))  # Check range of cumulative probabilities
