@@ -310,20 +310,21 @@ def multivariate_marginal_to_univariate_joint_cdf(
     if agg_function is None:
         agg_function = np.sum
 
-    # Determine joint distribution
-    d = ot.ComposedDistribution(marginals, copula)
+    # Evaluate exact probabilities only for small bivariate and tri-variate joint distributions
+    if dim <= 3 and n_outcomes <= 10:
 
-    # Construct an n-dimensional matrix with all possible points (i.e. combinations of outcomes of our random variables)
-    # Todo: If too slow, it may be possible to check specific points only, given the aggregation policy for event values
-    if shared_bins is True:
-        matrix = list(product(values, repeat=dim))
-        shape = (n_outcomes,) * dim
-    else:
-        matrix = list(product(*marginal_cdfs_v))
-        shape = [len(m) for m in marginal_cdfs_v]
+        # Determine joint distribution (too slow for high dimensions)
+        d = ot.ComposedDistribution(marginals, copula)
 
-    # Evaluate exact probabilities at each point only for small bivariate and tri-variate joint distributions
-    if dim <= 3:
+        # Construct an n-dimensional matrix with all possible points (i.e. combinations of outcomes of our random variables)
+        if shared_bins is True:
+            matrix = list(product(values, repeat=dim))
+            shape = (n_outcomes,) * dim
+        else:
+            matrix = list(product(*marginal_cdfs_v))
+            shape = [len(m) for m in marginal_cdfs_v]
+
+        # Evaluate exact probabilities at each point (too slow for high dimensions)
         joint_multivariate_cdf = np.reshape(d.computeCDF(matrix), shape)
         joint_multivariate_pdf = joint_cdf_to_pdf(joint_multivariate_cdf)
 
@@ -333,9 +334,11 @@ def multivariate_marginal_to_univariate_joint_cdf(
         # Calculate total probability of each unique value (by adding probability of cases that yield the same value)
         cdf_v = np.unique(v)
         pdf_p = np.array([sum(np.array(p)[np.where(v == i)[0]]) for i in cdf_v])
-    else:  # Otherwise, compute the empirical cdf for a generated sample
-        points = d.getSample(n_draws)
-        aggregated_points = agg_function(points, axis=1)
+    else:  # Otherwise, compute the empirical cdf from a sample generated directly from the copula
+        uniform_points = np.array(copula.getSample(n_draws))  # Much faster than sampling from the joint cdf
+        aggregated_points = np.zeros(n_draws)
+        for i, point in enumerate(uniform_points):
+            aggregated_points[i] = agg_function(marginal_cdf.computeQuantile(marginal_cdf_p)[0] for marginal_cdf_p, marginal_cdf in zip(point, marginals))
         empirical_cdf = ot.UserDefined([[v] for v in aggregated_points])
         pdf_p = np.array(empirical_cdf.getP())
         cdf_v = np.array(empirical_cdf.getX()).flatten()

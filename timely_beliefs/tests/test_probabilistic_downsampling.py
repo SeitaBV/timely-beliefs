@@ -16,11 +16,10 @@ def multivariate_test_cdfs() -> Tuple[np.ndarray, np.ndarray]:
     - What depth of probabilistic accuracy can we handle? Change n_outcomes.
     """
     # Todo: speed up by serialising the work
-    # Todo: note max number of timeslots is dim = 32 because of numpy array limitations
     # Todo: test unequal number of outcomes for the variables
 
-    dim = 3
-    n_outcomes = 2
+    dim = 300
+    n_outcomes = 100
     min_v = 10  # Lowest possible outcome
     max_v = 100  # Highest possible outcome
     p_tail = 0.01  # Residual probability of outcomes higher than max_v
@@ -148,11 +147,14 @@ def test_multivariate_aggregation_with_unmatched_bins_and_dependence(multivariat
     marginal_cdf_p, marginal_cdf_v = multivariate_test_cdfs
     dim = len(marginal_cdf_p)
 
-    # Make a correlation matrix with positive correlation between the first and second variable (needs at least 2D)
+    # Make a correlation matrix with positive correlation between each pair of adjacent variables (needs at least 2D)
     R = ot.CorrelationMatrix(dim)
-    if dim > 1:
-        R[0, 1] = 0.25
+    for d in range(1, dim):
+        R[d-1, d] = 0.25
     cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(marginal_cdf_p, marginal_cdfs_v=marginal_cdf_v, copula=ot.NormalCopula(R))
     assert all(np.diff(cdf_v) >= 0) and all(np.diff(cdf_p) >= 0)  # Check for non-decreasing cdf
     assert cdf_v[0] >= 10 * dim and cdf_v[-1] <= 100 * dim  # Check range of aggregated outcomes
     assert cdf_p[0] >= 0 and (cdf_p[-1] < 1 or cdf_p[-1] == approx(1))  # Check range of cumulative probabilities
+
+    cdf_p_2, cdf_v_2 = multivariate_marginal_to_univariate_joint_cdf(marginal_cdf_p, marginal_cdfs_v=marginal_cdf_v, copula=ot.NormalCopula(R), n_draws=1000)
+    assert len(cdf_p_2) == 1000
