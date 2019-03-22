@@ -112,7 +112,7 @@ def test_query_belief_by_belief_time(ex_post_time_slot_sensor: Sensor, day_ahead
 
 
 def test_query_belief_history(ex_post_time_slot_sensor: Sensor, multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[TimedBelief]):
-    belief_df = TimedBelief.query(sensor=ex_post_time_slot_sensor).belief_history(event_start=datetime(2025, 1, 2, 22, 45, tzinfo=utc)).sortlevel(0, ascending=False)
+    belief_df = TimedBelief.query(sensor=ex_post_time_slot_sensor).belief_history(event_start=datetime(2025, 1, 2, 22, 45, tzinfo=utc)).sort_index(level="belief_time", ascending=False)
     assert len(belief_df) == 10
     assert (belief_df["event_value"].values == arange(10, 20)).all()
 

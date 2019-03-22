@@ -210,7 +210,7 @@ class BeliefsDataFrame(DataFrame):
     @hybrid_method
     def belief_history(self, event_start) -> "BeliefsDataFrame":
         """Select all beliefs about a single event, identified by the event's start time."""
-        return self.xs(event_start, level="event_start").sortlevel()
+        return self.xs(event_start, level="event_start").sort_index()
 
     @hybrid_method
     def rolling_horizon(self, belief_horizon: timedelta) -> "BeliefsDataFrame":
