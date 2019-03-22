@@ -35,6 +35,7 @@ class Sensor(Base):
         knowledge_horizon: Optional[Union[
             timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]
         ]] = None,
+        id: int = None,
     ):
         self.unit = unit
         self.timezone = timezone
@@ -51,6 +52,8 @@ class Sensor(Base):
         if isinstance(knowledge_horizon, Tuple):
             self.knowledge_horizon_fnc = knowledge_horizon[0].__name__
             self.knowledge_horizon_par = jsonify_time_dict(knowledge_horizon[1])
+        if id is not None:
+            self.id = id
 
     @hybrid_method
     def knowledge_horizon(self, event_start: datetime = None) -> timedelta:

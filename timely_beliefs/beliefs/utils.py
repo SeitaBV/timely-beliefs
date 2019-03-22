@@ -13,9 +13,9 @@ def select_most_recent_belief(df: "classes.BeliefsDataFrame") -> "classes.Belief
 
     # Drop all but most recent belief
     if "belief_horizon" in indices:
-        df = df.sort_values(by=["belief_horizon"], ascending=True).drop_duplicates(subset=["event_start"], keep="first").sort_values(by=["event_start"])
+        df = df.sort_values(by=["belief_horizon"], ascending=True).drop_duplicates(subset=["event_start", "belief_percentile"], keep="first").sort_values(by=["event_start"])
     elif "belief_time" in indices:
-        df = df.sort_values(by=["belief_time"], ascending=True).drop_duplicates(subset=["event_start"], keep="last").sort_values(by=["event_start"])
+        df = df.sort_values(by=["belief_time"], ascending=True).drop_duplicates(subset=["event_start", "belief_percentile"], keep="last").sort_values(by=["event_start"])
     else:
         raise KeyError("No belief_horizon or belief_time index level found in DataFrame.")
 

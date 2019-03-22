@@ -210,7 +210,7 @@ class BeliefsDataFrame(DataFrame):
     @hybrid_method
     def belief_history(self, event_start) -> "BeliefsDataFrame":
         """Select all beliefs about a single event, identified by the event's start time."""
-        return self.xs(event_start, level="event_start")
+        return self.xs(event_start, level="event_start").sortlevel()
 
     @hybrid_method
     def rolling_horizon(self, belief_horizon: timedelta) -> "BeliefsDataFrame":
@@ -240,6 +240,7 @@ class BeliefsDataFrame(DataFrame):
         # Call the pandas DataFrame constructor with the right input
         kwargs["columns"] = columns
         if beliefs:
+            beliefs = sorted(beliefs, key=lambda b: (b.event_start, b.belief_time, b.source_id, b.belief_percentile))
             kwargs["data"] = [[getattr(i, j) for j in columns] for i in beliefs]
             kwargs["index"] = MultiIndex.from_tuples([[getattr(i, j) for j in indices] for i in beliefs], names=indices)
         else:
