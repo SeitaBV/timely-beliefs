@@ -6,12 +6,14 @@ import pandas as pd
 
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief
 from timely_beliefs.beliefs.utils import replace_multi_index_level
+# from timely_beliefs.tests.examples import df_example
 
 
 @pytest.fixture(scope="module", autouse=True)
-def df_4323(time_slot_sensor: Sensor, test_source_a: BeliefSource, test_source_b: BeliefSource) -> BeliefsDataFrame:
+def df_4323(time_slot_sensor: Sensor, test_source_a: BeliefSource, test_source_b: BeliefSource, index_values: bool = True) -> BeliefsDataFrame:
     """Convenient BeliefsDataFrame to run tests on.
-    For a single sensor, it contains 4 events, 3 beliefs, 2 sources and 3 probabilistic values.
+    For a single sensor, it contains 4 events, for each of which 3 beliefs by 2 sources each, described by 3
+    probabilistic values.
     Note that the event resolution of the sensor is 15 minutes.
     """
 
@@ -27,12 +29,12 @@ def df_4323(time_slot_sensor: Sensor, test_source_a: BeliefSource, test_source_b
             event_start=datetime(2000, 1, 3, 9, tzinfo=utc) + timedelta(hours=e),
             belief_percentile=cps[p],
         )
-        for p in range(3)  # 3 cumulative probabilities
-        for s in range(2)  # 2 sources
-        for b in range(3)  # 3 beliefs
         for e in range(4)  # 4 events
+        for b in range(3)  # 3 beliefs
+        for s in range(2)  # 2 sources
+        for p in range(3)  # 3 cumulative probabilities
     ]
-    return BeliefsDataFrame(sensor=time_slot_sensor, beliefs=beliefs).sortlevel()
+    return BeliefsDataFrame(sensor=time_slot_sensor, beliefs=beliefs)
 
 
 def test_replace_index_level_with_intersect(df_4323):
@@ -99,3 +101,24 @@ def test_upsample_probabilistic(df_4323):
 #     assert df.event_resolution == timedelta(hours=2)
 #     print(df)
 #     assert 1 == 2
+
+
+@pytest.mark.skip
+def test_rolling_horizon_probabilistic(df_4323):
+    """Test whether probabilistic beliefs stay probabilistic when selecting a rolling horizon."""
+    df = df_4323.rolling_horizon(belief_horizon=timedelta(days=2))
+    assert len(df) == 4*3
+
+
+def test_percentages_and_accuracy_of_probabilistic_model(df_4323: BeliefsDataFrame):
+    df = df_4323
+    assert df.lineage.number_of_probabilistic_beliefs == 24
+    assert df.lineage.percentage_of_probabilistic_beliefs == 1
+    assert df.lineage.percentage_of_deterministic_beliefs == 0
+    assert df.lineage.probabilistic_accuracy == 3
+
+    # df = df_example()
+    # assert df.lineage.number_of_probabilistic_beliefs == 16
+    # assert df.lineage.percentage_of_probabilistic_beliefs == 1
+    # assert df.lineage.percentage_of_determinist16_beliefs == 0
+    # assert df.lineage.probabilistic_accuracy == (8*3 + 8*2) / 16
