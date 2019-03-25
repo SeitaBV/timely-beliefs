@@ -1,16 +1,14 @@
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Optional
 from datetime import timedelta
-from itertools import product
 
 import numpy as np
 import pandas as pd
 from pandas import Index
 from pandas.tseries.frequencies import to_offset
 from pandas.core.groupby import DataFrameGroupBy
-import openturns as ot
 
 from timely_beliefs.beliefs import classes
-from timely_beliefs.sensors.func_store.event_values import nan_mean
+from timely_beliefs.beliefs.probabilistic_utils import probabilistic_nan_mean
 
 
 def select_most_recent_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
@@ -202,15 +200,11 @@ def convolve_events(slice: "classes.BeliefsDataFrame", output_resolution: timede
     """
 
     if output_resolution > input_resolution:
-        # Todo: implement probabilistic downsampling policy assuming independent random variables
-        belief_percentiles = list(slice.index.get_level_values(level="belief_percentile"))
-        if not all(p == 0.5 or np.isnan(p) for p in belief_percentiles) :
-            raise NotImplementedError
 
         # Create new BeliefsDataFrame with downsampled event_start
         df = slice.groupby(
             [pd.Grouper(freq=to_offset(output_resolution).freqstr, level="event_start"), "belief_time", "source_id",
-             ], group_keys=False).apply(lambda x: nan_mean(x, output_resolution, input_resolution))  # Todo: allow customisation for aggregating event values
+             ], group_keys=False).apply(lambda x: probabilistic_nan_mean(x, output_resolution, input_resolution))  # Todo: allow customisation for aggregating event values
     else:
         # Create new BeliefsDataFrame with upsampled event_start
         if input_resolution % output_resolution != timedelta():
@@ -241,171 +235,3 @@ def beliefs_resampler(df: "classes.BeliefsDataFrame", output_resolution: timedel
     df = df.groupby(["belief_time"], group_keys=False).apply(lambda x: convolve_events(x, output_resolution, input_resolution))
 
     return df
-
-
-def multivariate_marginal_to_univariate_joint_cdf(
-    marginal_cdfs_p: Union[List[Union[List[float], np.ndarray]], np.ndarray],
-    marginal_cdfs_v: Union[List[Union[List[float], np.ndarray]], np.ndarray] = None,
-    a: float = 0,
-    b: float = 1,
-    copula: ot.CopulaImplementation = None,
-    agg_function: Callable[[np.ndarray], np.ndarray] = None,
-    simplify: bool = True,
-    n_draws: int = 100,
-) -> Tuple[np.array, np.array]:
-    """Calculate univariate joint CDF given a list of multivariate marginal CDFs and a copula,
-    returning both the cumulative probabilities and the aggregated outcome of the random variables.
-
-    :param: marginal_cdfs_p: Each marginal CDF is a list (or 2darray) with cumulative probabilities. The cdfs do not
-    have to go up to cp=1, as we simply evaluate possible combinations for each marginal cp given. That is, the
-    remaining probability is attributed to some higher (but unknown) outcome.
-    :param: marginal_cdfs_v: Values of possible outcomes for each random variable, i.e. the bins of the marginal CDFs.
-    If just one set of bins is given, we assume the CDFs share the same set of bins.
-    If no bins are specified (the default), we assume the CDFs share a set of equal-sized bins between a and b.
-
-    "All bins are equal, but some bins are more equal than others." (because they have a higher probability)
-
-    :param: a: The lowest outcome (0 by default, and ignored if CDF values are given explicitly)
-    :param: b: The highest outcome (1 by default, and ignored if CDF values are given explicitly)
-    :param: copula: The default copula is the independence copula (i.e. we assume independent random variables).
-    :param: agg_function: The default aggregation function is to take the sum of the outcomes of the random variables.
-    :param: simplify: Simplify the resulting cdf by removing possible outcomes with zero probability (True by default)
-    :param: n_draws: Number of draws (sample size) to compute the empirical CDF when aggregating >3 random variables.
-    """
-
-    # Set up marginal cdf values
-    n_outcomes = len(marginal_cdfs_p[0])
-    dim = len(marginal_cdfs_p)
-    shared_bins = True
-    if marginal_cdfs_v is None:
-        values = np.linspace(a, b, n_outcomes)
-    elif isinstance(marginal_cdfs_v[0], (list, np.ndarray)):
-        shared_bins = False
-        values = marginal_cdfs_v
-    else:
-        values = marginal_cdfs_v
-
-    # Set up marginal distributions
-    marginals = []
-    for i in range(dim):
-        marginal_cdf = marginal_cdfs_p[i]
-        if shared_bins is True:
-            values_for_cdf = values
-        else:
-            values_for_cdf = marginal_cdfs_v[i]
-        if marginal_cdf[-1] != 1:
-            # We can assume some higher outcome exists with cp=1
-            values_for_cdf = np.append(values_for_cdf, values_for_cdf[-1]+1)  # Add a higher outcome (+1 suffices)
-            marginal_pdf = np.clip(np.concatenate(([marginal_cdf[0]], np.diff(marginal_cdf), [1. - marginal_cdf[-1]])), 0, 1)
-            marginals.append(ot.UserDefined([[v] for v in values_for_cdf], marginal_pdf))
-        else:
-            marginal_pdf = np.clip(np.concatenate(([marginal_cdf[0]], np.diff(marginal_cdf))), 0, 1)
-            marginals.append(ot.UserDefined([[v] for v in values_for_cdf], marginal_pdf))
-
-    # If not specified, pick the independent copula as a default (i.e. assume independent random variables)
-    if copula is None:
-        copula = ot.IndependentCopula(dim)
-
-    # If not specified, pick the sum function as a default for joining values
-    if agg_function is None:
-        agg_function = np.sum
-
-    # Evaluate exact probabilities only for small bivariate and tri-variate joint distributions
-    if dim <= 3 and n_outcomes <= 10:
-
-        # Determine joint distribution (too slow for high dimensions)
-        d = ot.ComposedDistribution(marginals, copula)
-
-        # Construct an n-dimensional matrix with all possible points (i.e. combinations of outcomes of our random variables)
-        if shared_bins is True:
-            matrix = list(product(values, repeat=dim))
-            shape = (n_outcomes,) * dim
-        else:
-            matrix = list(product(*marginal_cdfs_v))
-            shape = [len(m) for m in marginal_cdfs_v]
-
-        # Evaluate exact probabilities at each point (too slow for high dimensions)
-        joint_multivariate_cdf = np.reshape(d.computeCDF(matrix), shape)
-        joint_multivariate_pdf = joint_cdf_to_pdf(joint_multivariate_cdf)
-
-        # Sort the probabilities ascending, keeping track of the corresponding values
-        p, v = zip(*sorted(zip(joint_multivariate_pdf.flatten(), agg_function(matrix, 1))))
-
-        # Calculate total probability of each unique value (by adding probability of cases that yield the same value)
-        cdf_v = np.unique(v)
-        pdf_p = np.array([sum(np.array(p)[np.where(v == i)[0]]) for i in cdf_v])
-    else:  # Otherwise, compute the empirical cdf from a sample generated directly from the copula
-        uniform_points = np.array(copula.getSample(n_draws))  # Much faster than sampling from the joint cdf
-        aggregated_points = np.zeros(n_draws)
-        for i, point in enumerate(uniform_points):
-            aggregated_points[i] = agg_function(marginal_cdf.computeQuantile(marginal_cdf_p)[0] for marginal_cdf_p, marginal_cdf in zip(point, marginals))
-        empirical_cdf = ot.UserDefined([[v] for v in aggregated_points])
-        pdf_p = np.array(empirical_cdf.getP())
-        cdf_v = np.array(empirical_cdf.getX()).flatten()
-
-    # Simplify resulting pdf
-    if simplify is True:
-        cdf_v = cdf_v[np.nonzero(pdf_p)]
-        pdf_p = pdf_p[np.nonzero(pdf_p)]
-
-    # Return the univariate joint cumulative probability function and transform to the desired range of outcome
-    cdf_p = pdf_p.cumsum()
-    # cdf_v = agg_function([a] * dim) + (b - a) * cdf_v
-
-    return cdf_p, cdf_v
-
-
-def joint_cdf_to_pdf(cdf: np.ndarray) -> np.ndarray:
-    """Recursive function to determine the joint multivariate pdf from a given joint multivariate cdf."""
-
-    if len(cdf.shape) > 1:
-        pdf = cdf.copy()
-        for i, cdf_i, in enumerate(cdf):
-            if i is not 0:
-                pdf[i] = joint_cdf_to_pdf(cdf_i) - joint_cdf_to_pdf(cdf[i-1])
-            else:
-                pdf[i] = joint_cdf_to_pdf(cdf_i)
-        return pdf
-    else:
-        return np.concatenate(([cdf[0]], np.diff(cdf)))
-
-
-def fill_zeros_with_last(arr):
-    """Forward fill, e.g. [0, 0, 1, 0, 0, 2, 0] becomes [0, 0, 1, 1, 1, 2, 2]."""
-    prev = np.arange(len(arr))
-    prev[arr == 0] = 0
-    prev = np.maximum.accumulate(prev)
-    return arr[prev]
-
-
-def bin_it(
-    binned_marginal_cdf_v: Union[List[float], np.ndarray],
-    marginal_cdf_v: Union[np.ndarray, List[float]],
-    marginal_cdf_p: Union[np.ndarray, List[float]]
-):
-    """Given outcome bins, and a marginal cdf (outcomes and probabilities), determine the binned marginal cdf."""
-    binned_marginal_cdf_p = np.zeros(len(binned_marginal_cdf_v))
-    for v, cp in zip(marginal_cdf_v, marginal_cdf_p):
-        # Find nearest rather than an exact match
-        binned_marginal_cdf_p[np.abs(binned_marginal_cdf_v - v).argmin()] = cp
-    binned_marginal_cdf_p = fill_zeros_with_last(binned_marginal_cdf_p)
-    return binned_marginal_cdf_p
-
-
-def equalize_bins(cdf_values: Union[List[List[float]], np.ndarray], cdf_probabilities: List[List[float]], equal_bin_size: bool = False):
-    """Define bins that cover all unique marginal outcomes, and compute each marginal cdf for these bins.
-    Note that the bins do not necessarily have the same bin size. If this is needed, set equal_bin_size to True."""
-    if equal_bin_size is False:
-        values = np.unique(cdf_values)  # Also flattens and sorts
-    else:
-        import Fraction
-        import functools
-        import math
-
-        values = np.array(cdf_values).flatten()
-        v_min = np.min(values)
-        v_max = np.max(values)
-        v = [Fraction(x).limit_denominator().denominator for x in values]
-        dv = 1 / functools.reduce(lambda a, b : a * b // math.gcd(a, b), v)
-        values = np.linspace(v_min, v_max, int((v_max-v_min) // dv))
-    return values, np.array([bin_it(values, cdf_v, cdf_p) for cdf_v, cdf_p in zip(cdf_values, cdf_probabilities)])

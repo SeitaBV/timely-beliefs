@@ -5,7 +5,7 @@ from typing import Tuple
 import numpy as np
 import openturns as ot
 
-from timely_beliefs.beliefs.utils import equalize_bins, multivariate_marginal_to_univariate_joint_cdf
+from timely_beliefs.beliefs.probabilistic_utils import multivariate_marginal_to_univariate_joint_cdf, equalize_bins
 from timely_beliefs.tests.utils import equal_lists
 
 
@@ -22,7 +22,7 @@ def multivariate_test_cdfs() -> Tuple[np.ndarray, np.ndarray]:
     n_outcomes = 100
     min_v = 10  # Lowest possible outcome
     max_v = 100  # Highest possible outcome
-    p_tail = 0.01  # Residual probability of outcomes higher than max_v
+    p_tail = 0.00  # Residual probability of outcomes higher than max_v
 
     marginal_cdf_v = (max_v - min_v) * np.sort(np.random.random_sample((dim, n_outcomes))) + min_v
     marginal_pdf_p = np.random.random_sample((dim, n_outcomes))

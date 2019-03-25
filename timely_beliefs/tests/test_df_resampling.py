@@ -1,4 +1,5 @@
 import pytest
+from pytest import approx
 from datetime import datetime, timedelta
 
 from pytz import utc
@@ -70,19 +71,19 @@ def test_downsample_twice_upsample_once(df_4323):
     assert df.index.get_level_values(level="event_start").nunique() == 1  # All events fall within the same day
     assert pd.Timestamp(df.index.get_level_values(level="event_start").values.tolist()[0]) == pd.Timestamp(datetime(2000, 1, 3, 9))
     assert len(df.index) == 6  # 2 sources each having 3 deterministic beliefs about 1 event
-    assert df["event_value"].values.tolist() == [1501+100*b+10*s for s in range(2) for b in range(3)]
+    assert df["event_value"].values.tolist() == [1501+100*b+10*s for b in range(3) for s in range(2)]
 
     df = df.resample_events(timedelta(days=2))
     assert df.event_resolution == timedelta(days=2)
     assert df.index.get_level_values(level="event_start").nunique() == 1  # All events fall within the same 2 days
     assert len(df.index) == 6  # 2 sources each having 3 deterministic beliefs about 1 event
-    assert df["event_value"].values.tolist() == [1501 + 100 * b + 10 * s for s in range(2) for b in range(3)]
+    assert df["event_value"].values.tolist() == [1501 + 100 * b + 10 * s for b in range(3) for s in range(2)]
 
     df = df.resample_events(timedelta(days=1))
     assert df.event_resolution == timedelta(days=1)
     assert df.index.get_level_values(level="event_start").nunique() == 2  # We have events for both days now
     assert len(df.index) == 12  # 2 sources each having 3 deterministic beliefs about 2 events
-    assert df["event_value"].values.tolist() == [1501 + 100 * b + 10 * s + 0*e for s in range(2) for b in range(3) for e in range(2)]
+    assert df["event_value"].values.tolist() == [1501 + 100 * b + 10 * s + 0*e for e in range(2) for b in range(3) for s in range(2)]
 
 
 def test_upsample_probabilistic(df_4323):
@@ -91,16 +92,33 @@ def test_upsample_probabilistic(df_4323):
     df = df.resample_events(timedelta(minutes=5))
     assert df.event_resolution == timedelta(minutes=5)
     assert df.index.get_level_values(level="event_start").nunique() == 3*4  # We have 3 events per quarterhour now
-    assert df["event_value"].values.tolist()[0:9] == [0, 0, 0, 1, 1, 1, 2, 2, 2]
+    assert df.xs(datetime(2000, 1, 1), level="belief_time").xs(1, level="source_id")["event_value"].values.tolist()[0:9] == [0, 1, 2, 0, 1, 2, 0, 1, 2]
 
 
-# def test_downsample_probabilistic(df_4323):
-#     """Test downsampling probabilistic beliefs."""
+def test_downsample_probabilistic(df_4323):
+    """Test downsampling probabilistic beliefs."""
+    df = df_4323
+    df = df.resample_events(timedelta(hours=2))
+    assert df.event_resolution == timedelta(hours=2)
+    # Half of the events are binned together, with two 3-valued probabilistic beliefs turned into one 5-valued belief
+    assert len(df) == 72/2 + 72/2*5/6
+    cdf = df.xs(datetime(2000, 1, 3, 10), level="event_start").xs(datetime(2000, 1, 1), level="belief_time").xs(1, level="source_id")
+    cdf_p = cdf.index.get_level_values(level="belief_percentile")
+    assert cdf_p[0] == approx(0.1587 ** 2)  # 1 combination yields the 1st unique possible outcome
+    assert cdf_p[1] - cdf_p[0] == approx((0.1587 * (0.5 - 0.1587)) * 2)  # 2 combinations yield the 2nd outcome
+    assert cdf_p[2] - cdf_p[1] == approx(0.1587 * (1.0 - 0.5) * 2 + (0.5 - 0.1587) ** 2)  # 3 for the 3rd
+    assert cdf_p[3] - cdf_p[2] == approx(((0.5 - 0.1587) * (1.0 - 0.5)) * 2)  # 2 for the 4th
+    assert cdf_p[4] - cdf_p[3] == approx((1.0 - 0.5) ** 2)  # 1 for the 5th
+
+
+# def test_downsample_probabilistic_with_autocorrelation(df_4323):
+#     """Test downsampling probabilistic beliefs with autocorrelation (apply a copula)."""
 #     df = df_4323
+#     df.compute_autocorrelation()
 #     df = df.resample_events(timedelta(hours=2))
 #     assert df.event_resolution == timedelta(hours=2)
-#     print(df)
-#     assert 1 == 2
+#     # Half of the events are binned together, with two 3-valued probabilistic beliefs turned into one 5-valued belief
+#     assert len(df) == 72/2 + 72/2*5/6
 
 
 @pytest.mark.skip

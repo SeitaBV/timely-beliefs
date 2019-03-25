@@ -295,7 +295,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
         df = self.groupby(
             [pd.Grouper(freq=to_offset(event_resolution).freqstr, level="event_start"), "source_id"], group_keys=False
-        ).apply(lambda x: belief_utils.beliefs_resampler(x, event_resolution, input_resolution=self.event_resolution))
+        ).apply(lambda x: belief_utils.beliefs_resampler(x, event_resolution, input_resolution=self.event_resolution)).sort_index()
 
         # Update metadata with new resolution
         df.event_resolution = event_resolution
