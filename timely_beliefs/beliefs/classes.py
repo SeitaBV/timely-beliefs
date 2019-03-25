@@ -1,5 +1,6 @@
 from typing import List
 from datetime import datetime, timedelta
+import math
 
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
@@ -17,7 +18,20 @@ from timely_beliefs.beliefs import utils as belief_utils
 
 
 class TimedBelief(Base):
-    """"""
+    """
+    The basic description of a data point as a belief, which includes the following:
+    - a sensor (what the belief is about)
+    - an event (an instant or period of time that the belief is about)
+    - a horizon (indicating when the belief was formed with respect to the event)
+    - a source (who or what formed the belief)
+    - a value (what was believed)
+    - a cumulative probability (the likelihood of the value being equal or lower than stated)*
+
+    * The default assumption is that the mean value is given (cp=0.5), but if no beliefs about possible other outcomes
+    are given, then this will be treated as a deterministic belief (cp=1). As an alternative to specifying an cumulative
+    probability explicitly, you can specify an integer number of standard deviations which is translated
+    into a cumulative probability assuming a normal distribution (e.g. sigma=-1 becomes cp=0.1587).
+    """
 
     @declared_attr
     def __tablename__(cls):
@@ -71,6 +85,10 @@ class TimedBelief(Base):
         self.event_value = value
         if "cumulative_probability" in kwargs:
             self.cumulative_probability = kwargs["cumulative_probability"]
+        elif "cp" in kwargs:
+            self.cumulative_probability = kwargs["cp"]
+        elif "sigma" in kwargs:
+            self.cumulative_probability = 1/2 + (math.erf(kwargs["sigma"] / 2**0.5))/2
         else:
             self.cumulative_probability = 0.5
         if "event_start" in kwargs:
