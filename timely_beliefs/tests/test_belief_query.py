@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from pytz import utc
 from numpy import arange, append
-from pandas import Timestamp
+import pandas as pd
 
 from timely_beliefs import BeliefSource, Sensor, TimedBelief
 from base import session
@@ -93,7 +93,7 @@ def test_query_belief_by_belief_time(ex_post_time_slot_sensor: Sensor, day_ahead
     # This next test warns us when it has been fixed (if it fails, just replace != with ==).
     assert belief_df.knowledge_times.values[0] != datetime(2018, 1, 1, 11, 0, tzinfo=utc)
     # And this test is just a workaround to test what we wanted to test.
-    assert Timestamp(belief_df.knowledge_times.values[0]) == Timestamp(datetime(2018, 1, 1, 11, 0))
+    assert pd.Timestamp(belief_df.knowledge_times.values[0]) == pd.Timestamp(datetime(2018, 1, 1, 11, 0))
 
     # Just one belief found
     assert len(belief_df.index) == 1

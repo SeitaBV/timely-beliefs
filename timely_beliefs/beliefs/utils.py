@@ -3,7 +3,6 @@ from datetime import timedelta
 
 import numpy as np
 import pandas as pd
-from pandas import Index
 from pandas.tseries.frequencies import to_offset
 from pandas.core.groupby import DataFrameGroupBy
 
@@ -31,7 +30,7 @@ def select_most_recent_belief(df: "classes.BeliefsDataFrame") -> "classes.Belief
     return df.set_index(indices)
 
 
-def replace_multi_index_level(df: "classes.BeliefsDataFrame", level: str, index: Index, intersection: bool = False) -> "classes.BeliefsDataFrame":
+def replace_multi_index_level(df: "classes.BeliefsDataFrame", level: str, index: pd.Index, intersection: bool = False) -> "classes.BeliefsDataFrame":
     """Replace one of the index levels of the multi-indexed DataFrame.
     :param: df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
     :param: level: the name of the index level to replace.
@@ -92,10 +91,14 @@ def replace_multi_index_level(df: "classes.BeliefsDataFrame", level: str, index:
     return df.sort_index()
 
 
-def multiindex_upsampler(df, output_resolution: timedelta, input_resolution: timedelta, fill_method: Optional[str] = "pad"):
-    """Upsample the first index level from input_resolution to output_resolution."""
+def upsample_event_start(df, output_resolution: timedelta, input_resolution: timedelta, fill_method: Optional[str] = "pad"):
+    """Upsample event_start (which must be the first index level) from input_resolution to output_resolution."""
+    if output_resolution > input_resolution:
+        raise ValueError("Cannot use an upsampling policy to downsample from %s to %s." % (input_resolution, output_resolution))
     if df.empty:
         return df
+    if df.index.names[0] != "event_start":
+        raise KeyError("Upsampling only works if the event_start is the first index level.")
     lvl0 = pd.date_range(start=df.index.get_level_values(0)[0], periods=input_resolution // output_resolution,
                          freq=to_offset(output_resolution).freqstr)
     new_index_values = [lvl0]
@@ -112,15 +115,22 @@ def multiindex_upsampler(df, output_resolution: timedelta, input_resolution: tim
         raise NotImplementedError("Unknown upsample method.")
 
 
-def respect_sensor_resolution(grouper: DataFrameGroupBy, resolution):
+def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
     """Resample to make sure the df slice contains events with the same frequency as the given resolution.
     The input BeliefsDataFrame (see below) should represent beliefs about sequential sub-events formed by a single source
     at a single unique belief time.
     Extra beliefs are added with nan values.
-    The BeliefsDataFrame is not passed directly, but part of the DataFrameGroupBy object,
-    which can be iterated over to obtain a BeliefsDataFrame of a unique belief time.
 
-    We need to loop over each belief time in this slice, and reindex such that each subslice has rows for each event. Then recombine."""
+    :Example:
+
+    >>> df = df.groupby([pd.Grouper(freq="1D", level="event_start"), "belief_time", "source_id"]).pipe(respect_event_resolution, timedelta(hours=1))
+
+    So don't pass a BeliefsDataFrame directly, but pipe it so that we receive a DataFrameGroupBy object, which we can
+    iterate over to obtain a BeliefsDataFrame slice for a unique belief time, source id and (in our example) day of
+    events. We then make sure an event is stated explicitly for (in our example) each hour.
+    """
+
+    # We need to loop over each belief time in this slice, and reindex such that each subslice has rows for each event. Then recombine.
 
     # Get a list of n groups, one group for each belief_time with info about how we sliced and the actual slice
     groups = list(grouper.__iter__())
@@ -130,7 +140,7 @@ def respect_sensor_resolution(grouper: DataFrameGroupBy, resolution):
     bin_start = groups[0][0][0]
     bin_end = bin_start + bin_size
 
-    # Build up our new BeliefsDataFrame (by copying over and emptying the rows the metadata should be copied over)
+    # Build up our new BeliefsDataFrame (by copying over and emptying the rows, the metadata should be copied over)
     df = groups[0][1].copy().iloc[0:0]
     for group in groups:  # Loop over the groups (we grouped by unique belief time and unique source id)
 
@@ -144,12 +154,18 @@ def respect_sensor_resolution(grouper: DataFrameGroupBy, resolution):
     return df
 
 
-def propagate_beliefs(slice: "classes.BeliefsDataFrame", unique_belief_times) -> "classes.BeliefsDataFrame":
-    """Propagate beliefs such that each event has the same set of unique belief times.
+def align_belief_times(slice: "classes.BeliefsDataFrame", unique_belief_times) -> "classes.BeliefsDataFrame":
+    """Align belief times such that each event has the same set of unique belief times. We do this by assuming beliefs
+    propagate over time (ceteris paribus, you still believe what you believed before).
     The most recent belief about an event is valid until a new belief is formed.
     If no previous belief has been formed, a row is still explicitly included with a nan value.
     The input BeliefsDataFrame should represent beliefs about a single event formed by a single source.
     """
+
+    if not slice.lineage.number_of_events == 1:
+        raise ValueError("BeliefsDataFrame slice must describe a single event.")
+    if not slice.lineage.number_of_sources == 1:
+        raise ValueError("BeliefsDataFrame slice must describe beliefs by a single source")
 
     # Get unique source id for this slice
     assert slice.lineage.number_of_sources == 1
@@ -172,7 +188,7 @@ def propagate_beliefs(slice: "classes.BeliefsDataFrame", unique_belief_times) ->
             # If not already present, create a new row with the most recent belief (or nan if no previous exists)
             if previous_slice_with_existing_belief_time is not None:
                 ps = previous_slice_with_existing_belief_time.reset_index()
-                ps["belief_time"] = ubt  # Update belief time to reflect propagation of beliefs over time (you still believe what you believed before).
+                ps["belief_time"] = ubt  # Update belief time to reflect propagation of beliefs over time
                 data.extend(ps.values.tolist())
             else:
                 data.append([event_start, ubt, source_id, np.nan, np.nan])
@@ -185,19 +201,26 @@ def propagate_beliefs(slice: "classes.BeliefsDataFrame", unique_belief_times) ->
     df = slice.copy().reset_index().iloc[0:0]
     sensor = df.sensor
     df = df.append(
-        pd.DataFrame(data, columns=["event_start", "belief_time", "source_id", "belief_percentile", "event_value"]))
+        pd.DataFrame(data, columns=["event_start", "belief_time", "source_id", "cumulative_probability", "event_value"]))
     df.sensor = sensor
-    df = df.set_index(["event_start", "belief_time", "source_id", "belief_percentile"])
+    df = df.set_index(["event_start", "belief_time", "source_id", "cumulative_probability"])
 
     return df
 
 
-def convolve_events(slice: "classes.BeliefsDataFrame", output_resolution: timedelta, input_resolution: timedelta) -> "classes.BeliefsDataFrame":
+def join_beliefs(slice: "classes.BeliefsDataFrame", output_resolution: timedelta, input_resolution: timedelta) -> "classes.BeliefsDataFrame":
     """
-    Determine the probabilistic beliefs about the aggregated event.
-    The input BeliefsDataFrame should represent beliefs about sequential sub-events formed by a single source
+    Determine the joint belief about the time-aggregated event.
+    The input BeliefsDataFrame slice should represent beliefs about sequential sub-events formed by a single source
     at a single unique belief time (in case of downsampling), or about a single super-event (in case of upsampling).
+    The slice may contain deterministic beliefs (which require a single row) and probabilistic beliefs (which require
+    multiple rows).
     """
+
+    if not slice.lineage.number_of_belief_times == 1:
+        raise ValueError("BeliefsDataFrame slice must describe beliefs formed at the exact same time.")
+    if not slice.lineage.number_of_sources == 1:
+        raise ValueError("BeliefsDataFrame slice must describe beliefs by a single source")
 
     if output_resolution > input_resolution:
 
@@ -211,27 +234,27 @@ def convolve_events(slice: "classes.BeliefsDataFrame", output_resolution: timede
             raise NotImplementedError("Cannot upsample from resolution %s to %s." % (input_resolution, output_resolution))
         df = slice.groupby(
             [pd.Grouper(freq=to_offset(output_resolution).freqstr, level="event_start"), "belief_time", "source_id",
-             "belief_percentile"], group_keys=False).apply(lambda x: multiindex_upsampler(x, output_resolution, input_resolution))
+             "cumulative_probability"], group_keys=False).apply(lambda x: upsample_event_start(x, output_resolution, input_resolution))
     return df
 
 
-def beliefs_resampler(df: "classes.BeliefsDataFrame", output_resolution: timedelta, input_resolution: timedelta) -> "classes.BeliefsDataFrame":
+def resample_event_start(df: "classes.BeliefsDataFrame", output_resolution: timedelta, input_resolution: timedelta) -> "classes.BeliefsDataFrame":
     """For a unique source id."""
 
     # Determine unique set of belief times
     unique_belief_times = np.sort(df.reset_index()["belief_time"].unique())  # Sorted from past to present
 
     # Propagate beliefs so that each event has the same set of unique belief times
-    df = df.groupby(["event_start"], group_keys=False).apply(lambda x: propagate_beliefs(x, unique_belief_times))
+    df = df.groupby(["event_start"], group_keys=False).apply(lambda x: align_belief_times(x, unique_belief_times))
 
     # Resample to make sure the df slice contains events with the same frequency as the input_resolution
     # (make nan rows if you have to)
-    # Todo: this is only necessary when the resampling policy for the event value needs to take into account nan values within the slice, so move it closer to the convolve_events() method
+    # Todo: this is only necessary when the resampling policy for the event value needs to take into account nan values within the slice, so move it closer to the join_beliefs() method
     # df = df.groupby(
     #     [pd.Grouper(freq=to_offset(output_resolution).freqstr, level="event_start"), "belief_time", "source_id"]
-    # ).pipe(respect_sensor_resolution, input_resolution)
+    # ).pipe(respect_event_resolution, input_resolution)
 
-    # For each unique belief time, determine the probabilistic belief about the aggregated event
-    df = df.groupby(["belief_time"], group_keys=False).apply(lambda x: convolve_events(x, output_resolution, input_resolution))
+    # For each unique belief time, determine the joint belief about the time-aggregated event
+    df = df.groupby(["belief_time"], group_keys=False).apply(lambda x: join_beliefs(x, output_resolution, input_resolution))
 
     return df

@@ -27,6 +27,9 @@ def probabilistic_nan_mean(
 ) -> "classes.BeliefsDataFrame":
     """Calculate the mean value while ignoring nan values."""
 
+    if output_resolution < input_resolution:
+        raise ValueError("Cannot use a downsampling policy to upsample from %s to %s." % (input_resolution, output_resolution))
+
     # Extract the probabilistic values that will serve as marginal distributions
     event_starts = df.groupby(["event_start"]).groups.keys()
     cdf_v = []
@@ -34,7 +37,7 @@ def probabilistic_nan_mean(
     for e, event_start in enumerate(event_starts):
         vp = df.xs(event_start, level="event_start")  # value probability pair
         cdf_v.append(vp.values.flatten())
-        cdf_p.append(vp.index.get_level_values("belief_percentile").values)
+        cdf_p.append(vp.index.get_level_values("cumulative_probability").values)
 
     # Interpret cumulative probabilities as a description of the complete cdf
     # Todo: allow interpretation of probabilities as a normal or uniform distribution
@@ -49,8 +52,8 @@ def probabilistic_nan_mean(
     first_row = first_row.reset_index()
     df = pd.concat([first_row]*len(cdf_p), ignore_index=True)
     df["event_value"] = cdf_v
-    df["belief_percentile"] = cdf_p
-    return df.set_index(["event_start", "belief_time", "source_id", "belief_percentile"])
+    df["cumulative_probability"] = cdf_p
+    return df.set_index(["event_start", "belief_time", "source_id", "cumulative_probability"])
 
 
 def multivariate_marginal_to_univariate_joint_cdf(

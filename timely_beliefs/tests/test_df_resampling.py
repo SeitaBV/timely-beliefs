@@ -28,7 +28,7 @@ def df_4323(time_slot_sensor: Sensor, test_source_a: BeliefSource, test_source_b
             value=1000*e+100*b+10*s+p,
             belief_time=datetime(2000, 1, 1, tzinfo=utc) + timedelta(hours=b),
             event_start=datetime(2000, 1, 3, 9, tzinfo=utc) + timedelta(hours=e),
-            belief_percentile=cps[p],
+            cumulative_probability=cps[p],
         )
         for e in range(4)  # 4 events
         for b in range(3)  # 3 beliefs
@@ -42,7 +42,7 @@ def test_replace_index_level_with_intersect(df_4323):
     """Test replacing an index level.
     First test deterministic beliefs, then probabilistic beliefs."""
 
-    df = df_4323.xs(0.5, level="belief_percentile", drop_level=False)
+    df = df_4323.xs(0.5, level="cumulative_probability", drop_level=False)
     df = replace_multi_index_level(df, "event_start", pd.date_range(
         start=df.index.get_level_values(0)[0], periods=1, freq=df.sensor.event_resolution
     ), intersection=True)
@@ -65,7 +65,7 @@ def test_downsample_twice_upsample_once(df_4323):
     First resample to daily values, then two-daily values, then back to daily values.
     Even with all original values falling within a single day,
     the final result should have separate (and equal) values for two days."""
-    df = df_4323.xs(0.5, level="belief_percentile", drop_level=False)
+    df = df_4323.xs(0.5, level="cumulative_probability", drop_level=False)
     df = df.resample_events(timedelta(days=1))
     assert df.event_resolution == timedelta(days=1)
     assert df.index.get_level_values(level="event_start").nunique() == 1  # All events fall within the same day
@@ -103,7 +103,7 @@ def test_downsample_probabilistic(df_4323):
     # Half of the events are binned together, with two 3-valued probabilistic beliefs turned into one 5-valued belief
     assert len(df) == 72/2 + 72/2*5/6
     cdf = df.xs(datetime(2000, 1, 3, 10), level="event_start").xs(datetime(2000, 1, 1), level="belief_time").xs(1, level="source_id")
-    cdf_p = cdf.index.get_level_values(level="belief_percentile")
+    cdf_p = cdf.index.get_level_values(level="cumulative_probability")
     assert cdf_p[0] == approx(0.1587 ** 2)  # 1 combination yields the 1st unique possible outcome
     assert cdf_p[1] - cdf_p[0] == approx((0.1587 * (0.5 - 0.1587)) * 2)  # 2 combinations yield the 2nd outcome
     assert cdf_p[2] - cdf_p[1] == approx(0.1587 * (1.0 - 0.5) * 2 + (0.5 - 0.1587) ** 2)  # 3 for the 3rd

@@ -8,7 +8,7 @@ from timely_beliefs import BeliefSource, Sensor, TimedBelief
 
 @pytest.fixture(scope="function")
 def day_ahead_belief_about_instantaneous_event(
-    instantaneous_sensor: Sensor, test_source_a
+    instantaneous_sensor: Sensor, test_source_a: BeliefSource
 ):
     """Define day-ahead belief about an instantaneous event."""
     return TimedBelief(
@@ -22,7 +22,7 @@ def day_ahead_belief_about_instantaneous_event(
 
 @pytest.fixture(scope="function")
 def day_ahead_belief_about_time_slot_event(
-    time_slot_sensor: Sensor, test_source_a
+    time_slot_sensor: Sensor, test_source_a: BeliefSource
 ):
     """Define day-ahead belief about a time slot event."""
     return TimedBelief(
@@ -36,7 +36,7 @@ def day_ahead_belief_about_time_slot_event(
 
 @pytest.fixture(scope="function")
 def day_ahead_belief_about_ex_post_time_slot_event(
-    ex_post_time_slot_sensor: Sensor, test_source_a
+    ex_post_time_slot_sensor: Sensor, test_source_a: BeliefSource
 ):
     """Define day-ahead belief about an ex post time slot event."""
     return TimedBelief(
