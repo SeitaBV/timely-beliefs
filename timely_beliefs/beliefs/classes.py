@@ -269,9 +269,9 @@ class BeliefsDataFrame(pd.DataFrame):
         """Select the most recent belief about each event,
         at least some duration in advance of knowledge time (pass a positive belief_horizon),
         or at most some duration after knowledge time (pass a negative belief_horizon)."""
-        df = belief_utils.select_most_recent_belief(self)
-        df = df.convert_index_from_belief_time_to_horizon()
-        return df[df.index.get_level_values("belief_horizon") >= belief_horizon]
+        df = self.convert_index_from_belief_time_to_horizon()
+        df = df[df.index.get_level_values("belief_horizon") >= belief_horizon]
+        return belief_utils.select_most_recent_belief(df)
 
     @hybrid_method
     def resample_events(self, event_resolution: timedelta, distribution: Optional[str] = None) -> "BeliefsDataFrame":
