@@ -370,9 +370,15 @@ class BeliefsDataFrame(pd.DataFrame):
         )
 
     @hybrid_method
-    def belief_history(self, event_start) -> "BeliefsDataFrame":
+    def belief_history(self, event_start: datetime) -> "BeliefsDataFrame":
         """Select all beliefs about a single event, identified by the event's start time."""
-        return self.xs(event_start, level="event_start").sort_index()
+        return self.xs(enforce_utc(event_start), level="event_start").sort_index()
+
+    @hybrid_method
+    def fixed_horizon(self, belief_time: datetime) -> "BeliefsDataFrame" :
+        """Select the most recent belief about each event at a given belief time."""
+        df = self[self.index.get_level_values("belief_time") <= enforce_utc(belief_time)]
+        return belief_utils.select_most_recent_belief(df)
 
     @hybrid_method
     def rolling_horizon(self, belief_horizon: timedelta) -> "BeliefsDataFrame":
