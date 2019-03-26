@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from datetime import datetime, timedelta
 import math
 
@@ -328,6 +328,9 @@ class BeliefsDataFrame(pd.DataFrame):
             self, "belief_time", self.belief_horizons
         )
 
+    def convert_index_from_belief_horizon_to_time(self) -> "BeliefsDataFrame":
+        return belief_utils.replace_multi_index_level(self, "belief_horizon", self.belief_times)
+
     def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
         return belief_utils.replace_multi_index_level(
             self, "event_start", self.event_ends
@@ -351,15 +354,21 @@ class BeliefsDataFrame(pd.DataFrame):
 
     @property
     def belief_times(self) -> pd.DatetimeIndex:
-        return self.index.get_level_values("belief_time")
+        if "belief_time" in self.index.names:
+            return self.index.get_level_values("belief_time")
+        else:
+            return (self.knowledge_times - self.belief_horizons).rename("belief_time")
 
     @property
     def belief_horizons(self) -> pd.TimedeltaIndex:
-        return (self.knowledge_times - self.belief_times).rename("belief_horizon")
+        if "belief_horizon" in self.index.names:
+            return self.index.get_level_values("belief_horizon")
+        else:
+            return (self.knowledge_times - self.belief_times).rename("belief_horizon")
 
     @property
     def event_starts(self) -> pd.DatetimeIndex:
-        return self.index.get_level_values("event_start")
+        return pd.DatetimeIndex(self.index.get_level_values("event_start"))
 
     @property
     def event_ends(self) -> pd.DatetimeIndex:
@@ -370,9 +379,36 @@ class BeliefsDataFrame(pd.DataFrame):
         )
 
     @hybrid_method
-    def belief_history(self, event_start: datetime) -> "BeliefsDataFrame":
-        """Select all beliefs about a single event, identified by the event's start time."""
-        return self.xs(enforce_utc(event_start), level="event_start").sort_index()
+    def belief_history(
+        self,
+        event_start: datetime,
+        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
+        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
+    ) -> "BeliefsDataFrame":
+        """Select all beliefs about a single event, identified by the event's start time.
+        Optionally select a history of beliefs formed (or held) within a certain time window,
+        or a certain horizon window before knowledge time.
+
+        :param: event_start: start time of the event
+        :param: belief_time_window: optional tuple specifying a time window within which beliefs should have been formed
+        :param: belief_horizon_window: optional tuple specifying a horizon window (e.g. between 1 and 2 hours before the event value could have been known)
+        """
+        df = self.xs(enforce_utc(event_start), level="event_start", drop_level=False).sort_index()
+        if belief_time_window[0] is not None:
+            df = df[df.index.get_level_values("belief_time") >= belief_time_window[0]]
+        if belief_time_window[1] is not None:
+            df = df[df.index.get_level_values("belief_time") <= belief_time_window[1]]
+        if belief_horizon_window != (None, None):
+            if belief_time_window != (None, None):
+                raise ValueError("Cannot pass both a belief time window and belief horizon window.")
+            df = df.convert_index_from_belief_time_to_horizon()
+            if belief_horizon_window[0] is not None:
+                df = df[df.index.get_level_values("belief_horizon") >= belief_horizon_window[0]]
+            if belief_horizon_window[1] is not None:
+                df = df[df.index.get_level_values("belief_horizon") <= belief_horizon_window[1]]
+            df = df.convert_index_from_belief_horizon_to_time()
+        df.index = df.index.droplevel("event_start")
+        return df
 
     @hybrid_method
     def fixed_horizon(self, belief_time: datetime) -> "BeliefsDataFrame" :
