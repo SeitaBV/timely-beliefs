@@ -30,7 +30,7 @@ def df_example() -> BeliefsDataFrame:
             value=int(1 * (e + 1) * (true_value + (10**(n_beliefs-b-1))*(cps[p]-0.5)/0.3413 if s % 2 == 0 else true_value * (p-3))),
             belief_time=datetime(2000, 1, 1, tzinfo=utc) + timedelta(hours=b),
             event_start=datetime(2000, 1, 3, 9, tzinfo=utc) + timedelta(hours=e),
-            belief_percentile=cps[p],
+            cumulative_probability=cps[p],
         )
         for e in range(n_events)  # 4 events
         for b in range(n_beliefs)  # 2 beliefs

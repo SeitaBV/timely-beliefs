@@ -8,11 +8,11 @@ from timely_beliefs import BeliefSource, Sensor, TimedBelief
 
 @pytest.fixture(scope="function")
 def day_ahead_belief_about_instantaneous_event(
-    instantaneous_sensor: Sensor, test_source: BeliefSource
+    instantaneous_sensor: Sensor, test_source_a: BeliefSource
 ):
     """Define day-ahead belief about an instantaneous event."""
     return TimedBelief(
-        source=test_source,
+        source=test_source_a,
         sensor=instantaneous_sensor,
         value=1,
         belief_time=datetime(2018, 1, 1, 15, tzinfo=utc),
@@ -22,11 +22,11 @@ def day_ahead_belief_about_instantaneous_event(
 
 @pytest.fixture(scope="function")
 def day_ahead_belief_about_time_slot_event(
-    time_slot_sensor: Sensor, test_source: BeliefSource
+    time_slot_sensor: Sensor, test_source_a: BeliefSource
 ):
     """Define day-ahead belief about a time slot event."""
     return TimedBelief(
-        source=test_source,
+        source=test_source_a,
         sensor=time_slot_sensor,
         value=1,
         belief_time=datetime(2018, 1, 1, 15, tzinfo=utc),
@@ -36,11 +36,11 @@ def day_ahead_belief_about_time_slot_event(
 
 @pytest.fixture(scope="function")
 def day_ahead_belief_about_ex_post_time_slot_event(
-    ex_post_time_slot_sensor: Sensor, test_source: BeliefSource
+    ex_post_time_slot_sensor: Sensor, test_source_a: BeliefSource
 ):
     """Define day-ahead belief about an ex post time slot event."""
     return TimedBelief(
-        source=test_source,
+        source=test_source_a,
         sensor=ex_post_time_slot_sensor,
         value=1,
         belief_time=datetime(2018, 1, 1, 15, tzinfo=utc),
