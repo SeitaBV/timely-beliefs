@@ -33,13 +33,14 @@ def multiple_day_ahead_beliefs_about_ex_post_time_slot_event(
     """Define multiple day-ahead beliefs about an ex post time slot event."""
     n = 10
     beliefs = []
+    event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
     for i in range(n):
         belief = TimedBelief(
             source=test_source_a,
             sensor=ex_post_time_slot_sensor,
             value=10+i,
-            belief_time=datetime(2025, 1, 1, 10, tzinfo=utc) - timedelta(hours=i),
-            event_start=datetime(2025, 1, 2, 22, 45, tzinfo=utc),
+            belief_time=ex_post_time_slot_sensor.knowledge_time(event_start) - timedelta(hours=i+1),
+            event_start=event_start,
         )
         session.add(belief)
         beliefs.append(belief)
@@ -115,9 +116,15 @@ def test_query_belief_by_belief_time(ex_post_time_slot_sensor: Sensor, day_ahead
 
 
 def test_query_belief_history(ex_post_time_slot_sensor: Sensor, multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[TimedBelief]):
-    belief_df = TimedBelief.query(sensor=ex_post_time_slot_sensor).belief_history(event_start=datetime(2025, 1, 2, 22, 45, tzinfo=utc)).sort_index(level="belief_time", ascending=False)
-    assert len(belief_df) == 10
-    assert (belief_df["event_value"].values == arange(10, 20)).all()
+    df = TimedBelief.query(sensor=ex_post_time_slot_sensor)
+    event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
+    df2 = df.belief_history(event_start).sort_index(level="belief_time", ascending=False)
+    assert len(df2) == 10
+    assert (df2["event_value"].values == arange(10, 20)).all()
+    df3 = df.belief_history(event_start, belief_time_window=(datetime(2025, 1, 1, 7, tzinfo=utc), datetime(2025, 1, 1, 9, tzinfo=utc)))
+    assert len(df3) == 3
+    df4 = df.belief_history(event_start, belief_horizon_window=(timedelta(weeks=-10), timedelta(hours=2.5)))  # Only 2 beliefs were formed up to 2.5 hours before knowledge_time, and none after
+    assert len(df4) == 2
 
 
 def test_query_rolling_horizon(time_slot_sensor: Sensor, rolling_day_ahead_beliefs_about_time_slot_events):
