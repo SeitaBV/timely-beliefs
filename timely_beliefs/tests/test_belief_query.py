@@ -126,6 +126,13 @@ def test_query_rolling_horizon(time_slot_sensor: Sensor, rolling_day_ahead_belie
     assert (belief_df["event_value"].values == append(arange(10, 16), 106)).all()
 
 
+def test_query_fixed_horizon(time_slot_sensor: Sensor, rolling_day_ahead_beliefs_about_time_slot_events):
+    belief_time = datetime(2050, 1, 1, 11, tzinfo=utc)
+    df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc)).fixed_horizon(belief_time=belief_time)
+    assert len(df) == 3
+    assert df[df.index.get_level_values("belief_time") > belief_time].empty
+
+
 def test_downsample(time_slot_sensor):
     """Downsample from 15 minutes to 2 hours."""
     new_resolution = timedelta(hours=2)
