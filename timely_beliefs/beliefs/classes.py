@@ -276,8 +276,18 @@ class BeliefsDataFrame(pd.DataFrame):
         belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
     ) -> "BeliefsDataFrame":
         """Select all beliefs about a single event, identified by the event's start time.
-        Optionally select a history of beliefs formed (or held) within a certain time window,
-        or a certain horizon window before knowledge time.
+        Optionally select a history of beliefs formed within a certain time window.
+        Alternatively, select a history of beliefs formed a certain horizon window before knowledge time (with negative
+        horizons indicating post knowledge time).
+
+        :Example:
+
+        >>> # Window selecting beliefs formed before June 20th 2018
+        >>> df.belief_history(event_start, belief_time_window=(None, datetime(2018, 6, 20)))
+        >>> # Window selecting beliefs formed from 5 to 10 hours before knowledge time
+        >>> df.belief_history(event_start, belief_horizon_window=(timedelta(hours=5), timedelta(hours=10)))
+        >>> # Window selecting beliefs formed from 2 hours after to 10 hours before knowledge time
+        >>> df.belief_history(event_start, belief_horizon_window=(timedelta(hours=-2), timedelta(hours=10)))
 
         :param: event_start: start time of the event
         :param: belief_time_window: optional tuple specifying a time window within which beliefs should have been formed
@@ -301,18 +311,72 @@ class BeliefsDataFrame(pd.DataFrame):
         return df
 
     @hybrid_method
-    def fixed_horizon(self, belief_time: datetime) -> "BeliefsDataFrame" :
-        """Select the most recent belief about each event at a given belief time."""
-        df = self[self.index.get_level_values("belief_time") <= enforce_utc(belief_time)]
+    def fixed_horizon(
+        self,
+        belief_time: datetime = None,
+        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
+    ) -> "BeliefsDataFrame":
+        """Select the most recent belief about each event at a given belief time.
+        Alternatively, select the most recent belief formed within a certain time window. This allows setting a maximum
+        freshness of the data.
+
+        :Example:
+
+        >>> # Time selecting the latest beliefs formed before June 6th 2018 about each event
+        >>> df.fixed_horizon(belief_time=datetime(2018, 6, 6))
+        >>> # Or equivalently:
+        >>> df.fixed_horizon(belief_time_window=(None, datetime(2018, 6, 6)))
+        >>> # Time window selecting the latest beliefs formed from June 1st to June 6th (up to June 6th 0:00 AM)
+        >>> df.fixed_horizon(belief_time_window=(datetime(2018, 6, 1), datetime(2018, 6, 6)))
+
+        :param: belief_time: datetime indicating the belief should be formed at least before this time
+        :param: belief_time_window: optional tuple specifying a time window within which beliefs should have been formed
+        """
+        if belief_time is not None:
+            if belief_time_window != (None, None):
+                raise ValueError("Cannot pass both a belief time and belief time window.")
+            belief_time_window = (None, belief_time)
+        df = self
+        if belief_time_window[0] is not None:
+            df = df[df.index.get_level_values("belief_time") >= enforce_utc(belief_time_window[0])]
+        if belief_time_window[1] is not None:
+            df = df[df.index.get_level_values("belief_time") <= enforce_utc(belief_time_window[1])]
         return belief_utils.select_most_recent_belief(df)
 
     @hybrid_method
-    def rolling_horizon(self, belief_horizon: timedelta) -> "BeliefsDataFrame":
+    def rolling_horizon(
+        self,
+        belief_horizon: timedelta = None,
+        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
+    ) -> "BeliefsDataFrame":
         """Select the most recent belief about each event,
         at least some duration in advance of knowledge time (pass a positive belief_horizon),
-        or at most some duration after knowledge time (pass a negative belief_horizon)."""
+        or at most some duration after knowledge time (pass a negative belief_horizon).
+        Alternatively, select the most recent belief formed within a certain horizon window before knowledge time (with
+        negative horizons indicating post knowledge time). This allows setting a maximum acceptable freshness of the
+        data.
+
+        :Example:
+
+        >>> # Horizon selecting the latest belief formed about each event at least 1 day beforehand
+        >>> df.rolling_horizon(belief_horizon=timedelta(days=1))
+        >>> # Or equivalently:
+        >>> df.rolling_horizon(belief_horizon_window=(timedelta(days=1), None))
+        >>> # Horizon window selecting the latest belief formed about each event at least 1 day, but at most 2 days, beforehand
+        >>> df.rolling_horizon(belief_horizon_window=(timedelta(days=1), timedelta(days=2)))
+
+        :param: belief_horizon: timedelta indicating the belief should be formed at least this duration before knowledge time
+        :param: belief_horizon_window: optional tuple specifying a horizon window (e.g. between 1 and 2 days before the event value could have been known)
+        """
+        if belief_horizon is not None:
+            if belief_horizon_window != (None, None):
+                raise ValueError("Cannot pass both a belief horizon and belief horizon window.")
+            belief_horizon_window = (belief_horizon, None)
         df = self.convert_index_from_belief_time_to_horizon()
-        df = df[df.index.get_level_values("belief_horizon") >= belief_horizon]
+        if belief_horizon_window[0] is not None:
+            df = df[df.index.get_level_values("belief_horizon") >= belief_horizon_window[0]]
+        if belief_horizon_window[1] is not None:
+            df = df[df.index.get_level_values("belief_horizon") <= belief_horizon_window[1]]
         return belief_utils.select_most_recent_belief(df)
 
     @hybrid_method

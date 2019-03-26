@@ -3,7 +3,7 @@ from typing import List
 from datetime import datetime, timedelta
 
 from pytz import utc
-from numpy import arange, append
+import numpy as np
 import pandas as pd
 
 from timely_beliefs import BeliefSource, Sensor, TimedBelief
@@ -120,7 +120,7 @@ def test_query_belief_history(ex_post_time_slot_sensor: Sensor, multiple_day_ahe
     event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
     df2 = df.belief_history(event_start).sort_index(level="belief_time", ascending=False)
     assert len(df2) == 10
-    assert (df2["event_value"].values == arange(10, 20)).all()
+    assert (df2["event_value"].values == np.arange(10, 20)).all()
     df3 = df.belief_history(event_start, belief_time_window=(datetime(2025, 1, 1, 7, tzinfo=utc), datetime(2025, 1, 1, 9, tzinfo=utc)))
     assert len(df3) == 3
     df4 = df.belief_history(event_start, belief_horizon_window=(timedelta(weeks=-10), timedelta(hours=2.5)))  # Only 2 beliefs were formed up to 2.5 hours before knowledge_time, and none after
@@ -128,16 +128,26 @@ def test_query_belief_history(ex_post_time_slot_sensor: Sensor, multiple_day_ahe
 
 
 def test_query_rolling_horizon(time_slot_sensor: Sensor, rolling_day_ahead_beliefs_about_time_slot_events):
-    belief_df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc)).rolling_horizon(belief_horizon=timedelta(days=2))
-    assert len(belief_df) == 7
-    assert (belief_df["event_value"].values == append(arange(10, 16), 106)).all()
+    df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc))
+    df2 = df.rolling_horizon(belief_horizon=timedelta(days=2))
+    assert len(df2) == 7
+    assert (df2["event_value"].values == np.append(np.arange(10, 16), 106)).all()
+    df3 = df.rolling_horizon(belief_horizon_window=(timedelta(days=1), timedelta(days=2)))
+    assert len(df3) == 0
+    df4 = df.rolling_horizon(belief_horizon_window=(None, timedelta(days=3)))
+    assert len(df4) == 7
 
 
 def test_query_fixed_horizon(time_slot_sensor: Sensor, rolling_day_ahead_beliefs_about_time_slot_events):
     belief_time = datetime(2050, 1, 1, 11, tzinfo=utc)
-    df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc)).fixed_horizon(belief_time=belief_time)
-    assert len(df) == 3
-    assert df[df.index.get_level_values("belief_time") > belief_time].empty
+    df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc))
+    df2 = df.fixed_horizon(belief_time=belief_time)
+    assert len(df2) == 3
+    assert df2[df2.index.get_level_values("belief_time") > belief_time].empty
+    assert (df2["event_value"].values == np.array([10, 11, 102])).all()
+    df3 = df.fixed_horizon(belief_time_window=(belief_time - timedelta(minutes=1), belief_time))
+    assert len(df3) == 2  # The belief formed at 10 AM is now considered too old
+    assert (df3["event_value"].values == np.array([11, 102])).all()
 
 
 def test_downsample(time_slot_sensor):
