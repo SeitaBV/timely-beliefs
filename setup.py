@@ -11,6 +11,7 @@ setup(
         "pytz",
         "pandas",
         "numpy",
+        "pyerf",
         "SQLAlchemy",
         "psycopg2",
         "isodate",

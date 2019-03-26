@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timedelta
 import math
 
@@ -274,12 +274,12 @@ class BeliefsDataFrame(pd.DataFrame):
         return df[df.index.get_level_values("belief_horizon") >= belief_horizon]
 
     @hybrid_method
-    def resample_events(self, event_resolution: timedelta) -> "BeliefsDataFrame":
+    def resample_events(self, event_resolution: timedelta, distribution: Optional[str] = None) -> "BeliefsDataFrame":
         """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample)."""
 
         df = self.groupby(
             [pd.Grouper(freq=to_offset(event_resolution).freqstr, level="event_start"), "source_id"], group_keys=False
-        ).apply(lambda x: belief_utils.resample_event_start(x, event_resolution, input_resolution=self.event_resolution)).sort_index()
+        ).apply(lambda x: belief_utils.resample_event_start(x, event_resolution, input_resolution=self.event_resolution, distribution=distribution)).sort_index()
 
         # Update metadata with new resolution
         df.event_resolution = event_resolution

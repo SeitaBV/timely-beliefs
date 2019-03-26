@@ -208,7 +208,7 @@ def align_belief_times(slice: "classes.BeliefsDataFrame", unique_belief_times) -
     return df
 
 
-def join_beliefs(slice: "classes.BeliefsDataFrame", output_resolution: timedelta, input_resolution: timedelta) -> "classes.BeliefsDataFrame":
+def join_beliefs(slice: "classes.BeliefsDataFrame", output_resolution: timedelta, input_resolution: timedelta, distribution: Optional[str] = None) -> "classes.BeliefsDataFrame":
     """
     Determine the joint belief about the time-aggregated event.
     The input BeliefsDataFrame slice should represent beliefs about sequential sub-events formed by a single source
@@ -227,7 +227,7 @@ def join_beliefs(slice: "classes.BeliefsDataFrame", output_resolution: timedelta
         # Create new BeliefsDataFrame with downsampled event_start
         df = slice.groupby(
             [pd.Grouper(freq=to_offset(output_resolution).freqstr, level="event_start"), "belief_time", "source_id",
-             ], group_keys=False).apply(lambda x: probabilistic_nan_mean(x, output_resolution, input_resolution))  # Todo: allow customisation for aggregating event values
+             ], group_keys=False).apply(lambda x: probabilistic_nan_mean(x, output_resolution, input_resolution, distribution=distribution))  # Todo: allow customisation for aggregating event values
     else:
         # Create new BeliefsDataFrame with upsampled event_start
         if input_resolution % output_resolution != timedelta():
@@ -238,7 +238,7 @@ def join_beliefs(slice: "classes.BeliefsDataFrame", output_resolution: timedelta
     return df
 
 
-def resample_event_start(df: "classes.BeliefsDataFrame", output_resolution: timedelta, input_resolution: timedelta) -> "classes.BeliefsDataFrame":
+def resample_event_start(df: "classes.BeliefsDataFrame", output_resolution: timedelta, input_resolution: timedelta, distribution: Optional[str] = None) -> "classes.BeliefsDataFrame":
     """For a unique source id."""
 
     # Determine unique set of belief times
@@ -255,6 +255,6 @@ def resample_event_start(df: "classes.BeliefsDataFrame", output_resolution: time
     # ).pipe(respect_event_resolution, input_resolution)
 
     # For each unique belief time, determine the joint belief about the time-aggregated event
-    df = df.groupby(["belief_time"], group_keys=False).apply(lambda x: join_beliefs(x, output_resolution, input_resolution))
+    df = df.groupby(["belief_time"], group_keys=False).apply(lambda x: join_beliefs(x, output_resolution, input_resolution, distribution=distribution))
 
     return df
