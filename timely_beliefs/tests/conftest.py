@@ -55,9 +55,16 @@ def ex_post_time_slot_sensor(db):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def test_source():
+def test_source_a():
     """Define source for test beliefs."""
     source = DBBeliefSource()
     session.add(source)
-    session.flush()
+    return source
+
+
+@pytest.fixture(scope="function", autouse=True)
+def test_source_b():
+    """Define source for test beliefs."""
+    source = DBBeliefSource()
+    session.add(source)
     return source
