@@ -67,14 +67,14 @@ def replace_multi_index_level(
 
 
 def load_time_series(
-    series: pd.Series, sensor: Sensor, source: BeliefSource, horizon: timedelta
+    event_value_series: pd.Series, sensor: Sensor, source: BeliefSource, belief_horizon: timedelta
 ) -> List["classes.TimedBelief"]:
     """Turn series entries into TimedBeliefs"""
     beliefs = []
-    for time, value in series.iteritems():
+    for time, value in event_value_series.iteritems():
         beliefs.append(
             classes.TimedBelief(
-                sensor=sensor, source=source, value=value, event_time=time, belief_horizon=horizon
+                sensor=sensor, source=source, value=value, event_time=time, belief_horizon=belief_horizon
             )
         )
     return beliefs
