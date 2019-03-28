@@ -17,7 +17,12 @@ setup(
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
-    packages=["timely_beliefs"],
+    packages=["timely_beliefs",
+              "timely_beliefs.beliefs",
+              "timely_beliefs.sensors",
+              "timely_beliefs.sensors.func_store",
+              "timely_beliefs.sources",
+              ],
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python",
