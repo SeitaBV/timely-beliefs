@@ -22,7 +22,7 @@ class TimedBelief(object):
     belief_horizon: timedelta
     event_value: float
     sensor: Sensor
-    source: str  # TODO: needs to be an object as well?
+    source: BeliefSource
 
     def __init__(self, sensor: Sensor, source: BeliefSource, value: float, **kwargs):
         self.sensor = sensor
