@@ -14,7 +14,7 @@ from sqlalchemy.orm import relationship, backref
 from base import Base, session
 from timely_beliefs import Sensor
 from timely_beliefs import BeliefSource
-from timely_beliefs.beliefs.utils import get_mean_belief, get_belief_at_cumulative_probability
+from timely_beliefs.beliefs.utils import get_mae
 from timely_beliefs.utils import enforce_utc
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.beliefs import utils as belief_utils
@@ -368,6 +368,8 @@ class BeliefsDataFrame(pd.DataFrame):
                 raise ValueError("Cannot pass both a belief time and belief time window.")
             belief_time_window = (None, belief_time)
         df = self
+        if "belief_time" not in df.index.names:
+            df = df.convert_index_from_belief_horizon_to_time()
         if belief_time_window[0] is not None:
             df = df[df.index.get_level_values("belief_time") >= enforce_utc(belief_time_window[0])]
         if belief_time_window[1] is not None:
@@ -403,7 +405,9 @@ class BeliefsDataFrame(pd.DataFrame):
             if belief_horizon_window != (None, None):
                 raise ValueError("Cannot pass both a belief horizon and belief horizon window.")
             belief_horizon_window = (belief_horizon, None)
-        df = self.convert_index_from_belief_time_to_horizon()
+        df = self
+        if "belief_horizon" not in df.index.names:
+            df = df.convert_index_from_belief_time_to_horizon()
         if belief_horizon_window[0] is not None:
             df = df[df.index.get_level_values("belief_horizon") >= belief_horizon_window[0]]
         if belief_horizon_window[1] is not None:
@@ -428,6 +432,74 @@ class BeliefsDataFrame(pd.DataFrame):
         df.sensor = self.sensor
 
         return df
+
+    def accuracy(
+        self,
+        t: Union[datetime, timedelta],
+        source_id_anchor: int = None,
+    ) -> "BeliefsDataFrame":
+        """Simply get the accuracy of beliefs about events, at a given time (pass a datetime) or at a given horizon
+        (pass a timedelta).
+        Optionally, set an anchor to get the accuracy of beliefs with respect to those held by a specific source.
+        For more options, use df.fixed_horizon_accuracy() or df.rolling_horizon_accuracy().
+
+        :param: source_id_anchor: optional integer to indicate that the accuracy should be determined with respect to the beliefs held by the source with the given id
+        """
+        if isinstance(t, datetime):
+            return self.fixed_horizon_accuracy(t, source_id_anchor=source_id_anchor)
+        elif isinstance(t, timedelta):
+            return self.rolling_horizon_accuracy(t, source_id_anchor=source_id_anchor)
+
+    def fixed_horizon_accuracy(
+        self,
+        belief_time: datetime = None,
+        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
+        belief_time_anchor: datetime = None,
+        belief_horizon_anchor: timedelta = None,
+        source_id_anchor: int = None,
+    ) -> "BeliefsDataFrame":
+        """Get the accuracy of beliefs about each event at a given belief time.
+
+        Alternatively, select the accuracy of beliefs formed within a certain time window. This allows setting a maximum
+        acceptable freshness of the data.
+
+        Optionally, set a belief time anchor.
+        Alternatively, set a belief horizon anchor instead of a belief time anchor.
+
+        >>> # Time selecting the accuracy of beliefs held about each event on June 2nd (midnight)
+        >>> df.fixed_horizon_accuracy(belief_time=datetime(2013, 6, 2))
+        >>> # Or equivalently:
+        >>> df.fixed_horizon_accuracy(belief_time_window=(None, datetime(2013, 6, 2)))
+        >>> # Time window selecting the accuracy of beliefs formed about each event on June 1st
+        >>> df.fixed_horizon_accuracy(belief_time_window=(datetime(2013, 6, 1), datetime(2013, 6, 2)))
+        >>> # Time and time anchor selecting the accuracy of beliefs held on June 2nd with respect to beliefs held on June 10th
+        >>> df.fixed_horizon_accuracy(belief_time=datetime(2013, 6, 2), belief_time_anchor=datetime(2013, 6, 10))
+        >>> # Time and horizon anchor selecting the accuracy of beliefs held on June 2nd with respect to 1 day past knowledge time
+        >>> df.fixed_horizon_accuracy(belief_time=datetime(2013, 6, 2), belief_horizon_anchor=timedelta(days=-1))
+        >>> # Time and source anchor selecting the accuracy of beliefs held on June 2nd with respect to the latest belief formed by source 3
+        >>> df.fixed_horizon_accuracy(belief_time=datetime(2013, 6, 2), source_id_anchor=3)
+
+        :param: belief_time: datetime indicating the belief should be formed at this time at the latest
+        :param: belief_time_window: optional tuple specifying a time window in which the belief should have been formed (e.g. between June 1st and 2nd)
+        :param: belief_time_anchor: optional datetime to indicate that the accuracy should be determined with respect to the latest belief held at this time
+        :param: belief_horizon_anchor: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
+        :param: source_id_anchor: optional integer to indicate that the accuracy should be determined with respect to the beliefs held by the source with the given id
+        """
+        df = self
+        df_forecast = df.fixed_horizon(belief_time, belief_time_window)
+        if belief_time_anchor is None:
+            if belief_horizon_anchor is None:
+                df_true = belief_utils.select_most_recent_belief(df)
+            else:
+                df = df.convert_index_from_belief_time_to_horizon()
+                df_true = belief_utils.select_most_recent_belief(df[df.index.get_level_values("belief_horizon") >= belief_horizon_anchor])
+        else:
+            if belief_horizon_anchor is None:
+                df = df.convert_index_from_belief_horizon_to_time()
+                df_true = belief_utils.select_most_recent_belief(df[df.index.get_level_values("belief_time") <= belief_time_anchor])
+            else:
+                raise ValueError("Cannot pass both a belief time anchor and a belief horizon anchor.")
+        return get_mae(df_forecast, df_true, source_id_anchor)
 
     def rolling_horizon_accuracy(
         self,
@@ -469,33 +541,7 @@ class BeliefsDataFrame(pd.DataFrame):
             df_true = belief_utils.select_most_recent_belief(df)
         else:
             df_true = belief_utils.select_most_recent_belief(df[df.index.get_level_values("belief_horizon") >= belief_horizon_anchor])
-
-        # Todo: allow to estimate the mean from the given cdf points for non-discrete distributions, e.g. uniform
-        # Todo: compute the ranked probability score for probabilistic forecasts
-        df_forecast = df_forecast.for_each_belief(get_mean_belief)
-        df_true = df_true.for_each_belief(get_belief_at_cumulative_probability, cumulative_probability=0.5)
-        df_forecast.index = df_forecast.index.droplevel("belief_horizon")
-        df_true.index = df_true.index.droplevel("belief_horizon")
-        df_forecast.columns = ["forecast"]
-        df_true.columns = ["true"]
-        df = pd.concat([df_forecast, df_true], axis=1)
-
-        def decide_who_is_right(df: "BeliefsDataFrame", right_source_id: int) -> "BeliefsDataFrame":
-            if right_source_id in df.index.get_level_values(level="source_id").values:
-                df["true"] = df["true"].xs(right_source_id, level="source_id").values[0]
-            else:
-                raise KeyError("Source id %s not found in BeliefsDataFrame." % right_source_id)
-            return df
-
-        if source_id_anchor is not None:
-            df = df.groupby(level="event_start").apply(lambda x: decide_who_is_right(x, source_id_anchor))
-
-        def calculate_mae(df: "BeliefsDataFrame") -> np.ndarray:
-            return np.mean(abs(df["forecast"] - df["true"]))
-
-        mae = df.groupby(level="source_id").apply(lambda x: calculate_mae(x))
-        mae.name = "mean_average_error"
-        return mae
+        return get_mae(df_forecast, df_true, source_id_anchor)
 
     def __init__(self, *args, **kwargs):
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""

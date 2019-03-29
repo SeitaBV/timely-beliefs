@@ -260,7 +260,42 @@ def resample_event_start(df: "classes.BeliefsDataFrame", output_resolution: time
     return df
 
 
-def get_belief_at_cumulative_probability(df: "BeliefsDataFrame", cumulative_probability: float) -> "BeliefsDataFrame":
+def get_mae(df_forecast, df_true, source_id_anchor) -> "classes.BeliefsDataFrame":
+    # Todo: allow to estimate the mean from the given cdf points for non-discrete distributions, e.g. uniform
+    # Todo: compute the ranked probability score for probabilistic forecasts
+    df_forecast = df_forecast.for_each_belief(get_mean_belief)
+    df_true = df_true.for_each_belief(get_belief_at_cumulative_probability, cumulative_probability=0.5)
+    if "belief_horizon" in df_forecast.index.names:
+        df_forecast.index = df_forecast.index.droplevel("belief_horizon")
+    else:
+        df_forecast.index = df_forecast.index.droplevel("belief_time")
+    if "belief_horizon" in df_true.index.names:
+        df_true.index = df_true.index.droplevel("belief_horizon")
+    else:
+        df_true.index = df_true.index.droplevel("belief_time")
+    df_forecast.columns = ["forecast"]
+    df_true.columns = ["true"]
+    df = pd.concat([df_forecast, df_true], axis=1)
+
+    def decide_who_is_right(df: "classes.BeliefsDataFrame", right_source_id: int) -> "classes.BeliefsDataFrame":
+        if right_source_id in df.index.get_level_values(level="source_id").values:
+            df["true"] = df["true"].xs(right_source_id, level="source_id").values[0]
+        else:
+            raise KeyError("Source id %s not found in BeliefsDataFrame." % right_source_id)
+        return df
+
+    if source_id_anchor is not None:
+        df = df.groupby(level="event_start").apply(lambda x: decide_who_is_right(x, source_id_anchor))
+
+    def calculate_mae(df: "classes.BeliefsDataFrame") -> np.ndarray:
+        return np.mean(abs(df["forecast"] - df["true"]))
+
+    mae = df.groupby(level="source_id").apply(lambda x: calculate_mae(x))
+    mae.name = "mean_average_error"
+    return mae
+
+
+def get_belief_at_cumulative_probability(df: "classes.BeliefsDataFrame", cumulative_probability: float) -> "classes.BeliefsDataFrame":
     """Take the first value with cumulative probability equal or higher than the probability given.
     This selects the right value assuming a discrete probability distribution."""
     df2 = df[df.index.get_level_values("cumulative_probability") >= cumulative_probability]
@@ -272,12 +307,12 @@ def get_belief_at_cumulative_probability(df: "BeliefsDataFrame", cumulative_prob
         return df2.head(1)
 
 
-def get_mean_belief(df: "BeliefsDataFrame") -> "BeliefsDataFrame":
+def get_mean_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
     """Convenience function to select the expected value."""
     return get_belief_at_cumulative_probability(df, 0.5)
 
 
-def get_nth_percentile_belief(df: "BeliefsDataFrame", n: float) -> "BeliefsDataFrame":
+def get_nth_percentile_belief(df: "classes.BeliefsDataFrame", n: float) -> "classes.BeliefsDataFrame":
     """Convenience function to select the value at the nth percentile."""
     return get_belief_at_cumulative_probability(df, n/100)
 
