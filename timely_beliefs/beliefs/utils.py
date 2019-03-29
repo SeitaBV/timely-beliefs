@@ -182,8 +182,7 @@ def align_belief_times(slice: "classes.BeliefsDataFrame", unique_belief_times) -
     for ubt in unique_belief_times:
 
         # Check if the unique belief time (ubt) is already in the DataFrame
-        slice_with_existing_belief_time = slice.xs(ubt, level="belief_time", drop_level=False)
-        if slice_with_existing_belief_time.empty:
+        if ubt not in slice.index.get_level_values("belief_time"):
 
             # If not already present, create a new row with the most recent belief (or nan if no previous exists)
             if previous_slice_with_existing_belief_time is not None:
@@ -194,8 +193,9 @@ def align_belief_times(slice: "classes.BeliefsDataFrame", unique_belief_times) -
                 data.append([event_start, ubt, source_id, np.nan, np.nan])
         else:
             # If already present, copy the row (may be multiple rows in case of a probabilistic belief)
+            slice_with_existing_belief_time = slice.xs(ubt, level="belief_time", drop_level=False)
             data.extend(slice_with_existing_belief_time.reset_index().values.tolist())
-        previous_slice_with_existing_belief_time = slice_with_existing_belief_time
+            previous_slice_with_existing_belief_time = slice_with_existing_belief_time
 
     # Create new BeliefsDataFrame
     df = slice.copy().reset_index().iloc[0:0]
@@ -242,6 +242,7 @@ def resample_event_start(df: "classes.BeliefsDataFrame", output_resolution: time
     """For a unique source id."""
 
     # Determine unique set of belief times
+    print(df)
     unique_belief_times = np.sort(df.reset_index()["belief_time"].unique())  # Sorted from past to present
 
     # Propagate beliefs so that each event has the same set of unique belief times

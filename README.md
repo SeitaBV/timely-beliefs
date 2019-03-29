@@ -42,14 +42,14 @@ The example BeliefsDataFrame in our tests module demonstrates the basic timely-b
     >>> df.head(8)
                                                                                           event_value
     event_start               belief_time               source_id cumulative_probability             
-    2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 1         0.5                              90
-                                                                  0.5                             100
-                                                                  0.5                             110
-                                                        2         0.5                               0
-                                                                  0.5                             100
-                              2000-01-01 01:00:00+00:00 1         0.5                              99
-                                                                  0.5                             100
-                                                                  0.5                             101
+    2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 1         0.1587                           90
+                                                                  0.5000                          100
+                                                                  0.8413                          110
+                                                        2         0.5000                            0
+                                                                  1.0000                          100
+                              2000-01-01 01:00:00+00:00 1         0.1587                           99
+                                                                  0.5000                          100
+                                                                  0.8413                          101
 The first 8 entries of this BeliefsDataFrame show beliefs about a single event.
 Beliefs were formed by two distinct sources (1 and 2), with the first updating its beliefs at a later time.
 Source 1 first thought the value of this event would be 100 ± 10 (the percentiles suggest a normal distribution),
