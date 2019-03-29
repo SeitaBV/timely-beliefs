@@ -128,7 +128,7 @@ def test_query_belief_history(ex_post_time_slot_sensor: Sensor, multiple_day_ahe
 
 
 def test_query_rolling_horizon(time_slot_sensor: Sensor, rolling_day_ahead_beliefs_about_time_slot_events):
-    df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc))
+    df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc), source_id=1)
     df2 = df.rolling_horizon(belief_horizon=timedelta(days=2))
     assert len(df2) == 7
     assert (df2["event_value"].values == np.append(np.arange(10, 16), 106)).all()
@@ -140,7 +140,7 @@ def test_query_rolling_horizon(time_slot_sensor: Sensor, rolling_day_ahead_belie
 
 def test_query_fixed_horizon(time_slot_sensor: Sensor, rolling_day_ahead_beliefs_about_time_slot_events):
     belief_time = datetime(2050, 1, 1, 11, tzinfo=utc)
-    df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc))
+    df = TimedBelief.query(sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc), source_id=1)
     df2 = df.fixed_horizon(belief_time=belief_time)
     assert len(df2) == 3
     assert df2[df2.index.get_level_values("belief_time") > belief_time].empty

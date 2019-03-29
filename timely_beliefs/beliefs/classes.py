@@ -1,9 +1,11 @@
-from typing import List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 import math
 
+import numpy as np
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
+from pandas.core.groupby import DataFrameGroupBy
 from sqlalchemy import Column, DateTime, Integer, Interval, Float, ForeignKey
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
@@ -12,6 +14,7 @@ from sqlalchemy.orm import relationship, backref
 from base import Base, session
 from timely_beliefs import Sensor
 from timely_beliefs import BeliefSource
+from timely_beliefs.beliefs.utils import get_mean_belief, get_belief_at_cumulative_probability
 from timely_beliefs.utils import enforce_utc
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.beliefs import utils as belief_utils
@@ -115,7 +118,8 @@ class TimedBelief(Base):
             event_before: datetime = None,
             event_not_before: datetime = None,
             belief_before: datetime = None,
-            belief_not_before: datetime = None
+            belief_not_before: datetime = None,
+            source_id: int = None,
     ) -> "BeliefsDataFrame":
         """Query beliefs about sensor events.
         :param sensor: sensor to which the beliefs pertain
@@ -162,6 +166,10 @@ class TimedBelief(Base):
             q = q.filter(self.event_start <= belief_before + self.belief_horizon + knowledge_horizon_max)
         if belief_not_before is not None:
             q = q.filter(self.event_start >= belief_not_before + self.belief_horizon + knowledge_horizon_min)
+
+        # Apply source filter
+        if source_id is not None:
+            q = q.filter(self.source_id == source_id)
 
         # Build our DataFrame of beliefs
         df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
@@ -267,6 +275,29 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def event_ends(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(self.event_starts.to_series(keep_tz=True, name="event_end").apply(lambda event_start: event_start + self.event_resolution))
+
+    @hybrid_method
+    def for_each_belief(self, fnc: Callable = None, *args: Any, **kwargs: Any) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
+        """Convenient function to apply a function to each belief in the BeliefsDataFrame.
+        A belief is a group with unique event start, belief time and source id. A deterministic belief is defined by a
+        single row, whereas a probabilistic belief is defined by multiple rows.
+        If no function is given, return the GroupBy object.
+
+        :Example:
+
+        >>> # Apply some function that accepts a DataFrame, a positional argument and a keyword argument
+        >>> df.for_each_belief(some_function, True, a=1)
+        >>> # Pipe some other function that accepts a GroupBy object, a positional argument and a keyword argument
+        >>> df.for_each_belief().pipe(some_other_function, True, a=1)
+        """
+        index_names = []
+        index_names.append("event_start") if "event_start" in self.index.names else index_names.append("event_end")
+        index_names.append("belief_time") if "belief_time" in self.index.names else index_names.append("belief_horizon")
+        index_names.append("source_id")
+        gr = self.groupby(level=index_names, group_keys=False)
+        if fnc is not None:
+            return gr.apply(lambda x: fnc(x, *args, **kwargs))
+        return gr
 
     @hybrid_method
     def belief_history(
@@ -397,6 +428,74 @@ class BeliefsDataFrame(pd.DataFrame):
         df.sensor = self.sensor
 
         return df
+
+    def rolling_horizon_accuracy(
+        self,
+        belief_horizon: timedelta = None,
+        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
+        belief_horizon_anchor: timedelta = None,
+        source_id_anchor: int = None,
+    ) -> "BeliefsDataFrame":
+        """Get the accuracy of beliefs at a given horizon, with respect to the most recent beliefs about each event.
+        By default the mean absolute error (MAE) is returned.
+        Alternatively, select the accuracy of beliefs formed within a certain horizon window before knowledge time (with
+        negative horizons indicating post knowledge time). This allows setting a maximum acceptable freshness of the
+        data.
+        Optionally, set an anchor to get the accuracy of beliefs at a given horizon with respect to some other horizon,
+        and/or another source.
+        This allows to define what is considered to be true at a certain time after an event.
+
+        :Example:
+
+        >>> # Horizon selecting the accuracy of beliefs formed about each event at least 1 day beforehand
+        >>> df.rolling_horizon_accuracy(belief_horizon=timedelta(days=1))
+        >>> # Or equivalently:
+        >>> df.rolling_horizon_accuracy(belief_horizon_window=(timedelta(days=1), None))
+        >>> # Horizon window selecting the accuracy of beliefs formed about each event at least 1 day, but at most 2 days, beforehand
+        >>> df.rolling_horizon_accuracy(belief_horizon_window=(timedelta(days=1), timedelta(days=2)))
+        >>> # Horizon and horizon anchor selecting the accuracy of beliefs formed 10 days beforehand with respect to 1 day past knowledge time
+        >>> df.rolling_horizon_accuracy(belief_horizon=timedelta(days=10), belief_horizon_anchor=timedelta(days=-1))
+        >>> # Horizon and source anchor selecting the accuracy of beliefs formed 10 days beforehand with respect to the latest belief formed by source 3
+        >>> df.rolling_horizon_accuracy(belief_horizon=timedelta(days=10), source_id_anchor=3)
+
+        :param: belief_horizon: timedelta indicating the belief should be formed at least this duration before knowledge time
+        :param: belief_horizon_window: optional tuple specifying a horizon window (e.g. between 1 and 2 days before the event value could have been known)
+        :param: belief_horizon_anchor: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
+        :param: source_id_anchor: optional integer to indicate that the accuracy should be determined with respect to the beliefs held by the source with the given id
+        """
+        df = self
+        df_forecast = df.rolling_horizon(belief_horizon, belief_horizon_window)
+        if belief_horizon_anchor is None:
+            df_true = belief_utils.select_most_recent_belief(df)
+        else:
+            df_true = belief_utils.select_most_recent_belief(df[df.index.get_level_values("belief_horizon") >= belief_horizon_anchor])
+
+        # Todo: allow to estimate the mean from the given cdf points for non-discrete distributions, e.g. uniform
+        # Todo: compute the ranked probability score for probabilistic forecasts
+        df_forecast = df_forecast.for_each_belief(get_mean_belief)
+        df_true = df_true.for_each_belief(get_belief_at_cumulative_probability, cumulative_probability=0.5)
+        df_forecast.index = df_forecast.index.droplevel("belief_horizon")
+        df_true.index = df_true.index.droplevel("belief_horizon")
+        df_forecast.columns = ["forecast"]
+        df_true.columns = ["true"]
+        df = pd.concat([df_forecast, df_true], axis=1)
+
+        def decide_who_is_right(df: "BeliefsDataFrame", right_source_id: int) -> "BeliefsDataFrame":
+            if right_source_id in df.index.get_level_values(level="source_id").values:
+                df["true"] = df["true"].xs(right_source_id, level="source_id").values[0]
+            else:
+                raise KeyError("Source id %s not found in BeliefsDataFrame." % right_source_id)
+            return df
+
+        if source_id_anchor is not None:
+            df = df.groupby(level="event_start").apply(lambda x: decide_who_is_right(x, source_id_anchor))
+
+        def calculate_mae(df: "BeliefsDataFrame") -> np.ndarray:
+            return np.mean(abs(df["forecast"] - df["true"]))
+
+        mae = df.groupby(level="source_id").apply(lambda x: calculate_mae(x))
+        mae.name = "mean_average_error"
+        return mae
 
     def __init__(self, *args, **kwargs):
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""

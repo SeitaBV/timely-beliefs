@@ -11,7 +11,7 @@ from timely_beliefs.tests.examples import df_example
 
 
 @pytest.fixture(scope="module", autouse=True)
-def df_4323(time_slot_sensor: Sensor, test_source_a: BeliefSource, test_source_b: BeliefSource, index_values: bool = True) -> BeliefsDataFrame:
+def df_4323(time_slot_sensor: Sensor, test_source_a: BeliefSource, test_source_b: BeliefSource) -> BeliefsDataFrame:
     """Convenient BeliefsDataFrame to run tests on.
     For a single sensor, it contains 4 events, for each of which 3 beliefs by 2 sources each, described by 3
     probabilistic values.
@@ -124,7 +124,7 @@ def test_downsample_probabilistic(df_4323):
 def test_rolling_horizon_probabilistic(df_4323):
     """Test whether probabilistic beliefs stay probabilistic when selecting a rolling horizon."""
     df = df_4323.rolling_horizon(belief_horizon=timedelta(days=2))
-    assert len(df) == 4*3
+    assert len(df) == 4*1*2*3  # 4 events, 1 belief, 2 sources and 3 probabilistic values
 
 
 def test_percentages_and_accuracy_of_probabilistic_model(df_4323: BeliefsDataFrame):

@@ -20,14 +20,14 @@ def select_most_recent_belief(df: "classes.BeliefsDataFrame") -> "classes.Belief
 
     # Drop all but most recent belief
     if "belief_horizon" in indices:
-        df = df.sort_values(by=["belief_horizon"], ascending=True).drop_duplicates(subset=["event_start", "cumulative_probability"], keep="first").sort_values(by=["event_start"])
+        df = df.sort_values(by=["belief_horizon"], ascending=True).drop_duplicates(subset=["event_start", "source_id", "cumulative_probability"], keep="first").sort_values(by=["event_start"])
     elif "belief_time" in indices:
-        df = df.sort_values(by=["belief_time"], ascending=True).drop_duplicates(subset=["event_start", "cumulative_probability"], keep="last").sort_values(by=["event_start"])
+        df = df.sort_values(by=["belief_time"], ascending=True).drop_duplicates(subset=["event_start", "source_id", "cumulative_probability"], keep="last").sort_values(by=["event_start"])
     else:
         raise KeyError("No belief_horizon or belief_time index level found in DataFrame.")
 
     # Convert columns to index levels (only columns that represent index levels)
-    return df.set_index(indices)
+    return df.set_index(indices).sort_index()
 
 
 def replace_multi_index_level(df: "classes.BeliefsDataFrame", level: str, index: pd.Index, intersection: bool = False) -> "classes.BeliefsDataFrame":
@@ -258,3 +258,28 @@ def resample_event_start(df: "classes.BeliefsDataFrame", output_resolution: time
     df = df.groupby(["belief_time"], group_keys=False).apply(lambda x: join_beliefs(x, output_resolution, input_resolution, distribution=distribution))
 
     return df
+
+
+def get_belief_at_cumulative_probability(df: "BeliefsDataFrame", cumulative_probability: float) -> "BeliefsDataFrame":
+    """Take the first value with cumulative probability equal or higher than the probability given.
+    This selects the right value assuming a discrete probability distribution."""
+    df2 = df[df.index.get_level_values("cumulative_probability") >= cumulative_probability]
+    if df2.empty:
+        # Take the value with the highest cumulative probability from the original DataFrame
+        return df.tail(1)
+    else:
+        # Take the first value with a higher cumulative probability than given
+        return df2.head(1)
+
+
+def get_mean_belief(df: "BeliefsDataFrame") -> "BeliefsDataFrame":
+    """Convenience function to select the expected value."""
+    return get_belief_at_cumulative_probability(df, 0.5)
+
+
+def get_nth_percentile_belief(df: "BeliefsDataFrame", n: float) -> "BeliefsDataFrame":
+    """Convenience function to select the value at the nth percentile."""
+    return get_belief_at_cumulative_probability(df, n/100)
+
+
+get_expected_belief = get_mean_belief  # Define alias
