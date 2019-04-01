@@ -24,10 +24,19 @@ def df_example() -> BeliefsDataFrame:
     cps = [0.1587, 0.5, 0.8413, 0.5, 1]
 
     # Build up a BeliefsDataFrame with various events, beliefs, sources and probabilistic accuracy (for a single sensor)
-    beliefs = [TimedBelief(
+    beliefs = [
+        TimedBelief(
             source=sources[s],
             sensor=example_sensor,
-            value=int(1 * (e + 1) * (true_value + (10**(n_beliefs-b-1))*(cps[p]-0.5)/0.3413 if s % 2 == 0 else true_value * (p-3))),
+            value=int(
+                1
+                * (e + 1)
+                * (
+                    true_value + (10 ** (n_beliefs - b - 1)) * (cps[p] - 0.5) / 0.3413
+                    if s % 2 == 0
+                    else true_value * (p - 3)
+                )
+            ),
             belief_time=datetime(2000, 1, 1, tzinfo=utc) + timedelta(hours=b),
             event_start=datetime(2000, 1, 3, 9, tzinfo=utc) + timedelta(hours=e),
             cumulative_probability=cps[p],
@@ -35,6 +44,8 @@ def df_example() -> BeliefsDataFrame:
         for e in range(n_events)  # 4 events
         for b in range(n_beliefs)  # 2 beliefs
         for s in range(n_sources)  # 2 sources
-        for p in range(3 * (s % 2), 2 * (s % 2) + 3)  # alternating 3 and 2 cumulative probabilities
+        for p in range(
+            3 * (s % 2), 2 * (s % 2) + 3
+        )  # alternating 3 and 2 cumulative probabilities
     ]
     return BeliefsDataFrame(sensor=example_sensor, beliefs=beliefs)

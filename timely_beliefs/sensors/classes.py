@@ -34,9 +34,9 @@ class Sensor(object):
         unit: str = "",
         timezone: str = "UTC",
         event_resolution: Optional[timedelta] = None,
-        knowledge_horizon: Optional[Union[
-            timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]
-        ]] = None,
+        knowledge_horizon: Optional[
+            Union[timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]]
+        ] = None,
     ):
         self.name = name
         self.unit = unit

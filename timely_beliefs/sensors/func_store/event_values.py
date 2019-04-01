@@ -5,8 +5,7 @@ from timely_beliefs.beliefs import classes
 
 
 def nan_mean(
-    df: "classes.BeliefsDataFrame",
-    output_resolution, input_resolution
+    df: "classes.BeliefsDataFrame", output_resolution, input_resolution
 ) -> "classes.BeliefsDataFrame":
     """Calculate the mean value while ignoring nan values."""
 

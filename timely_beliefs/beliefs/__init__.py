@@ -34,7 +34,9 @@ class BeliefsAccessor(object):
         if all(key not in obj.index.names for key in ["event_start", "event_end"]):
             raise AttributeError("Must have index level 'event_start' or 'event_end'.")
         if all(key not in obj.index.names for key in ["belief_time", "belief_horizon"]):
-            raise AttributeError("Must have index level 'belief_time' or 'belief_horizon'.")
+            raise AttributeError(
+                "Must have index level 'belief_time' or 'belief_horizon'."
+            )
         if "source" not in obj.index.names:
             raise AttributeError("Must have index level 'source'.")
         if "cumulative_probability" not in obj.index.names:
@@ -43,24 +45,24 @@ class BeliefsAccessor(object):
             raise AttributeError("Must have column 'event_value'.")
 
     @property
-    def events(self) -> List[int] :
+    def events(self) -> List[int]:
         """Return the unique events described in this BeliefsDataFrame."""
         event_start = self._obj.index.get_level_values(level="event_start")
         return event_start.unique().values
 
     @property
-    def number_of_events(self) :
+    def number_of_events(self):
         """Return the number of unique event described in this BeliefsDataFrame."""
         return len(self.events)
 
     @property
-    def belief_times(self) -> List[int] :
+    def belief_times(self) -> List[int]:
         """Return the unique belief times in this BeliefsDataFrame."""
         belief_time = self._obj.index.get_level_values(level="belief_time")
         return belief_time.unique().values
 
     @property
-    def number_of_belief_times(self) :
+    def number_of_belief_times(self):
         """Return the number of unique belief times described in this BeliefsDataFrame."""
         return len(self.belief_times)
 
@@ -69,8 +71,14 @@ class BeliefsAccessor(object):
         """Return the total number of beliefs in the BeliefsDataFrame, including both deterministic beliefs (which
         require a single row) and probabilistic beliefs (which require multiple rows)."""
         index_names = []
-        index_names.append("event_start") if "event_start" in self._obj.index.names else index_names.append("event_end")
-        index_names.append("belief_time") if "belief_time" in self._obj.index.names else index_names.append("belief_horizon")
+        index_names.append(
+            "event_start"
+        ) if "event_start" in self._obj.index.names else index_names.append("event_end")
+        index_names.append(
+            "belief_time"
+        ) if "belief_time" in self._obj.index.names else index_names.append(
+            "belief_horizon"
+        )
         index_names.append("source")
         gr = self._obj.groupby(index_names)
         return len(gr)
@@ -90,15 +98,21 @@ class BeliefsAccessor(object):
     def number_of_probabilistic_beliefs(self) -> int:
         """Return the number of beliefs in the BeliefsDataFrame that are probabilistic (more than 1 unique value)."""
         index_names = []
-        index_names.append("event_start") if "event_start" in self._obj.index.names else index_names.append("event_end")
-        index_names.append("belief_time") if "belief_time" in self._obj.index.names else index_names.append("belief_horizon")
+        index_names.append(
+            "event_start"
+        ) if "event_start" in self._obj.index.names else index_names.append("event_end")
+        index_names.append(
+            "belief_time"
+        ) if "belief_time" in self._obj.index.names else index_names.append(
+            "belief_horizon"
+        )
         index_names.append("source")
         gr = self._obj.groupby(index_names)
         df = gr.nunique(dropna=True)
-        return len(df[df>1].dropna())
+        return len(df[df > 1].dropna())
 
     @property
-    def number_of_deterministic_beliefs(self) -> int :
+    def number_of_deterministic_beliefs(self) -> int:
         """Return the number of beliefs in the BeliefsDataFrame that are deterministic (1 unique value)."""
         return len(self._obj) - self.number_of_probabilistic_beliefs
 
@@ -109,7 +123,7 @@ class BeliefsAccessor(object):
         return self.number_of_probabilistic_beliefs / self.number_of_beliefs
 
     @property
-    def percentage_of_deterministic_beliefs(self) -> float :
+    def percentage_of_deterministic_beliefs(self) -> float:
         """Return the percentage of beliefs in the BeliefsDataFrame that are deterministic (1 unique value).
         """
         return 1 - self.number_of_probabilistic_beliefs / self.number_of_beliefs

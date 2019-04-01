@@ -49,7 +49,9 @@ class TimedBelief(object):
         elif "cp" in kwargs:
             self.cumulative_probability = kwargs["cp"]
         elif "sigma" in kwargs:
-            self.cumulative_probability = 1/2 + (math.erf(kwargs["sigma"] / 2**0.5))/2
+            self.cumulative_probability = (
+                1 / 2 + (math.erf(kwargs["sigma"] / 2 ** 0.5)) / 2
+            )
         else:
             self.cumulative_probability = 0.5
         if "event_start" in kwargs:
@@ -123,7 +125,9 @@ class DBTimedBelief(Base, TimedBelief):
         ),
     )
 
-    def __init__(self, sensor: DBSensor, source: DBBeliefSource, value: float, **kwargs):
+    def __init__(
+        self, sensor: DBSensor, source: DBBeliefSource, value: float, **kwargs
+    ):
         TimedBelief.__init__(self, sensor, source, value, **kwargs)
         Base.__init__(self)
 
@@ -272,24 +276,41 @@ class BeliefsDataFrame(pd.DataFrame):
         # Call the pandas DataFrame constructor with the right input
         kwargs["columns"] = columns
         if beliefs:
-            beliefs = sorted(beliefs, key=lambda b: (b.event_start, b.belief_time, b.source_id, b.cumulative_probability))
+            beliefs = sorted(
+                beliefs,
+                key=lambda b: (
+                    b.event_start,
+                    b.belief_time,
+                    b.source_id,
+                    b.cumulative_probability,
+                ),
+            )
             kwargs["data"] = [[getattr(i, j) for j in columns] for i in beliefs]
-            kwargs["index"] = pd.MultiIndex.from_tuples([[getattr(i, j) for j in indices] for i in beliefs], names=indices)
+            kwargs["index"] = pd.MultiIndex.from_tuples(
+                [[getattr(i, j) for j in indices] for i in beliefs], names=indices
+            )
         else:
-            kwargs["index"] = pd.MultiIndex(levels=[[] for _ in indices], codes=[[] for _ in indices], names=indices)
+            kwargs["index"] = pd.MultiIndex(
+                levels=[[] for _ in indices], codes=[[] for _ in indices], names=indices
+            )
         super().__init__(*args, **kwargs)
 
         # Set the Sensor metadata (including timing properties of the sensor)
         self.sensor = sensor
         self.event_resolution = self.sensor.event_resolution
 
-    def append_from_time_series(self,
-        event_value_series: pd.Series, source: BeliefSource, belief_horizon: timedelta
+    def append_from_time_series(
+        self,
+        event_value_series: pd.Series,
+        source: BeliefSource,
+        belief_horizon: timedelta,
     ) -> "BeliefsDataFrame":
         """Append beliefs from time series entries into this BeliefsDataFrame. Sensor is assumed to be the same.
         Returns a new BeliefsDataFrame object.
         TODO: enable to add probability data."""
-        beliefs = belief_utils.load_time_series(event_value_series, self.sensor, source, belief_horizon)
+        beliefs = belief_utils.load_time_series(
+            event_value_series, self.sensor, source, belief_horizon
+        )
         return self.append(BeliefsDataFrame(sensor=self.sensor, beliefs=beliefs))
 
     @property
@@ -363,15 +384,34 @@ class BeliefsDataFrame(pd.DataFrame):
         return belief_utils.select_most_recent_belief(df)
 
     @hybrid_method
-    def resample_events(self, event_resolution: timedelta, distribution: Optional[str] = None) -> "BeliefsDataFrame":
+    def resample_events(
+        self, event_resolution: timedelta, distribution: Optional[str] = None
+    ) -> "BeliefsDataFrame":
         """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample)."""
 
         if self.empty:
             return self
 
-        df = self.groupby(
-            [pd.Grouper(freq=to_offset(event_resolution).freqstr, level="event_start"), "source"], group_keys=False
-        ).apply(lambda x: belief_utils.resample_event_start(x, event_resolution, input_resolution=self.event_resolution, distribution=distribution)).sort_index()
+        df = (
+            self.groupby(
+                [
+                    pd.Grouper(
+                        freq=to_offset(event_resolution).freqstr, level="event_start"
+                    ),
+                    "source",
+                ],
+                group_keys=False,
+            )
+            .apply(
+                lambda x: belief_utils.resample_event_start(
+                    x,
+                    event_resolution,
+                    input_resolution=self.event_resolution,
+                    distribution=distribution,
+                )
+            )
+            .sort_index()
+        )
 
         # Update metadata with new resolution
         df.event_resolution = event_resolution

@@ -3,7 +3,9 @@ from datetime import timedelta
 
 from timely_beliefs.base import Base, engine, session
 from timely_beliefs import DBBeliefSource, DBSensor
-from timely_beliefs.sensors.func_store.knowledge_horizons import timedelta_x_days_ago_at_y_oclock
+from timely_beliefs.sensors.func_store.knowledge_horizons import (
+    timedelta_x_days_ago_at_y_oclock,
+)
 
 
 @pytest.fixture(scope="function")
@@ -35,7 +37,9 @@ def instantaneous_sensor(db):
 @pytest.fixture(scope="function", autouse=True)
 def time_slot_sensor(db):
     """Define sensor for time slot events."""
-    sensor = DBSensor(name="TimeSlot15MinSensor", event_resolution=timedelta(minutes=15))
+    sensor = DBSensor(
+        name="TimeSlot15MinSensor", event_resolution=timedelta(minutes=15)
+    )
     session.add(sensor)
     session.flush()
     return sensor
@@ -47,7 +51,10 @@ def ex_post_time_slot_sensor(db):
     sensor = DBSensor(
         name="ExPostSensor",
         event_resolution=timedelta(minutes=15),
-        knowledge_horizon=(timedelta_x_days_ago_at_y_oclock, dict(x=1, y=12, z="Europe/Amsterdam")),
+        knowledge_horizon=(
+            timedelta_x_days_ago_at_y_oclock,
+            dict(x=1, y=12, z="Europe/Amsterdam"),
+        ),
     )
     session.add(sensor)
     session.flush()

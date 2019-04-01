@@ -24,7 +24,7 @@ def interpret_complete_cdf(cdfs_p, cdfs_v, distribution: str = None):
         return cdfs_p, cdfs_v
     cdfs = []
     if distribution == "discrete":
-        for cdf_p, cdf_v in zip(cdfs_p, cdfs_v) :
+        for cdf_p, cdf_v in zip(cdfs_p, cdfs_v):
             cdf_p[-1] = 1  # Last value is the highest
             cdfs.append(ot.UserDefined([[v] for v in cdf_v], cdf_p))
     elif distribution in ["normal", "gaussian"]:
@@ -33,11 +33,15 @@ def interpret_complete_cdf(cdfs_p, cdfs_v, distribution: str = None):
             x2 = cdf_v[1]
             y1 = cdf_p[0]
             y2 = cdf_p[1]
-            mu = (x1 * pyerf.erfinv(1 - 2 * y2) - x2 * pyerf.erfinv(1 - 2 * y1))/(pyerf.erfinv(1 - 2 * y2) - pyerf.erfinv(1 - 2 * y1))
-            sigma = (2**0.5 * x1 - 2**0.5 * x2) / (2 * pyerf.erfinv(1 - 2 * y2) - 2 * pyerf.erfinv(1 - 2 * y1))
+            mu = (x1 * pyerf.erfinv(1 - 2 * y2) - x2 * pyerf.erfinv(1 - 2 * y1)) / (
+                pyerf.erfinv(1 - 2 * y2) - pyerf.erfinv(1 - 2 * y1)
+            )
+            sigma = (2 ** 0.5 * x1 - 2 ** 0.5 * x2) / (
+                2 * pyerf.erfinv(1 - 2 * y2) - 2 * pyerf.erfinv(1 - 2 * y1)
+            )
             cdfs.append(ot.Normal(mu, sigma))
     elif distribution is "uniform":
-        for cdf_p, cdf_v in zip(cdfs_p, cdfs_v) :
+        for cdf_p, cdf_v in zip(cdfs_p, cdfs_v):
             x1 = cdf_v[0]
             x2 = cdf_v[-1]
             y1 = cdf_p[0]
@@ -52,13 +56,18 @@ def interpret_complete_cdf(cdfs_p, cdfs_v, distribution: str = None):
 
 
 def probabilistic_nan_mean(
-        df: "classes.BeliefsDataFrame",
-        output_resolution, input_resolution, distribution: Optional[str] = None
+    df: "classes.BeliefsDataFrame",
+    output_resolution,
+    input_resolution,
+    distribution: Optional[str] = None,
 ) -> "classes.BeliefsDataFrame":
     """Calculate the mean value while ignoring nan values."""
 
     if output_resolution < input_resolution:
-        raise ValueError("Cannot use a downsampling policy to upsample from %s to %s." % (input_resolution, output_resolution))
+        raise ValueError(
+            "Cannot use a downsampling policy to upsample from %s to %s."
+            % (input_resolution, output_resolution)
+        )
 
     # Extract the probabilistic values that will serve as marginal distributions
     event_starts = df.groupby(["event_start"]).groups.keys()
@@ -72,23 +81,31 @@ def probabilistic_nan_mean(
     # Interpret cumulative probabilities as a description of the complete cdf, and calculate univariate joint cdf
     if distribution is None:
         cdf_p, cdf_v = interpret_complete_cdf(cdf_p, cdf_v)
-        cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(cdf_p, cdf_v, agg_function=np.nanmean)
+        cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(
+            cdf_p, cdf_v, agg_function=np.nanmean
+        )
     else:
         cdfs = interpret_complete_cdf(cdf_p, cdf_v, distribution=distribution)
         # Todo: allow passing a copula to this function
-        cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(cdfs, agg_function=np.nanmean)
+        cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(
+            cdfs, agg_function=np.nanmean
+        )
 
     # Build up new BeliefsDataFrame slice with the new probabilistic values
     first_row = df.iloc[0:1]
     first_row = first_row.reset_index()
-    df = pd.concat([first_row]*len(cdf_p), ignore_index=True)
+    df = pd.concat([first_row] * len(cdf_p), ignore_index=True)
     df["event_value"] = cdf_v
     df["cumulative_probability"] = cdf_p
-    return df.set_index(["event_start", "belief_time", "source", "cumulative_probability"])
+    return df.set_index(
+        ["event_start", "belief_time", "source", "cumulative_probability"]
+    )
 
 
 def multivariate_marginal_to_univariate_joint_cdf(
-    marginal_cdfs_p: Union[List[Union[List[float], np.ndarray, ot.DistributionImplementation]], np.ndarray],
+    marginal_cdfs_p: Union[
+        List[Union[List[float], np.ndarray, ot.DistributionImplementation]], np.ndarray
+    ],
     marginal_cdfs_v: Union[List[Union[List[float], np.ndarray]], np.ndarray] = None,
     a: float = 0,
     b: float = 1,
@@ -121,7 +138,9 @@ def multivariate_marginal_to_univariate_joint_cdf(
     """
 
     dim = len(marginal_cdfs_p)
-    n_outcomes = 99  # Todo: refactor to avoid having to set this above our threshold for computing exact probabilities
+    n_outcomes = (
+        99
+    )  # Todo: refactor to avoid having to set this above our threshold for computing exact probabilities
 
     # Set up marginal distributions
     empirical_method_possible = True
@@ -151,12 +170,30 @@ def multivariate_marginal_to_univariate_joint_cdf(
             if not math.isclose(marginal_cdf[-1], 1, rel_tol=1e-7):
                 empirical_method_possible = False
                 # We can assume some higher outcome exists with cp=1
-                values_for_cdf = np.append(values_for_cdf, values_for_cdf[-1]+1)  # Add a higher outcome (+1 suffices)
-                marginal_pdf = np.clip(np.concatenate(([marginal_cdf[0]], np.diff(marginal_cdf), [1. - marginal_cdf[-1]])), 0, 1)
-                marginals.append(ot.UserDefined([[v] for v in values_for_cdf], marginal_pdf))
+                values_for_cdf = np.append(
+                    values_for_cdf, values_for_cdf[-1] + 1
+                )  # Add a higher outcome (+1 suffices)
+                marginal_pdf = np.clip(
+                    np.concatenate(
+                        (
+                            [marginal_cdf[0]],
+                            np.diff(marginal_cdf),
+                            [1.0 - marginal_cdf[-1]],
+                        )
+                    ),
+                    0,
+                    1,
+                )
+                marginals.append(
+                    ot.UserDefined([[v] for v in values_for_cdf], marginal_pdf)
+                )
             else:
-                marginal_pdf = np.clip(np.concatenate(([marginal_cdf[0]], np.diff(marginal_cdf))), 0, 1)
-                marginals.append(ot.UserDefined([[v] for v in values_for_cdf], marginal_pdf))
+                marginal_pdf = np.clip(
+                    np.concatenate(([marginal_cdf[0]], np.diff(marginal_cdf))), 0, 1
+                )
+                marginals.append(
+                    ot.UserDefined([[v] for v in values_for_cdf], marginal_pdf)
+                )
 
     # If not specified, pick the independent copula as a default (i.e. assume independent random variables)
     if copula is None:
@@ -174,11 +211,17 @@ def multivariate_marginal_to_univariate_joint_cdf(
 
         # Compute acceptable margin to prevent floating point errors (we'll evaluate a little on the right side of each marginal point)
         if shared_bins is True:
-            smallest_marginal_point_distance = np.diff(values).min() if n_outcomes > 1 else 1
+            smallest_marginal_point_distance = (
+                np.diff(values).min() if n_outcomes > 1 else 1
+            )
         elif dim > 1:
-            smallest_marginal_point_distance = np.diff(values, axis=1).min() if n_outcomes > 1 else 1
+            smallest_marginal_point_distance = (
+                np.diff(values, axis=1).min() if n_outcomes > 1 else 1
+            )
         else:
-            smallest_marginal_point_distance = 1  # With just 1 point, an arbitrary positive distance suffices (e.g. 1)
+            smallest_marginal_point_distance = (
+                1
+            )  # With just 1 point, an arbitrary positive distance suffices (e.g. 1)
         margin = smallest_marginal_point_distance / 2
 
         # Construct an n-dimensional matrix with all possible points (i.e. combinations of outcomes of our random variables)
@@ -187,34 +230,55 @@ def multivariate_marginal_to_univariate_joint_cdf(
             shape = (n_outcomes,) * dim
 
             # Marginal points for the cdf evaluation are slightly higher to ensure we are on the right side of the discrete jump in cumulative probability
-            marginal_points_for_cdf_evaluation = list(product([v + margin for v in values], repeat=dim))
+            marginal_points_for_cdf_evaluation = list(
+                product([v + margin for v in values], repeat=dim)
+            )
         else:
             marginal_points = list(product(*marginal_cdfs_v))
             shape = [len(m) for m in marginal_cdfs_v]
 
             # Marginal points for the cdf evaluation
-            marginal_points_for_cdf_evaluation = list(product(*[v+margin for v in marginal_cdfs_v]))
+            marginal_points_for_cdf_evaluation = list(
+                product(*[v + margin for v in marginal_cdfs_v])
+            )
 
         # Evaluate exact probabilities at each point (too slow for high dimensions)
-        joint_multivariate_cdf = np.reshape(d.computeCDF(marginal_points_for_cdf_evaluation), shape)
+        joint_multivariate_cdf = np.reshape(
+            d.computeCDF(marginal_points_for_cdf_evaluation), shape
+        )
         joint_multivariate_pdf = joint_cdf_to_pdf(joint_multivariate_cdf)
 
         # Sort the probabilities ascending, keeping track of the corresponding values
-        p, v = zip(*sorted(zip(joint_multivariate_pdf.flatten(), agg_function(marginal_points, 1))))
+        p, v = zip(
+            *sorted(
+                zip(joint_multivariate_pdf.flatten(), agg_function(marginal_points, 1))
+            )
+        )
 
         # Calculate total probability of each unique value (by adding probability of cases that yield the same value)
         cdf_v = np.unique(v)
         pdf_p = np.array([sum(np.array(p)[np.where(v == i)[0]]) for i in cdf_v])
-    elif empirical_method_possible is True:  # Otherwise, compute the empirical cdf from a sample generated directly from the copula
-        uniform_points = np.array(copula.getSample(n_draws))  # Much faster than sampling from the joint cdf
+    elif (
+        empirical_method_possible is True
+    ):  # Otherwise, compute the empirical cdf from a sample generated directly from the copula
+        uniform_points = np.array(
+            copula.getSample(n_draws)
+        )  # Much faster than sampling from the joint cdf
         aggregated_points = np.zeros(n_draws)
         for i, point in enumerate(uniform_points):
-            aggregated_points[i] = agg_function(list(marginal_cdf.computeQuantile(marginal_cdf_p)[0] for marginal_cdf_p, marginal_cdf in zip(point, marginals)))
+            aggregated_points[i] = agg_function(
+                list(
+                    marginal_cdf.computeQuantile(marginal_cdf_p)[0]
+                    for marginal_cdf_p, marginal_cdf in zip(point, marginals)
+                )
+            )
         empirical_cdf = ot.UserDefined([[v] for v in aggregated_points])
         pdf_p = np.array(empirical_cdf.getP())
         cdf_v = np.array(empirical_cdf.getX()).flatten()
     else:
-        raise ValueError("Empirical method not possible given incomplete marginal CDF. Make sure all CDFs go up to 1.")
+        raise ValueError(
+            "Empirical method not possible given incomplete marginal CDF. Make sure all CDFs go up to 1."
+        )
 
     # Simplify resulting pdf
     if simplify is True:
@@ -232,9 +296,9 @@ def joint_cdf_to_pdf(cdf: np.ndarray) -> np.ndarray:
 
     if len(cdf.shape) > 1:
         pdf = cdf.copy()
-        for i, cdf_i, in enumerate(cdf):
+        for i, cdf_i in enumerate(cdf):
             if i is not 0:
-                pdf[i] = joint_cdf_to_pdf(cdf_i) - joint_cdf_to_pdf(cdf[i-1])
+                pdf[i] = joint_cdf_to_pdf(cdf_i) - joint_cdf_to_pdf(cdf[i - 1])
             else:
                 pdf[i] = joint_cdf_to_pdf(cdf_i)
         return pdf
@@ -253,7 +317,7 @@ def fill_zeros_with_last(arr):
 def bin_it(
     binned_marginal_cdf_v: Union[List[float], np.ndarray],
     marginal_cdf_v: Union[np.ndarray, List[float]],
-    marginal_cdf_p: Union[np.ndarray, List[float]]
+    marginal_cdf_p: Union[np.ndarray, List[float]],
 ):
     """Given outcome bins, and a marginal cdf (outcomes and probabilities), determine the binned marginal cdf."""
     binned_marginal_cdf_p = np.zeros(len(binned_marginal_cdf_v))
@@ -264,7 +328,11 @@ def bin_it(
     return binned_marginal_cdf_p
 
 
-def equalize_bins(cdf_values: Union[List[List[float]], np.ndarray], cdf_probabilities: List[List[float]], equal_bin_size: bool = False):
+def equalize_bins(
+    cdf_values: Union[List[List[float]], np.ndarray],
+    cdf_probabilities: List[List[float]],
+    equal_bin_size: bool = False,
+):
     """Define bins that cover all unique marginal outcomes, and compute each marginal cdf for these bins.
     Note that the bins do not necessarily have the same bin size. If this is needed, set equal_bin_size to True."""
     if equal_bin_size is False:
@@ -278,6 +346,14 @@ def equalize_bins(cdf_values: Union[List[List[float]], np.ndarray], cdf_probabil
         v_min = np.min(values)
         v_max = np.max(values)
         v = [Fraction(x).limit_denominator().denominator for x in values]
-        dv = 1 / functools.reduce(lambda a, b : a * b // math.gcd(a, b), v)
-        values = np.linspace(v_min, v_max, int((v_max-v_min) // dv))
-    return values, np.array([bin_it(values, cdf_v, cdf_p) for cdf_v, cdf_p in zip(cdf_values, cdf_probabilities)])
+        dv = 1 / functools.reduce(lambda a, b: a * b // math.gcd(a, b), v)
+        values = np.linspace(v_min, v_max, int((v_max - v_min) // dv))
+    return (
+        values,
+        np.array(
+            [
+                bin_it(values, cdf_v, cdf_p)
+                for cdf_v, cdf_p in zip(cdf_values, cdf_probabilities)
+            ]
+        ),
+    )
