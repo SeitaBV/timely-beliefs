@@ -10,7 +10,7 @@ from timely_beliefs.beliefs.utils import replace_multi_index_level
 from timely_beliefs.tests.examples import df_example
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def df_4323(time_slot_sensor: Sensor, test_source_a: BeliefSource, test_source_b: BeliefSource, index_values: bool = True) -> BeliefsDataFrame:
     """Convenient BeliefsDataFrame to run tests on.
     For a single sensor, it contains 4 events, for each of which 3 beliefs by 2 sources each, described by 3
@@ -86,23 +86,23 @@ def test_downsample_twice_upsample_once(df_4323):
     assert df["event_value"].values.tolist() == [1501 + 100 * b + 10 * s + 0*e for e in range(2) for b in range(3) for s in range(2)]
 
 
-def test_upsample_probabilistic(df_4323):
+def test_upsample_probabilistic(df_4323, test_source_a: BeliefSource):
     """Test upsampling probabilistic beliefs."""
     df = df_4323
     df = df.resample_events(timedelta(minutes=5))
     assert df.event_resolution == timedelta(minutes=5)
     assert df.index.get_level_values(level="event_start").nunique() == 3*4  # We have 3 events per quarterhour now
-    assert df.xs(datetime(2000, 1, 1), level="belief_time").xs(1, level="source")["event_value"].values.tolist()[0:9] == [0, 1, 2, 0, 1, 2, 0, 1, 2]
+    assert df.xs(datetime(2000, 1, 1), level="belief_time").xs(test_source_a, level="source")["event_value"].values.tolist()[0:9] == [0, 1, 2, 0, 1, 2, 0, 1, 2]
 
 
-def test_downsample_probabilistic(df_4323):
+def test_downsample_probabilistic(df_4323, test_source_a: BeliefSource):
     """Test downsampling probabilistic beliefs."""
     df = df_4323
     df = df.resample_events(timedelta(hours=2))
     assert df.event_resolution == timedelta(hours=2)
     # Half of the events are binned together, with two 3-valued probabilistic beliefs turned into one 5-valued belief
     assert len(df) == 72/2 + 72/2*5/6
-    cdf = df.xs(datetime(2000, 1, 3, 10), level="event_start").xs(datetime(2000, 1, 1), level="belief_time").xs(1, level="source")
+    cdf = df.xs(datetime(2000, 1, 3, 10), level="event_start").xs(datetime(2000, 1, 1), level="belief_time").xs(test_source_a, level="source")
     cdf_p = cdf.index.get_level_values(level="cumulative_probability")
     assert cdf_p[0] == approx(0.1587 ** 2)  # 1 combination yields the 1st unique possible outcome
     assert cdf_p[1] - cdf_p[0] == approx((0.1587 * (0.5 - 0.1587)) * 2)  # 2 combinations yield the 2nd outcome
