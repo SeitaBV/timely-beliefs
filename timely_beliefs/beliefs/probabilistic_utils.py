@@ -84,7 +84,7 @@ def probabilistic_nan_mean(
     df = pd.concat([first_row]*len(cdf_p), ignore_index=True)
     df["event_value"] = cdf_v
     df["cumulative_probability"] = cdf_p
-    return df.set_index(["event_start", "belief_time", "source_id", "cumulative_probability"])
+    return df.set_index(["event_start", "belief_time", "source", "cumulative_probability"])
 
 
 def multivariate_marginal_to_univariate_joint_cdf(

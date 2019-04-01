@@ -1,6 +1,6 @@
-from timely_beliefs import Sensor
-from base import session
+from timely_beliefs import DBSensor
+from timely_beliefs.base import session
 
 
-def test_persist_sensor():
-    assert session.query(Sensor).first()
+def test_persist_sensor(db):
+    assert session.query(DBSensor).first()

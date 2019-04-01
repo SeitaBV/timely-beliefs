@@ -7,8 +7,6 @@ Below, we register customer accessors.
 
 from typing import List
 
-import numpy as np
-
 from pandas.api.extensions import register_dataframe_accessor
 
 
@@ -37,8 +35,8 @@ class BeliefsAccessor(object):
             raise AttributeError("Must have index level 'event_start' or 'event_end'.")
         if all(key not in obj.index.names for key in ["belief_time", "belief_horizon"]):
             raise AttributeError("Must have index level 'belief_time' or 'belief_horizon'.")
-        if "source_id" not in obj.index.names:
-            raise AttributeError("Must have index level 'source_id'.")
+        if "source" not in obj.index.names:
+            raise AttributeError("Must have index level 'source'.")
         if "cumulative_probability" not in obj.index.names:
             raise AttributeError("Must have index level 'cumulative_probability'.")
         if "event_value" not in obj.columns:
@@ -73,15 +71,15 @@ class BeliefsAccessor(object):
         index_names = []
         index_names.append("event_start") if "event_start" in self._obj.index.names else index_names.append("event_end")
         index_names.append("belief_time") if "belief_time" in self._obj.index.names else index_names.append("belief_horizon")
-        index_names.append("source_id")
+        index_names.append("source")
         gr = self._obj.groupby(index_names)
         return len(gr)
 
     @property
     def sources(self) -> List[int]:
         """Return the unique sources for this BeliefsDataFrame."""
-        source_id = self._obj.index.get_level_values(level="source_id")
-        return source_id.unique().values
+        source = self._obj.index.get_level_values(level="source")
+        return source.unique().values
 
     @property
     def number_of_sources(self):
@@ -94,7 +92,7 @@ class BeliefsAccessor(object):
         index_names = []
         index_names.append("event_start") if "event_start" in self._obj.index.names else index_names.append("event_end")
         index_names.append("belief_time") if "belief_time" in self._obj.index.names else index_names.append("belief_horizon")
-        index_names.append("source_id")
+        index_names.append("source")
         gr = self._obj.groupby(index_names)
         df = gr.nunique(dropna=True)
         return len(df[df>1].dropna())

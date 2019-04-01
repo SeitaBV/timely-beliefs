@@ -41,7 +41,7 @@ The example BeliefsDataFrame in our tests module demonstrates the basic timely-b
     >>> df = timely_beliefs.tests.example_df
     >>> df.head(8)
                                                                                           event_value
-    event_start               belief_time               source_id cumulative_probability             
+    event_start               belief_time               source    cumulative_probability             
     2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 1         0.1587                           90
                                                                   0.5000                          100
                                                                   0.8413                          110
@@ -173,7 +173,7 @@ Select the latest forecasts for a rolling horizon (beliefs formed at least 2 day
     >>> df = timely_beliefs.tests.example_df
     >>> df.rolling_horizon(timedelta(days=2, hours=10))
                                                                                 event_value
-    event_start               belief_horizon  source_id cumulative_probability             
+    event_start               belief_horizon  source cumulative_probability             
     2000-01-03 11:00:00+00:00 2 days 10:15:00 1         0.1587                          297
                                                         0.5000                          300
                                                         0.8413                          303
@@ -188,7 +188,7 @@ Select a history of beliefs about a single event:
     >>> from datetime import datetime
     >>> df.belief_history(datetime(2000, 1, 3, 11))
                                                                 event_value
-    belief_time               source_id cumulative_probability             
+    belief_time               source cumulative_probability             
     2000-01-01 00:00:00+00:00 1         0.1587                          270
                                         0.5000                          300
                                         0.8413                          330
@@ -207,9 +207,9 @@ Upsample to events with a resolution of 5 minutes:
     >>> from datetime import timedelta
     >>> df = timely_beliefs.tests.example_df
     >>> df = df.resample_events(timedelta(minutes=5))
-    >>> df.sort_index(level=["belief_time", "source_id"]).head(9)
+    >>> df.sort_index(level=["belief_time", "source"]).head(9)
                                                                                           event_value
-    event_start               belief_time               source_id cumulative_probability             
+    event_start               belief_time               source cumulative_probability             
     2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 1         0.1587                         90.0
                                                                   0.5000                        100.0
                                                                   0.8413                        110.0
@@ -224,9 +224,9 @@ Downsample to events with a resolution of 2 hours:
 
     >>> df = timely_beliefs.tests.example_df
     >>> df2h = df.resample_events(timedelta(hours=2))
-    >>> df2h.sort_index(level=["belief_time", "source_id"]).head(15)
+    >>> df2h.sort_index(level=["belief_time", "source"]).head(15)
                                                                                           event_value
-    event_start               belief_time               source_id cumulative_probability             
+    event_start               belief_time               source cumulative_probability             
     2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 1         0.158700                       90.0
                                                                   0.500000                      100.0
                                                                   1.000000                      110.0

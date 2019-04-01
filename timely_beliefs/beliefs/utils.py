@@ -1,16 +1,20 @@
-from typing import Optional
+from typing import List, Optional
 from datetime import timedelta
 
-import numpy as np
 import pandas as pd
+import numpy as np
 from pandas.tseries.frequencies import to_offset
 from pandas.core.groupby import DataFrameGroupBy
 
 from timely_beliefs.beliefs import classes
 from timely_beliefs.beliefs.probabilistic_utils import probabilistic_nan_mean
+from timely_beliefs import Sensor
+from timely_beliefs import BeliefSource
 
 
-def select_most_recent_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
+def select_most_recent_belief(
+    df: "classes.BeliefsDataFrame"
+) -> "classes.BeliefsDataFrame":
 
     # Remember original index levels
     indices = df.index.names
@@ -24,14 +28,16 @@ def select_most_recent_belief(df: "classes.BeliefsDataFrame") -> "classes.Belief
     elif "belief_time" in indices:
         df = df.sort_values(by=["belief_time"], ascending=True).drop_duplicates(subset=["event_start", "cumulative_probability"], keep="last").sort_values(by=["event_start"])
     else:
-        raise KeyError("No belief_horizon or belief_time index level found in DataFrame.")
+        raise KeyError(
+            "No belief_horizon or belief_time index level found in DataFrame."
+        )
 
     # Convert columns to index levels (only columns that represent index levels)
     return df.set_index(indices)
 
 
 def replace_multi_index_level(df: "classes.BeliefsDataFrame", level: str, index: pd.Index, intersection: bool = False) -> "classes.BeliefsDataFrame":
-    """Replace one of the index levels of the multi-indexed DataFrame.
+    """Replace one of the index levels of the multi-indexed DataFrame. Returns a new dataframe object.
     :param: df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
     :param: level: the name of the index level to replace.
     :param: index: the new index.
@@ -81,6 +87,7 @@ def replace_multi_index_level(df: "classes.BeliefsDataFrame", level: str, index:
     # Construct new MultiIndex
     mux = pd.MultiIndex.from_arrays(new_index_values, names=new_index_names)
 
+    df = df.copy(deep=True)
     # Apply new MultiIndex
     if intersection is True:
         # Reindex such that new rows get nan column values
@@ -123,7 +130,7 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
 
     :Example:
 
-    >>> df = df.groupby([pd.Grouper(freq="1D", level="event_start"), "belief_time", "source_id"]).pipe(respect_event_resolution, timedelta(hours=1))
+    >>> df = df.groupby([pd.Grouper(freq="1D", level="event_start"), "belief_time", "source"]).pipe(respect_event_resolution, timedelta(hours=1))
 
     So don't pass a BeliefsDataFrame directly, but pipe it so that we receive a DataFrameGroupBy object, which we can
     iterate over to obtain a BeliefsDataFrame slice for a unique belief time, source id and (in our example) day of
@@ -169,7 +176,7 @@ def align_belief_times(slice: "classes.BeliefsDataFrame", unique_belief_times) -
 
     # Get unique source id for this slice
     assert slice.lineage.number_of_sources == 1
-    source_id = slice.lineage.sources[0]
+    source = slice.lineage.sources[0]
 
     # Get unique event start for this slice
     event_start = slice.index.get_level_values(level="event_start").unique()
@@ -190,7 +197,7 @@ def align_belief_times(slice: "classes.BeliefsDataFrame", unique_belief_times) -
                 ps["belief_time"] = ubt  # Update belief time to reflect propagation of beliefs over time
                 data.extend(ps.values.tolist())
             else:
-                data.append([event_start, ubt, source_id, np.nan, np.nan])
+                data.append([event_start, ubt, source, np.nan, np.nan])
         else:
             # If already present, copy the row (may be multiple rows in case of a probabilistic belief)
             slice_with_existing_belief_time = slice.xs(ubt, level="belief_time", drop_level=False)
@@ -201,9 +208,9 @@ def align_belief_times(slice: "classes.BeliefsDataFrame", unique_belief_times) -
     df = slice.copy().reset_index().iloc[0:0]
     sensor = df.sensor
     df = df.append(
-        pd.DataFrame(data, columns=["event_start", "belief_time", "source_id", "cumulative_probability", "event_value"]))
+        pd.DataFrame(data, columns=["event_start", "belief_time", "source", "cumulative_probability", "event_value"]))
     df.sensor = sensor
-    df = df.set_index(["event_start", "belief_time", "source_id", "cumulative_probability"])
+    df = df.set_index(["event_start", "belief_time", "source", "cumulative_probability"])
 
     return df
 
@@ -226,14 +233,14 @@ def join_beliefs(slice: "classes.BeliefsDataFrame", output_resolution: timedelta
 
         # Create new BeliefsDataFrame with downsampled event_start
         df = slice.groupby(
-            [pd.Grouper(freq=to_offset(output_resolution).freqstr, level="event_start"), "belief_time", "source_id",
+            [pd.Grouper(freq=to_offset(output_resolution).freqstr, level="event_start"), "belief_time", "source",
              ], group_keys=False).apply(lambda x: probabilistic_nan_mean(x, output_resolution, input_resolution, distribution=distribution))  # Todo: allow customisation for aggregating event values
     else:
         # Create new BeliefsDataFrame with upsampled event_start
         if input_resolution % output_resolution != timedelta():
             raise NotImplementedError("Cannot upsample from resolution %s to %s." % (input_resolution, output_resolution))
         df = slice.groupby(
-            [pd.Grouper(freq=to_offset(output_resolution).freqstr, level="event_start"), "belief_time", "source_id",
+            [pd.Grouper(freq=to_offset(output_resolution).freqstr, level="event_start"), "belief_time", "source",
              "cumulative_probability"], group_keys=False).apply(lambda x: upsample_event_start(x, output_resolution, input_resolution))
     return df
 
@@ -242,7 +249,6 @@ def resample_event_start(df: "classes.BeliefsDataFrame", output_resolution: time
     """For a unique source id."""
 
     # Determine unique set of belief times
-    print(df)
     unique_belief_times = np.sort(df.reset_index()["belief_time"].unique())  # Sorted from past to present
 
     # Propagate beliefs so that each event has the same set of unique belief times
@@ -252,10 +258,25 @@ def resample_event_start(df: "classes.BeliefsDataFrame", output_resolution: time
     # (make nan rows if you have to)
     # Todo: this is only necessary when the resampling policy for the event value needs to take into account nan values within the slice, so move it closer to the join_beliefs() method
     # df = df.groupby(
-    #     [pd.Grouper(freq=to_offset(output_resolution).freqstr, level="event_start"), "belief_time", "source_id"]
+    #     [pd.Grouper(freq=to_offset(output_resolution).freqstr, level="event_start"), "belief_time", "source"]
     # ).pipe(respect_event_resolution, input_resolution)
 
     # For each unique belief time, determine the joint belief about the time-aggregated event
     df = df.groupby(["belief_time"], group_keys=False).apply(lambda x: join_beliefs(x, output_resolution, input_resolution, distribution=distribution))
 
     return df
+
+
+def load_time_series(
+    event_value_series: pd.Series, sensor: Sensor, source: BeliefSource, belief_horizon: timedelta
+) -> List["classes.TimedBelief"]:
+    """Turn series entries into TimedBelief objects.
+       TODO: enable to add probability data."""
+    beliefs = []
+    for time, value in event_value_series.iteritems():
+        beliefs.append(
+            classes.TimedBelief(
+                sensor=sensor, source=source, value=value, event_time=time, belief_horizon=belief_horizon
+            )
+        )
+    return beliefs
