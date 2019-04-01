@@ -9,9 +9,8 @@ from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import relationship, backref
 
 from timely_beliefs.base import Base, session
-from timely_beliefs import Sensor
-from timely_beliefs import BeliefSource
-from timely_beliefs.sensors.classes import DBSensor
+from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
+from timely_beliefs.sensors.classes import Sensor, DBSensor
 from timely_beliefs.utils import enforce_utc
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.beliefs import utils as belief_utils
@@ -90,6 +89,13 @@ class TimedBelief(object):
     def belief_time(self) -> datetime:
         return self.knowledge_time - self.belief_horizon
 
+    @property
+    def source_id(self):
+        """Convenience method so these and DBTimedBelief can be treated equally"""
+        if self.source is not None:
+            return self.source.name
+        return None
+
 
 class DBTimedBelief(Base, TimedBelief):
     """Database representation of TimedBelief"""
@@ -105,19 +111,19 @@ class DBTimedBelief(Base, TimedBelief):
     )
     source_id = Column(Integer, ForeignKey("belief_source.id"), primary_key=True)
     sensor = relationship(
-        "Sensor",
+        "DBSensor",
         backref=backref(
             "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
     )
     source = relationship(
-        "BeliefSource",
+        "DBBeliefSource",
         backref=backref(
             "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
     )
 
-    def __init__(self, sensor: Sensor, source: BeliefSource, value: float, **kwargs):
+    def __init__(self, sensor: DBSensor, source: DBBeliefSource, value: float, **kwargs):
         TimedBelief.__init__(self, sensor, source, value, **kwargs)
         Base.__init__(self)
 
@@ -137,6 +143,8 @@ class DBTimedBelief(Base, TimedBelief):
         :param belief_before: only return beliefs formed before this datetime (inclusive)
         :param belief_not_before: only return beliefs formed after this datetime (inclusive)
         :returns: a multi-index DataFrame with all relevant beliefs
+
+        TODO: rename params for clarity: event_finished_before, even_starts_not_before (or similar), same for beliefs
         """
 
         # Check for timezone-aware datetime input
@@ -227,7 +235,9 @@ class BeliefsDataFrame(pd.DataFrame):
     A BeliefsDataFrame object is a pandas.DataFrame with the following specific data columns and MultiIndex levels:
 
     columns: ["event_value"]
-    index levels: ["event_start", "belief_time", "source_id", "cumulative_probability"]
+    index levels: ["event_start", "belief_time", "source", "cumulative_probability"]
+
+    Note that source can either be an ID or a name, depending on the beliefs being used (TimedBelief or DBTimedBelief).
 
     In addition to the standard DataFrame constructor arguments,
     BeliefsDataFrame also accepts the following keyword arguments:
@@ -256,7 +266,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
         # Define our columns and indices
         columns = ["event_value"]
-        indices = ["event_start", "belief_time", "source_id", "cumulative_probability"]
+        indices = ["event_start", "belief_time", "source", "cumulative_probability"]
 
         # Call the pandas DataFrame constructor with the right input
         kwargs["columns"] = columns
@@ -265,7 +275,7 @@ class BeliefsDataFrame(pd.DataFrame):
             kwargs["data"] = [[getattr(i, j) for j in columns] for i in beliefs]
             kwargs["index"] = pd.MultiIndex.from_tuples([[getattr(i, j) for j in indices] for i in beliefs], names=indices)
         else:
-            kwargs["index"] = pd.MultiIndex(levels=[[] for i in indices], labels=[[] for i in indices], names=indices)
+            kwargs["index"] = pd.MultiIndex(levels=[[] for _ in indices], codes=[[] for _ in indices], names=indices)
         super().__init__(*args, **kwargs)
 
         # Set the Sensor metadata (including timing properties of the sensor)
@@ -364,7 +374,7 @@ class BeliefsDataFrame(pd.DataFrame):
             return self
 
         df = self.groupby(
-            [pd.Grouper(freq=to_offset(event_resolution).freqstr, level="event_start"), "source_id"], group_keys=False
+            [pd.Grouper(freq=to_offset(event_resolution).freqstr, level="event_start"), "source"], group_keys=False
         ).apply(lambda x: belief_utils.resample_event_start(x, event_resolution, input_resolution=self.event_resolution, distribution=distribution)).sort_index()
 
         # Update metadata with new resolution

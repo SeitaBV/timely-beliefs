@@ -69,6 +69,9 @@ class Sensor(object):
         event_start = enforce_utc(event_start)
         return event_start - self.knowledge_horizon(event_start)
 
+    def __repr__(self):
+        return "<Sensor %s>" % self.name
+
 
 class DBSensor(Base, Sensor):
     """Mixin class for a table with sensors.
@@ -96,3 +99,6 @@ class DBSensor(Base, Sensor):
     ):
         Sensor.__init__(self, name, unit, timezone, event_resolution, knowledge_horizon)
         Base.__init__(self)
+
+    def __repr__(self):
+        return "<DBSensor %s (%s)>" % (self.id, self.name)

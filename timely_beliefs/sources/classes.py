@@ -1,11 +1,19 @@
-from sqlalchemy import Column, Integer
+from sqlalchemy import Column, Integer, String
 
 from timely_beliefs.base import Base
 
 
 class BeliefSource(object):
 
-    id: int
+    name: str
+
+    def __init__(self, name: str = ""):
+        if name == "":
+            raise Exception("Please give this source a name to be identifiable.")
+        self.name = name
+
+    def __repr__(self):
+        return "<BeliefSource %s>" % self.name
 
 
 class DBBeliefSource(Base):
@@ -14,3 +22,7 @@ class DBBeliefSource(Base):
     __tablename__ = "belief_source"
 
     id = Column(Integer, primary_key=True)
+    name = Column(String(120), nullable=False, default="")
+
+    def __repr__(self):
+        return "<DBBeliefSource %s (%s)>" % (self.id, self.name)

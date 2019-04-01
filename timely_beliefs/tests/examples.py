@@ -16,9 +16,9 @@ def df_example() -> BeliefsDataFrame:
     n_sources = 2
     true_value = 100
 
-    example_sensor = Sensor(event_resolution=timedelta(minutes=15), id=1)
-    example_source_a = BeliefSource(id=1)
-    example_source_b = BeliefSource(id=2)
+    example_sensor = Sensor(event_resolution=timedelta(minutes=15), name="Sensor 1")
+    example_source_a = BeliefSource(name="Source A")
+    example_source_b = BeliefSource(name="Source B")
 
     sources = [example_source_a, example_source_b]
     cps = [0.1587, 0.5, 0.8413, 0.5, 1]
