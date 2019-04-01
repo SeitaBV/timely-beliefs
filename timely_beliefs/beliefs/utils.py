@@ -270,7 +270,8 @@ def resample_event_start(df: "classes.BeliefsDataFrame", output_resolution: time
 def load_time_series(
     event_value_series: pd.Series, sensor: Sensor, source: BeliefSource, belief_horizon: timedelta
 ) -> List["classes.TimedBelief"]:
-    """Turn series entries into TimedBeliefs"""
+    """Turn series entries into TimedBelief objects.
+       TODO: enable to add probability data."""
     beliefs = []
     for time, value in event_value_series.iteritems():
         beliefs.append(

@@ -7,8 +7,6 @@ Below, we register customer accessors.
 
 from typing import List
 
-import numpy as np
-
 from pandas.api.extensions import register_dataframe_accessor
 
 

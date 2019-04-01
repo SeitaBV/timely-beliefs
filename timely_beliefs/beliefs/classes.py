@@ -260,6 +260,7 @@ class BeliefsDataFrame(pd.DataFrame):
         beliefs: List[TimedBelief] = kwargs.pop("beliefs", None)
 
         # Use our constructor if initialising from a previous DataFrame (e.g. when slicing), copying the Sensor metadata
+        # TODO: how is the metadata copied here?
         if beliefs is None:
             super().__init__(*args, **kwargs)
             return
@@ -282,19 +283,14 @@ class BeliefsDataFrame(pd.DataFrame):
         self.sensor = sensor
         self.event_resolution = self.sensor.event_resolution
 
-    def add_from_time_series(self,
+    def append_from_time_series(self,
         event_value_series: pd.Series, source: BeliefSource, belief_horizon: timedelta
-    ):
-        """Add beliefs from time series entries into this TimedBeliefsDataFrame.
-        Append makes no sense with this class atm - TODO: test this method again with newer code"""
-        beliefs = []
-        for time, value in event_value_series.iteritems():
-            beliefs.append(
-                TimedBelief(
-                    sensor=self.sensor, source=source, value=value, event_time=time, belief_horizon=belief_horizon
-                )
-            )
-        self.append(BeliefsDataFrame(sensor=self.sensor, beliefs=beliefs))
+    ) -> "BeliefsDataFrame":
+        """Append beliefs from time series entries into this BeliefsDataFrame. Sensor is assumed to be the same.
+        Returns a new BeliefsDataFrame object.
+        TODO: enable to add probability data."""
+        beliefs = belief_utils.load_time_series(event_value_series, self.sensor, source, belief_horizon)
+        return self.append(BeliefsDataFrame(sensor=self.sensor, beliefs=beliefs))
 
     @property
     def _constructor_sliced(self):

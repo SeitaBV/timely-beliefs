@@ -70,7 +70,7 @@ class Sensor(object):
         return event_start - self.knowledge_horizon(event_start)
 
     def __repr__(self):
-        return "<Sensor %s>" % self.name
+        return "<Sensor: %s>" % self.name
 
 
 class DBSensor(Base, Sensor):
@@ -101,4 +101,4 @@ class DBSensor(Base, Sensor):
         Base.__init__(self)
 
     def __repr__(self):
-        return "<DBSensor %s (%s)>" % (self.id, self.name)
+        return "<DBSensor: %s (%s)>" % (self.id, self.name)
