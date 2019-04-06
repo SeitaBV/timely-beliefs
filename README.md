@@ -52,7 +52,7 @@ The example BeliefsDataFrame in our tests module demonstrates the basic timely-b
                                                                   0.8413                          101
 The first 8 entries of this BeliefsDataFrame show beliefs about a single event.
 Beliefs were formed by two distinct sources (1 and 2), with the first updating its beliefs at a later time.
-Source 1 first thought the value of this event would be 100 ± 10 (the percentiles suggest a normal distribution),
+Source 1 first thought the value of this event would be 100 ± 10 (the probabilities suggest a normal distribution),
 and then increased its accuracy by lowering the standard deviation to 1.
 Source 2 thought the value would be equally likely to be 0 or 100.
 
