@@ -39,7 +39,12 @@ def divide_ignore(*args, **kwargs):
     return np.divide(*args, **kwargs)
 
 
-def replace_multi_index_level(df: "classes.BeliefsDataFrame", level: str, index: pd.Index, intersection: bool = False) -> "classes.BeliefsDataFrame":
+def replace_multi_index_level(
+    df: "classes.BeliefsDataFrame",
+    level: str,
+    index: pd.Index,
+    intersection: bool = False,
+) -> "classes.BeliefsDataFrame":
     """Replace one of the index levels of the multi-indexed DataFrame.
     :param: df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
     :param: level: the name of the index level to replace.
@@ -70,12 +75,22 @@ def replace_multi_index_level(df: "classes.BeliefsDataFrame", level: str, index:
         for i in df.index.names:
             if i == level:  # For the index level that should be replaced
                 # Copy old values that the new index contains, and add new values that the old index does not contain
-                new_index_values.append(df.index.get_level_values(i)[contained_in_new].append(new_index_not_in_old))
+                new_index_values.append(
+                    df.index.get_level_values(i)[contained_in_new].append(
+                        new_index_not_in_old
+                    )
+                )
                 new_index_names.append(index.name)
             else:  # For the other index levels
                 # Copy old values that the new index contains, and add the first value to the new rows
-                new_row_values = pd.Index([df.index.get_level_values(i)[0]] * len(new_index_not_in_old))
-                new_index_values.append(df.index.get_level_values(i)[contained_in_new].append(new_row_values))
+                new_row_values = pd.Index(
+                    [df.index.get_level_values(i)[0]] * len(new_index_not_in_old)
+                )
+                new_index_values.append(
+                    df.index.get_level_values(i)[contained_in_new].append(
+                        new_row_values
+                    )
+                )
                 new_index_names.append(i)
     else:
         for i in df.index.names:
