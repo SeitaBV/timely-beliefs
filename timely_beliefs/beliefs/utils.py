@@ -7,7 +7,8 @@ from pandas.tseries.frequencies import to_offset
 from pandas.core.groupby import DataFrameGroupBy
 
 from timely_beliefs.beliefs import classes
-from timely_beliefs.beliefs.probabilistic_utils import probabilistic_nan_mean
+from timely_beliefs.beliefs.probabilistic_utils import probabilistic_nan_mean, set_truth, calculate_crps
+from timely_beliefs.utils import replace_multi_index_level
 
 
 def select_most_recent_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
@@ -30,75 +31,17 @@ def select_most_recent_belief(df: "classes.BeliefsDataFrame") -> "classes.Belief
     return df.set_index(indices).sort_index()
 
 
-def replace_multi_index_level(df: "classes.BeliefsDataFrame", level: str, index: pd.Index, intersection: bool = False) -> "classes.BeliefsDataFrame":
-    """Replace one of the index levels of the multi-indexed DataFrame.
-    :param: df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
-    :param: level: the name of the index level to replace.
-    :param: index: the new index.
-    :param: intersection: policy for replacing the index level.
-    If intersection is False then simply replace (note that the new index should have the same length as the old index).
-    If intersection is True then add indices not contained in the old index and delete indices not contained in the new
-    index. New rows have nan columns values and copies of the first row for other index levels (note that the resulting
-    index is usually longer and contains values that were both in the old and new index, i.e. the intersection).
-    """
-    # Todo: check whether timezone information is copied over correctly
-
-    if intersection is False and len(index) != len(df.index):
-        raise ValueError(
-            "Cannot simply replace multi-index level with an index of different length than the original. "
-            "Use intersection instead?"
-        )
-    if index.name is None:
-        index.name = level
-
-    new_index_values = []
-    new_index_names = []
-    if intersection is True:
-        contained_in_old = index.isin(df.index.get_level_values(level))
-        new_index_not_in_old = index[~contained_in_old]
-        contained_in_new = df.index.get_level_values(level).isin(index)
-        for i in df.index.names:
-            if i == level:  # For the index level that should be replaced
-                # Copy old values that the new index contains, and add new values that the old index does not contain
-                new_index_values.append(df.index.get_level_values(i)[contained_in_new].append(new_index_not_in_old))
-                new_index_names.append(index.name)
-            else:  # For the other index levels
-                # Copy old values that the new index contains, and add the first value to the new rows
-                new_row_values = pd.Index([df.index.get_level_values(i)[0]] * len(new_index_not_in_old))
-                new_index_values.append(df.index.get_level_values(i)[contained_in_new].append(new_row_values))
-                new_index_names.append(i)
-    else:
-        for i in df.index.names:
-            if i == level:  # For the index level that should be replaced
-                # Replace with new index
-                new_index_values.append(index)
-                new_index_names.append(index.name)
-            else:  # For the other index levels
-                # Copy all old values
-                new_index_values.append(df.index.get_level_values(i))
-                new_index_names.append(i)
-
-    # Construct new MultiIndex
-    mux = pd.MultiIndex.from_arrays(new_index_values, names=new_index_names)
-
-    # Apply new MultiIndex
-    if intersection is True:
-        # Reindex such that new rows get nan column values
-        df = df.reindex(mux)
-    else:
-        # Replace the index
-        df.index = mux
-    return df.sort_index()
-
-
 def upsample_event_start(df, output_resolution: timedelta, input_resolution: timedelta, fill_method: Optional[str] = "pad"):
     """Upsample event_start (which must be the first index level) from input_resolution to output_resolution."""
+
+    # Check input
     if output_resolution > input_resolution:
         raise ValueError("Cannot use an upsampling policy to downsample from %s to %s." % (input_resolution, output_resolution))
     if df.empty:
         return df
     if df.index.names[0] != "event_start":
         raise KeyError("Upsampling only works if the event_start is the first index level.")
+
     lvl0 = pd.date_range(start=df.index.get_level_values(0)[0], periods=input_resolution // output_resolution,
                          freq=to_offset(output_resolution).freqstr)
     new_index_values = [lvl0]
@@ -162,6 +105,7 @@ def align_belief_times(slice: "classes.BeliefsDataFrame", unique_belief_times) -
     The input BeliefsDataFrame should represent beliefs about a single event formed by a single source.
     """
 
+    # Check input
     if not slice.lineage.number_of_events == 1:
         raise ValueError("BeliefsDataFrame slice must describe a single event.")
     if not slice.lineage.number_of_sources == 1:
@@ -217,6 +161,7 @@ def join_beliefs(slice: "classes.BeliefsDataFrame", output_resolution: timedelta
     multiple rows).
     """
 
+    # Check input
     if not slice.lineage.number_of_belief_times == 1:
         raise ValueError("BeliefsDataFrame slice must describe beliefs formed at the exact same time.")
     if not slice.lineage.number_of_sources == 1:
@@ -260,61 +205,49 @@ def resample_event_start(df: "classes.BeliefsDataFrame", output_resolution: time
     return df
 
 
-def get_mae(df_forecast, df_true, source_id_anchor) -> "classes.BeliefsDataFrame":
-    # Todo: allow to estimate the mean from the given cdf points for non-discrete distributions, e.g. uniform
-    # Todo: compute the ranked probability score for probabilistic forecasts
-    df_forecast = df_forecast.for_each_belief(get_mean_belief)
-    df_true = df_true.for_each_belief(get_belief_at_cumulative_probability, cumulative_probability=0.5)
-    if "belief_horizon" in df_forecast.index.names:
-        df_forecast.index = df_forecast.index.droplevel("belief_horizon")
-    else:
-        df_forecast.index = df_forecast.index.droplevel("belief_time")
-    if "belief_horizon" in df_true.index.names:
-        df_true.index = df_true.index.droplevel("belief_horizon")
-    else:
-        df_true.index = df_true.index.droplevel("belief_time")
-    df_forecast.columns = ["forecast"]
-    df_true.columns = ["true"]
-    df = pd.concat([df_forecast, df_true], axis=1)
+def compute_scores(
+    df_forecast: "classes.BeliefsDataFrame",
+    df_observation: "classes.BeliefsDataFrame",
+    source_id_anchor: int = None
+) -> "classes.BeliefsDataFrame":
+    """
 
-    def decide_who_is_right(df: "classes.BeliefsDataFrame", right_source_id: int) -> "classes.BeliefsDataFrame":
-        if right_source_id in df.index.get_level_values(level="source_id").values:
-            df["true"] = df["true"].xs(right_source_id, level="source_id").values[0]
-        else:
-            raise KeyError("Source id %s not found in BeliefsDataFrame." % right_source_id)
-        return df
+    If df_true contains probabilistic beliefs, scores are determined with respect to the expected value (with cp=0.5).
 
+    References
+    ----------
+    Hans Hersbach. Decomposition of the Continuous Ranked Probability Score for Ensemble Prediction Systems
+        in Weather and Forecasting, Volume 15, No. 5, pages 559-570, 2000.
+        https://journals.ametsoc.org/doi/pdf/10.1175/1520-0434%282000%29015%3C0559%3ADOTCRP%3E2.0.CO%3B2
+    """
+
+    # Check input
+    if not df_forecast.lineage.unique_beliefs_per_event_per_source:
+        raise ValueError("BeliefsDataFrame with forecasts slice must describe a single belief per source per event.")
+    if not df_observation.lineage.unique_beliefs_per_event_per_source:
+        raise ValueError("BeliefsDataFrame with observations slice must describe a single belief per source per event.")
+
+    # If applicable, decide which source provides the observations that are considered to be true when we compute scores
     if source_id_anchor is not None:
-        df = df.groupby(level="event_start").apply(lambda x: decide_who_is_right(x, source_id_anchor))
+        df_observation = df_observation.groupby(level=["event_start"], group_keys=False).apply(
+            lambda x: x.groupby(level=["source_id"]).pipe(set_truth, source_id_anchor))
 
-    def calculate_mae(df: "classes.BeliefsDataFrame") -> np.ndarray:
-        return np.mean(abs(df["forecast"] - df["true"]))
+    # Combine the forecasts and observations into one DataFrame
+    df_forecast.index = df_forecast.index.droplevel("belief_horizon" if "belief_horizon" in df_forecast.index.names else "belief_time")
+    df_observation.index = df_observation.index.droplevel(
+        "belief_horizon" if "belief_horizon" in df_observation.index.names else "belief_time")
+    df_forecast.columns = ["forecast"]
+    df_observation.columns = ["observation"]
+    df = pd.concat([df_forecast, df_observation], axis=1)
 
-    mae = df.groupby(level="source_id").apply(lambda x: calculate_mae(x))
-    mae.name = "mean_average_error"
-    return mae
+    # Calculate the continuous ranked probability score
+    df_scores = df.groupby(level=["event_start", "source_id"], group_keys=False).apply(lambda x: calculate_crps(x))
 
+    # Rename to mae, calculate mape and wape, and drop the true values (only keep the scores)
+    df_scores = df_scores.rename(columns={"crps": "mae"})  # Technically, we have yet to take the mean
+    df_scores["mape"] = (df_scores["mae"] / df_scores["observation"]).replace([np.inf, -np.inf], np.nan)
+    df_scores = df_scores.groupby(level=["source_id"], group_keys=False).mean()
+    df_scores["wape"] = (df_scores["mae"] / df_scores["observation"]).replace([np.inf, -np.inf], np.nan)
+    df_scores = df_scores.drop(columns=["observation"])
 
-def get_belief_at_cumulative_probability(df: "classes.BeliefsDataFrame", cumulative_probability: float) -> "classes.BeliefsDataFrame":
-    """Take the first value with cumulative probability equal or higher than the probability given.
-    This selects the right value assuming a discrete probability distribution."""
-    df2 = df[df.index.get_level_values("cumulative_probability") >= cumulative_probability]
-    if df2.empty:
-        # Take the value with the highest cumulative probability from the original DataFrame
-        return df.tail(1)
-    else:
-        # Take the first value with a higher cumulative probability than given
-        return df2.head(1)
-
-
-def get_mean_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
-    """Convenience function to select the expected value."""
-    return get_belief_at_cumulative_probability(df, 0.5)
-
-
-def get_nth_percentile_belief(df: "classes.BeliefsDataFrame", n: float) -> "classes.BeliefsDataFrame":
-    """Convenience function to select the value at the nth percentile."""
-    return get_belief_at_cumulative_probability(df, n/100)
-
-
-get_expected_belief = get_mean_belief  # Define alias
+    return df_scores

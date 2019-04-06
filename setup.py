@@ -16,6 +16,7 @@ setup(
         "psycopg2",
         "isodate",
         "openturns",
+        "properscoring",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],

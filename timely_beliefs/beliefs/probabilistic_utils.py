@@ -3,12 +3,17 @@ from itertools import product
 from typing import Union, List, Callable, Optional, Tuple
 
 import numpy as np
+import properscoring as ps
+from pandas.core.groupby import DataFrameGroupBy
 import pyerf
 import openturns as ot
 import pandas as pd
 
+from timely_beliefs.beliefs import classes
+from timely_beliefs.utils import replace_multi_index_level
 
-def interpret_complete_cdf(cdfs_p, cdfs_v, distribution: str = None):
+
+def interpret_complete_cdf(cdfs_p: List[Union[list, np.ndarray]], cdfs_v: List[Union[list, np.ndarray]], distribution: str = None) -> Union[List[Union[list, np.ndarray]], Tuple[List[Union[list, np.ndarray]], List[Union[list, np.ndarray]]], ot.DistributionImplementation]:
     """Interpret the given points on the cumulative distribution function to represent a complete CDF. The default
     policy is to assume discrete probabilities.
     If a distribution name is specified, the CDF is returned as an openturns distribution object.
@@ -17,6 +22,7 @@ def interpret_complete_cdf(cdfs_p, cdfs_v, distribution: str = None):
     - normal or gaussian: derived from the first two point only
     - uniform: derived from the first and last points and extended to range from cp=0 to cp=1
     """
+    # Todo: refactor, currently too many possible types of output
 
     if distribution is None:
         for cdf_p in cdfs_p:
@@ -281,3 +287,129 @@ def equalize_bins(cdf_values: Union[List[List[float]], np.ndarray], cdf_probabil
         dv = 1 / functools.reduce(lambda a, b : a * b // math.gcd(a, b), v)
         values = np.linspace(v_min, v_max, int((v_max-v_min) // dv))
     return values, np.array([bin_it(values, cdf_v, cdf_p) for cdf_v, cdf_p in zip(cdf_values, cdf_probabilities)])
+
+
+def set_truth(grouped: DataFrameGroupBy, right_source_id: int) -> "classes.BeliefsDataFrame":
+    """Decide who is right (which source id)."""
+
+    # Pick out the group that is considered to contain the true observations
+    gr_dict = dict(grouped.__iter__())
+    if right_source_id in gr_dict:
+        truth_group = gr_dict[right_source_id]
+    else:
+        raise KeyError("Source id %s not found in BeliefsDataFrame." % right_source_id)
+
+    # Replace each original group with the truth group, while adding back the source id for each original group
+    gr_list = [replace_multi_index_level(truth_group, "source_id", pd.Index([key]*len(truth_group))) for key, group in grouped]
+
+    return pd.concat(gr_list)
+
+
+def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
+    """Compute the continuous ranked probability score for a BeliefsDataFrame with a probabilistic (or deterministic)
+    forecast and observation. This function supports a probabilistic observation, too."""
+
+    if len(df.groupby(level=["event_start", "source_id"])) > 1:
+        raise ValueError("Expected BeliefsDataFrame must describe a single observation and forecast."
+                         "BeliefsDataFrame cannot contain multiple events or sources.")
+
+    # Split DataFrame into forecast and observation
+    df_forecast = df.dropna(subset=["forecast"])["forecast"]
+    df_observation = df.dropna(subset=["observation"])["observation"]
+
+    # Obtain the distributions
+    pdf_p_forecast, pdf_v_forecast = get_pdfs_from_beliefsdataframe(df_forecast)
+    pdf_p_observation, pdf_v_observation = get_pdfs_from_beliefsdataframe(df_observation)
+
+    # Check if we have both a forecast and an observation
+    if pdf_p_forecast.size == 0 or pdf_p_observation.size == 0:
+        crps = np.nan
+    else:
+        cdf_p_observation = pdf_p_observation.cumsum()
+        cdf_p_forecast = pdf_p_forecast.cumsum()
+        crpss = []
+
+        # Loop over steps in cumulative probability (in case of a deterministic observation, this is a single step)
+        previous_cp_observation = 0
+        for p_observation, cp_observation, v_observation in zip(pdf_p_observation, cdf_p_observation, pdf_v_observation):
+
+            # Obtain the normalized pdf for this step
+            cdf_p_forecast_i, cdf_v_forecast_i = partial_cdf(cdf_p_forecast, pdf_v_forecast, (previous_cp_observation, cp_observation))
+            pdf_p_forecast_i = np.concatenate(([cdf_p_forecast_i[0]], np.diff(cdf_p_forecast_i)))
+
+            # Calculate the continuous ranked profile score for this step (i.e. how well does the forecast descibe this possible outcome for the observation)
+            crpss.append(ps.crps_ensemble(v_observation, cdf_v_forecast_i, pdf_p_forecast_i))
+
+            # Set the left cp bound for the next step
+            previous_cp_observation = cp_observation
+
+        # Calculate the weighted sum of scores over all possible outcomes for the observation.
+        crps = np.dot(crpss, pdf_p_observation)
+
+    # List the expected observation as the reference for determining percentage scores
+    df_score = get_expected_belief(df_observation.to_frame())
+    df_score.index = df_score.index.droplevel("cumulative_probability")
+
+    # And of course return the score as well
+    df_score["crps"] = crps
+
+    return df_score
+
+
+def partial_cdf(cdf_p: np.ndarray, cdf_v: np.ndarray, cp_range: Tuple[float, float]):
+    """Calculate partial cdf within the given cumulative probability range."""
+
+    # Select relevant probabilities within the given range
+    left = np.searchsorted(cdf_p, cp_range[0], side="right")
+    right = np.searchsorted(cdf_p, cp_range[1], side="left")
+    cdf_p_to_consider = cdf_p[left:right + 1]
+
+    # Transform (normalize cdf to range from 0 to 1)
+    cdf_p_to_become = (cdf_p_to_consider - cp_range[0]) / (cp_range[1] - cp_range[0])
+    cdf_p_to_become[-1] = 1
+
+    return cdf_p_to_become, cdf_v[left:right + 1]
+
+
+def get_cdfs_from_beliefsdataframe(df: "classes.BeliefsDataFrame") -> Tuple[np.ndarray, np.ndarray]:
+    """From a BeliefsDataFrame with a single belief, get the cumulative distribution functions."""
+    if df.empty:
+        return np.empty(0), np.empty(0)
+
+    pdf_v = df.values
+    cdf_p = df.index.get_level_values("cumulative_probability").values
+
+    # Todo: support interpretation as non-discrete distribution, e.g. uniform
+    cdfs_p, cdfs_v = interpret_complete_cdf([cdf_p], [pdf_v])
+    return cdfs_p[0], cdfs_v[0]
+
+
+def get_pdfs_from_beliefsdataframe(df: "classes.BeliefsDataFrame") -> Tuple[np.ndarray, np.ndarray]:
+    """From a BeliefsDataFrame with a single belief, get the probability distribution functions."""
+    cdf_p, pdf_v = get_cdfs_from_beliefsdataframe(df)
+    pdf_p = np.concatenate(([cdf_p[0]], np.diff(cdf_p))) if cdf_p.size != 0 else np.empty(0)
+    return pdf_p, pdf_v
+
+
+def get_belief_at_cumulative_probability(df: "classes.BeliefsDataFrame", cumulative_probability: float) -> "classes.BeliefsDataFrame":
+    """Take the first value with cumulative probability equal or higher than the probability given.
+    This selects the right value assuming a discrete probability distribution."""
+    df2 = df[df.index.get_level_values("cumulative_probability") >= cumulative_probability]
+    if df2.empty:
+        # Take the value with the highest cumulative probability from the original DataFrame
+        return df.tail(1)
+    else:
+        # Take the first value with a higher cumulative probability than given
+        return df2.head(1)
+
+
+def get_mean_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
+    """Convenience function to select the expected value."""
+    return get_belief_at_cumulative_probability(df, 0.5)
+
+
+def get_nth_percentile_belief(df: "classes.BeliefsDataFrame", n: float) -> "classes.BeliefsDataFrame":
+    """Convenience function to select the value at the nth percentile."""
+    return get_belief_at_cumulative_probability(df, n/100)
+
+get_expected_belief = get_mean_belief  # Define alias

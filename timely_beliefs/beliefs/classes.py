@@ -11,10 +11,11 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import relationship, backref
 
+import timely_beliefs.utils
 from base import Base, session
 from timely_beliefs import Sensor
 from timely_beliefs import BeliefSource
-from timely_beliefs.beliefs.utils import get_mae
+from timely_beliefs.beliefs.utils import compute_scores
 from timely_beliefs.utils import enforce_utc
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.beliefs import utils as belief_utils
@@ -238,13 +239,13 @@ class BeliefsDataFrame(pd.DataFrame):
         return self
 
     def convert_index_from_belief_time_to_horizon(self) -> "BeliefsDataFrame":
-        return belief_utils.replace_multi_index_level(self, "belief_time", self.belief_horizons)
+        return timely_beliefs.utils.replace_multi_index_level(self, "belief_time", self.belief_horizons)
 
     def convert_index_from_belief_horizon_to_time(self) -> "BeliefsDataFrame":
-        return belief_utils.replace_multi_index_level(self, "belief_horizon", self.belief_times)
+        return timely_beliefs.utils.replace_multi_index_level(self, "belief_horizon", self.belief_times)
 
     def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
-        return belief_utils.replace_multi_index_level(self, "event_start", self.event_ends)
+        return timely_beliefs.utils.replace_multi_index_level(self, "event_start", self.event_ends)
 
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:
@@ -289,12 +290,15 @@ class BeliefsDataFrame(pd.DataFrame):
         >>> df.for_each_belief(some_function, True, a=1)
         >>> # Pipe some other function that accepts a GroupBy object, a positional argument and a keyword argument
         >>> df.for_each_belief().pipe(some_other_function, True, a=1)
+        >>> # If you want to call this method within another groupby function, pass the df group explicitly
+        >>> df.for_each_belief(some_function, True, a=1, df=df)
         """
+        df = kwargs.pop("df", self)
         index_names = []
-        index_names.append("event_start") if "event_start" in self.index.names else index_names.append("event_end")
-        index_names.append("belief_time") if "belief_time" in self.index.names else index_names.append("belief_horizon")
+        index_names.extend(["event_start"] if "event_start" in df.index.names else ["event_end"] if "event_end" in df.index.names else [])
+        index_names.extend(["belief_time"] if "belief_time" in df.index.names else ["belief_horizon"] if "belief_horizon" in df.index.names else [])
         index_names.append("source_id")
-        gr = self.groupby(level=index_names, group_keys=False)
+        gr = df.groupby(level=index_names, group_keys=False)
         if fnc is not None:
             return gr.apply(lambda x: fnc(x, *args, **kwargs))
         return gr
@@ -499,7 +503,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 df_true = belief_utils.select_most_recent_belief(df[df.index.get_level_values("belief_time") <= belief_time_anchor])
             else:
                 raise ValueError("Cannot pass both a belief time anchor and a belief horizon anchor.")
-        return get_mae(df_forecast, df_true, source_id_anchor)
+        return compute_scores(df_forecast, df_true, source_id_anchor)
 
     def rolling_horizon_accuracy(
         self,
@@ -508,11 +512,23 @@ class BeliefsDataFrame(pd.DataFrame):
         belief_horizon_anchor: timedelta = None,
         source_id_anchor: int = None,
     ) -> "BeliefsDataFrame":
-        """Get the accuracy of beliefs at a given horizon, with respect to the most recent beliefs about each event.
-        By default the mean absolute error (MAE) is returned.
-        Alternatively, select the accuracy of beliefs formed within a certain horizon window before knowledge time (with
-        negative horizons indicating post knowledge time). This allows setting a maximum acceptable freshness of the
-        data.
+        """Get the accuracy of forecasts (beliefs at a given horizon),
+        with respect to some given truth (by default, the most recent beliefs about each event).
+        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        the weighted absolute percentage error (WAPE) are returned.
+
+        For probabilistic forecasts, the MAE is computed as the Continuous Ranked Probability Score (CRPS),
+        which is a generalisation of the MAE. Metrics similar to MAPE and WAPE are obtained by dividing the CRPS over
+        the true values or true average value, respectively.
+        For your convenience, hopefully, we left the column names unchanged.
+        For probabilistic truths, the CRPS takes into account all possible outcomes.
+        However, the MAPE and WAPE use the expected true value (cp=0.5) as their denominator.
+
+        As an alternative to selecting the most recent belief as the reference,
+        set a horizon window to select the accuracy of beliefs formed within a certain time window before knowledge time
+        (with negative horizons indicating post knowledge time).
+        This allows setting a maximum acceptable freshness of the data.
+
         Optionally, set an anchor to get the accuracy of beliefs at a given horizon with respect to some other horizon,
         and/or another source.
         This allows to define what is considered to be true at a certain time after an event.
@@ -541,7 +557,7 @@ class BeliefsDataFrame(pd.DataFrame):
             df_true = belief_utils.select_most_recent_belief(df)
         else:
             df_true = belief_utils.select_most_recent_belief(df[df.index.get_level_values("belief_horizon") >= belief_horizon_anchor])
-        return get_mae(df_forecast, df_true, source_id_anchor)
+        return compute_scores(df_forecast, df_true, source_id_anchor)
 
     def __init__(self, *args, **kwargs):
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
