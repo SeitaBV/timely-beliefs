@@ -58,8 +58,15 @@ class BeliefsAccessor(object):
     @property
     def belief_times(self) -> List[int]:
         """Return the unique belief times in this BeliefsDataFrame."""
-        belief_time = self._obj.index.get_level_values(level="belief_time")
-        return belief_time.unique().values
+        if "belief_time" in self._obj.index.names:
+            return self._obj.index.get_level_values(level="belief_time").unique().values
+        else:
+            return (
+                self._obj.convert_index_from_belief_horizon_to_time()
+                .index.get_level_values(level="belief_time")
+                .unique()
+                .values
+            )
 
     @property
     def number_of_belief_times(self):
@@ -97,18 +104,7 @@ class BeliefsAccessor(object):
     @property
     def number_of_probabilistic_beliefs(self) -> int:
         """Return the number of beliefs in the BeliefsDataFrame that are probabilistic (more than 1 unique value)."""
-        index_names = []
-        index_names.append(
-            "event_start"
-        ) if "event_start" in self._obj.index.names else index_names.append("event_end")
-        index_names.append(
-            "belief_time"
-        ) if "belief_time" in self._obj.index.names else index_names.append(
-            "belief_horizon"
-        )
-        index_names.append("source")
-        gr = self._obj.groupby(index_names)
-        df = gr.nunique(dropna=True)
+        df = self._obj.for_each_belief(df=self._obj).nunique(dropna=True)
         return len(df[df > 1].dropna())
 
     @property
@@ -129,7 +125,14 @@ class BeliefsAccessor(object):
         return 1 - self.number_of_probabilistic_beliefs / self.number_of_beliefs
 
     @property
-    def probabilistic_accuracy(self) -> float:
+    def unique_beliefs_per_event_per_source(self) -> bool:
+        """Return whether or not the BeliefsDataFrame contains at most 1 belief per event per source."""
+        return len(
+            self._obj.groupby(level=["event_start", "source", "cumulative_probability"])
+        ) == len(self._obj)
+
+    @property
+    def probabilistic_depth(self) -> float:
         """Return the average number of probabilistic values per belief.
         As a rule of thumb:
         deterministic = 1

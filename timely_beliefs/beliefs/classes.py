@@ -1,8 +1,9 @@
-from typing import List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 import math
 
 import pandas as pd
+from pandas.core.groupby import DataFrameGroupBy
 from pandas.tseries.frequencies import to_offset
 from sqlalchemy import Column, DateTime, Integer, Interval, Float, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
@@ -329,7 +330,9 @@ class BeliefsDataFrame(pd.DataFrame):
         )
 
     def convert_index_from_belief_horizon_to_time(self) -> "BeliefsDataFrame":
-        return belief_utils.replace_multi_index_level(self, "belief_horizon", self.belief_times)
+        return belief_utils.replace_multi_index_level(
+            self, "belief_horizon", self.belief_times
+        )
 
     def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
         return belief_utils.replace_multi_index_level(
@@ -379,11 +382,57 @@ class BeliefsDataFrame(pd.DataFrame):
         )
 
     @hybrid_method
+    def for_each_belief(
+        self, fnc: Callable = None, *args: Any, **kwargs: Any
+    ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
+        """Convenient function to apply a function to each belief in the BeliefsDataFrame.
+        A belief is a group with unique event start, belief time and source. A deterministic belief is defined by a
+        single row, whereas a probabilistic belief is defined by multiple rows.
+        If no function is given, return the GroupBy object.
+
+        :Example:
+
+        >>> # Apply some function that accepts a DataFrame, a positional argument and a keyword argument
+        >>> df.for_each_belief(some_function, True, a=1)
+        >>> # Pipe some other function that accepts a GroupBy object, a positional argument and a keyword argument
+        >>> df.for_each_belief().pipe(some_other_function, True, a=1)
+        >>> # If you want to call this method within another groupby function, pass the df group explicitly
+        >>> df.for_each_belief(some_function, True, a=1, df=df)
+        """
+        df = kwargs.pop("df", self)
+        index_names = []
+        index_names.extend(
+            ["event_start"]
+            if "event_start" in df.index.names
+            else ["event_end"]
+            if "event_end" in df.index.names
+            else []
+        )
+        index_names.extend(
+            ["belief_time"]
+            if "belief_time" in df.index.names
+            else ["belief_horizon"]
+            if "belief_horizon" in df.index.names
+            else []
+        )
+        index_names.append("source")
+        gr = df.groupby(level=index_names, group_keys=False)
+        if fnc is not None:
+            return gr.apply(lambda x: fnc(x, *args, **kwargs))
+        return gr
+
+    @hybrid_method
     def belief_history(
         self,
         event_start: datetime,
-        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
-        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
+        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (
+            None,
+            None,
+        ),
+        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+            None,
+            None,
+        ),
     ) -> "BeliefsDataFrame":
         """Select all beliefs about a single event, identified by the event's start time.
         Optionally select a history of beliefs formed within a certain time window.
@@ -403,19 +452,29 @@ class BeliefsDataFrame(pd.DataFrame):
         :param: belief_time_window: optional tuple specifying a time window within which beliefs should have been formed
         :param: belief_horizon_window: optional tuple specifying a horizon window (e.g. between 1 and 2 hours before the event value could have been known)
         """
-        df = self.xs(enforce_utc(event_start), level="event_start", drop_level=False).sort_index()
+        df = self.xs(
+            enforce_utc(event_start), level="event_start", drop_level=False
+        ).sort_index()
         if belief_time_window[0] is not None:
             df = df[df.index.get_level_values("belief_time") >= belief_time_window[0]]
         if belief_time_window[1] is not None:
             df = df[df.index.get_level_values("belief_time") <= belief_time_window[1]]
         if belief_horizon_window != (None, None):
             if belief_time_window != (None, None):
-                raise ValueError("Cannot pass both a belief time window and belief horizon window.")
+                raise ValueError(
+                    "Cannot pass both a belief time window and belief horizon window."
+                )
             df = df.convert_index_from_belief_time_to_horizon()
             if belief_horizon_window[0] is not None:
-                df = df[df.index.get_level_values("belief_horizon") >= belief_horizon_window[0]]
+                df = df[
+                    df.index.get_level_values("belief_horizon")
+                    >= belief_horizon_window[0]
+                ]
             if belief_horizon_window[1] is not None:
-                df = df[df.index.get_level_values("belief_horizon") <= belief_horizon_window[1]]
+                df = df[
+                    df.index.get_level_values("belief_horizon")
+                    <= belief_horizon_window[1]
+                ]
             df = df.convert_index_from_belief_horizon_to_time()
         df.index = df.index.droplevel("event_start")
         return df
@@ -424,7 +483,10 @@ class BeliefsDataFrame(pd.DataFrame):
     def fixed_horizon(
         self,
         belief_time: datetime = None,
-        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
+        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (
+            None,
+            None,
+        ),
     ) -> "BeliefsDataFrame":
         """Select the most recent belief about each event at a given belief time.
         Alternatively, select the most recent belief formed within a certain time window. This allows setting a maximum
@@ -444,20 +506,31 @@ class BeliefsDataFrame(pd.DataFrame):
         """
         if belief_time is not None:
             if belief_time_window != (None, None):
-                raise ValueError("Cannot pass both a belief time and belief time window.")
+                raise ValueError(
+                    "Cannot pass both a belief time and belief time window."
+                )
             belief_time_window = (None, belief_time)
         df = self
         if belief_time_window[0] is not None:
-            df = df[df.index.get_level_values("belief_time") >= enforce_utc(belief_time_window[0])]
+            df = df[
+                df.index.get_level_values("belief_time")
+                >= enforce_utc(belief_time_window[0])
+            ]
         if belief_time_window[1] is not None:
-            df = df[df.index.get_level_values("belief_time") <= enforce_utc(belief_time_window[1])]
+            df = df[
+                df.index.get_level_values("belief_time")
+                <= enforce_utc(belief_time_window[1])
+            ]
         return belief_utils.select_most_recent_belief(df)
 
     @hybrid_method
     def rolling_horizon(
         self,
         belief_horizon: timedelta = None,
-        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
+        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+            None,
+            None,
+        ),
     ) -> "BeliefsDataFrame":
         """Select the most recent belief about each event,
         at least some duration in advance of knowledge time (pass a positive belief_horizon),
@@ -480,13 +553,19 @@ class BeliefsDataFrame(pd.DataFrame):
         """
         if belief_horizon is not None:
             if belief_horizon_window != (None, None):
-                raise ValueError("Cannot pass both a belief horizon and belief horizon window.")
+                raise ValueError(
+                    "Cannot pass both a belief horizon and belief horizon window."
+                )
             belief_horizon_window = (belief_horizon, None)
         df = self.convert_index_from_belief_time_to_horizon()
         if belief_horizon_window[0] is not None:
-            df = df[df.index.get_level_values("belief_horizon") >= belief_horizon_window[0]]
+            df = df[
+                df.index.get_level_values("belief_horizon") >= belief_horizon_window[0]
+            ]
         if belief_horizon_window[1] is not None:
-            df = df[df.index.get_level_values("belief_horizon") <= belief_horizon_window[1]]
+            df = df[
+                df.index.get_level_values("belief_horizon") <= belief_horizon_window[1]
+            ]
         return belief_utils.select_most_recent_belief(df)
 
     @hybrid_method
@@ -526,3 +605,140 @@ class BeliefsDataFrame(pd.DataFrame):
         df.sensor = self.sensor
 
         return df
+
+    def accuracy(
+        self, t: Union[datetime, timedelta], source_anchor: "BeliefSource" = None
+    ) -> "BeliefsDataFrame":
+        """Simply get the accuracy of beliefs about events, at a given time (pass a datetime) or at a given horizon
+        (pass a timedelta).
+        Optionally, set an anchor to get the accuracy of beliefs with respect to those held by a specific source.
+        For more options, use df.fixed_horizon_accuracy() or df.rolling_horizon_accuracy().
+
+        :param: source_anchor: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
+        """
+        if isinstance(t, datetime):
+            return self.fixed_horizon_accuracy(t, source_anchor=source_anchor)
+        elif isinstance(t, timedelta):
+            return self.rolling_horizon_accuracy(t, source_anchor=source_anchor)
+
+    def fixed_horizon_accuracy(
+        self,
+        belief_time: datetime = None,
+        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (
+            None,
+            None,
+        ),
+        belief_time_anchor: datetime = None,
+        belief_horizon_anchor: timedelta = None,
+        source_anchor: int = None,
+    ) -> "BeliefsDataFrame":
+        """Get the accuracy of beliefs about each event at a given belief time.
+
+        Alternatively, select the accuracy of beliefs formed within a certain time window. This allows setting a maximum
+        acceptable freshness of the data.
+
+        Optionally, set a belief time anchor.
+        Alternatively, set a belief horizon anchor instead of a belief time anchor.
+
+        >>> # Time selecting the accuracy of beliefs held about each event on June 2nd (midnight)
+        >>> df.fixed_horizon_accuracy(belief_time=datetime(2013, 6, 2))
+        >>> # Or equivalently:
+        >>> df.fixed_horizon_accuracy(belief_time_window=(None, datetime(2013, 6, 2)))
+        >>> # Time window selecting the accuracy of beliefs formed about each event on June 1st
+        >>> df.fixed_horizon_accuracy(belief_time_window=(datetime(2013, 6, 1), datetime(2013, 6, 2)))
+        >>> # Time and time anchor selecting the accuracy of beliefs held on June 2nd with respect to beliefs held on June 10th
+        >>> df.fixed_horizon_accuracy(belief_time=datetime(2013, 6, 2), belief_time_anchor=datetime(2013, 6, 10))
+        >>> # Time and horizon anchor selecting the accuracy of beliefs held on June 2nd with respect to 1 day past knowledge time
+        >>> df.fixed_horizon_accuracy(belief_time=datetime(2013, 6, 2), belief_horizon_anchor=timedelta(days=-1))
+        >>> # Time and source anchor selecting the accuracy of beliefs held on June 2nd with respect to the latest belief formed by source 3
+        >>> df.fixed_horizon_accuracy(belief_time=datetime(2013, 6, 2), source_anchor=3)
+
+        :param: belief_time: datetime indicating the belief should be formed at this time at the latest
+        :param: belief_time_window: optional tuple specifying a time window in which the belief should have been formed (e.g. between June 1st and 2nd)
+        :param: belief_time_anchor: optional datetime to indicate that the accuracy should be determined with respect to the latest belief held at this time
+        :param: belief_horizon_anchor: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
+        :param: source_anchor: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
+        """
+        df = self
+        df_forecast = df.fixed_horizon(belief_time, belief_time_window)
+        if belief_time_anchor is None:
+            if belief_horizon_anchor is None:
+                df_observation = belief_utils.select_most_recent_belief(df)
+            else:
+                df = df.convert_index_from_belief_time_to_horizon()
+                df_observation = belief_utils.select_most_recent_belief(
+                    df[
+                        df.index.get_level_values("belief_horizon")
+                        >= belief_horizon_anchor
+                    ]
+                )
+        else:
+            if belief_horizon_anchor is None:
+                df = df.convert_index_from_belief_horizon_to_time()
+                df_observation = belief_utils.select_most_recent_belief(
+                    df[df.index.get_level_values("belief_time") <= belief_time_anchor]
+                )
+            else:
+                raise ValueError(
+                    "Cannot pass both a belief time anchor and a belief horizon anchor."
+                )
+        return belief_utils.compute_scores(df_forecast, df_observation, source_anchor)
+
+    def rolling_horizon_accuracy(
+        self,
+        belief_horizon: timedelta = None,
+        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+            None,
+            None,
+        ),
+        belief_horizon_anchor: timedelta = None,
+        source_anchor: int = None,
+    ) -> "BeliefsDataFrame":
+        """Get the accuracy of forecasts (beliefs at a given horizon),
+        with respect to some given truth (by default, the most recent beliefs about each event).
+        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        the weighted absolute percentage error (WAPE) are returned.
+
+        For probabilistic forecasts, the MAE is computed as the Continuous Ranked Probability Score (CRPS),
+        which is a generalisation of the MAE. Metrics similar to MAPE and WAPE are obtained by dividing the CRPS over
+        the true values or true average value, respectively.
+        For your convenience, hopefully, we left the column names unchanged.
+        For probabilistic truths, the CRPS takes into account all possible outcomes.
+        However, the MAPE and WAPE use the expected true value (cp=0.5) as their denominator.
+
+        As an alternative to selecting the most recent belief as the reference,
+        set a horizon window to select the accuracy of beliefs formed within a certain time window before knowledge time
+        (with negative horizons indicating post knowledge time).
+        This allows setting a maximum acceptable freshness of the data.
+
+        Optionally, set an anchor to get the accuracy of beliefs at a given horizon with respect to some other horizon,
+        and/or another source.
+        This allows to define what is considered to be true at a certain time after an event.
+
+        :Example:
+
+        >>> # Horizon selecting the accuracy of beliefs formed about each event at least 1 day beforehand
+        >>> df.rolling_horizon_accuracy(belief_horizon=timedelta(days=1))
+        >>> # Or equivalently:
+        >>> df.rolling_horizon_accuracy(belief_horizon_window=(timedelta(days=1), None))
+        >>> # Horizon window selecting the accuracy of beliefs formed about each event at least 1 day, but at most 2 days, beforehand
+        >>> df.rolling_horizon_accuracy(belief_horizon_window=(timedelta(days=1), timedelta(days=2)))
+        >>> # Horizon and horizon anchor selecting the accuracy of beliefs formed 10 days beforehand with respect to 1 day past knowledge time
+        >>> df.rolling_horizon_accuracy(belief_horizon=timedelta(days=10), belief_horizon_anchor=timedelta(days=-1))
+        >>> # Horizon and source anchor selecting the accuracy of beliefs formed 10 days beforehand with respect to the latest belief formed by source 3
+        >>> df.rolling_horizon_accuracy(belief_horizon=timedelta(days=10), source_anchor=3)
+
+        :param: belief_horizon: timedelta indicating the belief should be formed at least this duration before knowledge time
+        :param: belief_horizon_window: optional tuple specifying a horizon window (e.g. between 1 and 2 days before the event value could have been known)
+        :param: belief_horizon_anchor: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
+        :param: source_anchor: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
+        """
+        df = self
+        df_forecast = df.rolling_horizon(belief_horizon, belief_horizon_window)
+        if belief_horizon_anchor is None:
+            df_observation = belief_utils.select_most_recent_belief(df)
+        else:
+            df_observation = belief_utils.select_most_recent_belief(
+                df[df.index.get_level_values("belief_horizon") >= belief_horizon_anchor]
+            )
+        return belief_utils.compute_scores(df_forecast, df_observation, source_anchor)

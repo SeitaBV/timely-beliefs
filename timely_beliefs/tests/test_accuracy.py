@@ -12,28 +12,28 @@ def test_mae():
     """For deterministic forecasts, our scoring rule (continuous ranked probability score) should equal the mean
     absolute error."""
     df = example_df.xs(0.5, level="cumulative_probability", drop_level=False)
-    mae = df.rolling_horizon_accuracy(timedelta(days=2, hours=9), source_id_anchor=1)[
-        "mae"
-    ]
+    mae = df.rolling_horizon_accuracy(
+        timedelta(days=2, hours=9), source_anchor=df.lineage.sources[0]
+    )["mae"]
     assert (mae.values == np.array([0, (100 + 200 + 300 + 400) / 4])).all()
-    mae = df.rolling_horizon_accuracy(timedelta(days=2, hours=10), source_id_anchor=1)[
-        "mae"
-    ]
+    mae = df.rolling_horizon_accuracy(
+        timedelta(days=2, hours=10), source_anchor=df.lineage.sources[0]
+    )["mae"]
     assert (
         mae.values == np.array([0, (200 + 300 + 400) / 3])
     ).all()  # No forecast yet for the first event
-    mae = df.rolling_horizon_accuracy(timedelta(days=2, hours=10), source_id_anchor=2)[
-        "mae"
-    ]
+    mae = df.rolling_horizon_accuracy(
+        timedelta(days=2, hours=10), source_anchor=df.lineage.sources[1]
+    )["mae"]
     assert (
         mae.values == np.array([(200 + 300 + 400) / 3, 0])
     ).all()  # Same error, but by the other source
     mae = df.fixed_horizon_accuracy(
-        datetime(2000, 1, 2, tzinfo=utc), source_id_anchor=1
+        datetime(2000, 1, 2, tzinfo=utc), source_anchor=df.lineage.sources[0]
     )["mae"]
     assert (mae.values == np.array([0, (100 + 200 + 300 + 400) / 4])).all()
     mae = df.fixed_horizon_accuracy(
-        datetime(2000, 1, 1, tzinfo=utc), source_id_anchor=1
+        datetime(2000, 1, 1, tzinfo=utc), source_anchor=df.lineage.sources[0]
     )["mae"]
     assert (mae.values == np.array([0, (100 + 200 + 300 + 400) / 4])).all()
     mae = df.accuracy(timedelta(days=2, hours=9))["mae"]
@@ -46,17 +46,17 @@ def test_crps():
     """For probabilistic forecasts, our scoring rule (continuous ranked probability score) tells more than just whether
     you got the expected value right."""
     df = example_df
-    crps = df.rolling_horizon_accuracy(timedelta(days=2, hours=9), source_id_anchor=1)[
-        "mae"
-    ]
+    crps = df.rolling_horizon_accuracy(
+        timedelta(days=2, hours=9), source_anchor=df.lineage.sources[0]
+    )["mae"]
     assert (
-        crps[1] > 0
+        crps[df.lineage.sources[0]] > 0
     )  # Expected value was exactly right, but source 1 still forecast probabilistically
     assert (
-        crps[1] == (0.1587 * 9 + 0.5 * 9) / 4
+        crps[df.lineage.sources[0]] == (0.1587 * 9 + 0.5 * 9) / 4
     )  # Actually, only the first out of 4 forecasts was off
     assert (
-        125 < crps[2] < 250
+        125 < crps[df.lineage.sources[1]] < 250
     )  # Expected value was wrong by 250, but source 2 still forecast about 50% right
 
 

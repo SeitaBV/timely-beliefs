@@ -7,7 +7,11 @@ from pandas.tseries.frequencies import to_offset
 from pandas.core.groupby import DataFrameGroupBy
 
 from timely_beliefs.beliefs import classes
-from timely_beliefs.beliefs.probabilistic_utils import probabilistic_nan_mean
+from timely_beliefs.beliefs.probabilistic_utils import (
+    calculate_crps,
+    probabilistic_nan_mean,
+    set_truth,
+)
 from timely_beliefs import Sensor
 from timely_beliefs import BeliefSource
 
@@ -27,7 +31,7 @@ def select_most_recent_belief(
         df = (
             df.sort_values(by=["belief_horizon"], ascending=True)
             .drop_duplicates(
-                subset=["event_start", "cumulative_probability"], keep="first"
+                subset=["event_start", "source", "cumulative_probability"], keep="first"
             )
             .sort_values(by=["event_start"])
         )
@@ -35,7 +39,7 @@ def select_most_recent_belief(
         df = (
             df.sort_values(by=["belief_time"], ascending=True)
             .drop_duplicates(
-                subset=["event_start", "cumulative_probability"], keep="last"
+                subset=["event_start", "source", "cumulative_probability"], keep="last"
             )
             .sort_values(by=["event_start"])
         )
@@ -132,6 +136,8 @@ def upsample_event_start(
     fill_method: Optional[str] = "pad",
 ):
     """Upsample event_start (which must be the first index level) from input_resolution to output_resolution."""
+
+    # Check input
     if output_resolution > input_resolution:
         raise ValueError(
             "Cannot use an upsampling policy to downsample from %s to %s."
@@ -143,6 +149,7 @@ def upsample_event_start(
         raise KeyError(
             "Upsampling only works if the event_start is the first index level."
         )
+
     lvl0 = pd.date_range(
         start=df.index.get_level_values(0)[0],
         periods=input_resolution // output_resolution,
@@ -177,7 +184,7 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
     >>> df = df.groupby([pd.Grouper(freq="1D", level="event_start"), "belief_time", "source"]).pipe(respect_event_resolution, timedelta(hours=1))
 
     So don't pass a BeliefsDataFrame directly, but pipe it so that we receive a DataFrameGroupBy object, which we can
-    iterate over to obtain a BeliefsDataFrame slice for a unique belief time, source id and (in our example) day of
+    iterate over to obtain a BeliefsDataFrame slice for a unique belief time, source and (in our example) day of
     events. We then make sure an event is stated explicitly for (in our example) each hour.
     """
 
@@ -197,9 +204,9 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
         group
     ) in (
         groups
-    ):  # Loop over the groups (we grouped by unique belief time and unique source id)
+    ):  # Loop over the groups (we grouped by unique belief time and unique source)
 
-        # Get the BeliefsDataFrame for a unique belief time and source id
+        # Get the BeliefsDataFrame for a unique belief time and source
         df_slice = group[1]
         if not df_slice.empty:
             lvl0 = pd.date_range(
@@ -228,6 +235,7 @@ def align_belief_times(
     The input BeliefsDataFrame should represent beliefs about a single event formed by a single source.
     """
 
+    # Check input
     if not slice.lineage.number_of_events == 1:
         raise ValueError("BeliefsDataFrame slice must describe a single event.")
     if not slice.lineage.number_of_sources == 1:
@@ -235,7 +243,7 @@ def align_belief_times(
             "BeliefsDataFrame slice must describe beliefs by a single source"
         )
 
-    # Get unique source id for this slice
+    # Get unique source for this slice
     assert slice.lineage.number_of_sources == 1
     source = slice.lineage.sources[0]
 
@@ -308,6 +316,7 @@ def join_beliefs(
     multiple rows).
     """
 
+    # Check input
     if not slice.lineage.number_of_belief_times == 1:
         raise ValueError(
             "BeliefsDataFrame slice must describe beliefs formed at the exact same time."
@@ -361,7 +370,7 @@ def resample_event_start(
     input_resolution: timedelta,
     distribution: Optional[str] = None,
 ) -> "classes.BeliefsDataFrame":
-    """For a unique source id."""
+    """For a unique source."""
 
     # Determine unique set of belief times
     unique_belief_times = np.sort(
@@ -410,3 +419,71 @@ def load_time_series(
             )
         )
     return beliefs
+
+
+def compute_scores(
+    df_forecast: "classes.BeliefsDataFrame",
+    df_observation: "classes.BeliefsDataFrame",
+    source_anchor: "classes.BeliefSource" = None,
+) -> "classes.BeliefsDataFrame":
+    """
+
+    If df_true contains probabilistic beliefs, scores are determined with respect to the expected value (with cp=0.5).
+
+    References
+    ----------
+    Hans Hersbach. Decomposition of the Continuous Ranked Probability Score for Ensemble Prediction Systems
+        in Weather and Forecasting, Volume 15, No. 5, pages 559-570, 2000.
+        https://journals.ametsoc.org/doi/pdf/10.1175/1520-0434%282000%29015%3C0559%3ADOTCRP%3E2.0.CO%3B2
+    """
+
+    # Check input
+    if not df_forecast.lineage.unique_beliefs_per_event_per_source:
+        raise ValueError(
+            "BeliefsDataFrame slice with forecasts must describe a single belief per source per event."
+        )
+    if not df_observation.lineage.unique_beliefs_per_event_per_source:
+        raise ValueError(
+            "BeliefsDataFrame slice with observations must describe a single belief per source per event."
+        )
+
+    # If applicable, decide which source provides the observations that are considered to be true when we compute scores
+    if source_anchor is not None:
+        df_observation = df_observation.groupby(
+            level=["event_start"], group_keys=False
+        ).apply(lambda x: x.groupby(level=["source"]).pipe(set_truth, source_anchor))
+
+    # Combine the forecasts and observations into one DataFrame
+    df_forecast.index = df_forecast.index.droplevel(
+        "belief_horizon"
+        if "belief_horizon" in df_forecast.index.names
+        else "belief_time"
+    )
+    df_observation.index = df_observation.index.droplevel(
+        "belief_horizon"
+        if "belief_horizon" in df_observation.index.names
+        else "belief_time"
+    )
+    df_forecast.columns = ["forecast"]
+    df_observation.columns = ["observation"]
+    df = pd.concat([df_forecast, df_observation], axis=1)
+
+    # Calculate the continuous ranked probability score
+    df_scores = df.groupby(level=["event_start", "source"], group_keys=False).apply(
+        lambda x: calculate_crps(x)
+    )
+
+    # Rename to mae, calculate mape and wape, and drop the true values (only keep the scores)
+    df_scores = df_scores.rename(
+        columns={"crps": "mae"}
+    )  # Technically, we have yet to take the mean
+    df_scores["mape"] = (df_scores["mae"] / df_scores["observation"]).replace(
+        [np.inf, -np.inf], np.nan
+    )
+    df_scores = df_scores.groupby(level=["source"], group_keys=False).mean()
+    df_scores["wape"] = (df_scores["mae"] / df_scores["observation"]).replace(
+        [np.inf, -np.inf], np.nan
+    )
+    df_scores = df_scores.drop(columns=["observation"])
+
+    return df_scores

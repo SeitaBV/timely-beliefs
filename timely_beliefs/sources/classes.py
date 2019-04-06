@@ -15,6 +15,10 @@ class BeliefSource(object):
     def __repr__(self):
         return "<BeliefSource %s>" % self.name
 
+    def __lt__(self, other):
+        """Set a rule for ordering."""
+        return self.name < other.name
+
 
 class DBBeliefSource(Base):
     """Mixin class for a table with belief sources, i.e. data-creating entities such as users or scripts."""
