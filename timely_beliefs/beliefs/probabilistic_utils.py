@@ -9,7 +9,7 @@ import properscoring as ps
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
 
-from timely_beliefs.beliefs import classes
+from timely_beliefs.beliefs import classes  # noqa: F401
 from timely_beliefs.utils import replace_multi_index_level
 
 
@@ -116,7 +116,7 @@ def probabilistic_nan_mean(
     )
 
 
-def multivariate_marginal_to_univariate_joint_cdf(
+def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
     marginal_cdfs_p: Union[
         List[Union[List[float], np.ndarray, ot.DistributionImplementation]], np.ndarray
     ],

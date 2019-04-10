@@ -12,7 +12,7 @@ from sqlalchemy.orm import relationship, backref
 from timely_beliefs.base import Base, session
 from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 from timely_beliefs.sensors.classes import Sensor, DBSensor
-from timely_beliefs.utils import enforce_utc, all_of_type
+from timely_beliefs.utils import enforce_utc
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.beliefs import utils as belief_utils
 
@@ -204,13 +204,21 @@ class DBTimedBelief(Base, TimedBelief):
         # Apply source filter
         if source is not None:
             source_list = [source] if not isinstance(source, list) else source
-            if all_of_type(source_list, int):
-                q = q.filter(self.source_id.in_(source_list))
-            elif all_of_type(source_list, str):
-                q = q.join(DBBeliefSource).filter(DBBeliefSource.name.in_(source_list))
-            else:
+            id_list = [s for s in source_list if isinstance(s, int)]
+            name_list = [s for s in source_list if isinstance(s, str)]
+            if len(id_list) + len(name_list) < len(source_list):
+                unidentifiable_list = [
+                    s
+                    for s in source_list
+                    if not isinstance(s, int) and not isinstance(s, str)
+                ]
                 raise ValueError(
-                    "Query by source failed: query only possible by integer id or string name."
+                    "Query by source failed: query only possible by integer id or string name. Failed sources: %s"
+                    % unidentifiable_list
+                )
+            else:
+                q = q.join(DBBeliefSource).filter(
+                    (self.source_id.in_(id_list)) | (DBBeliefSource.name.in_(name_list))
                 )
 
         # Build our DataFrame of beliefs
