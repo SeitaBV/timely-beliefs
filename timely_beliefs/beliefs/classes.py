@@ -209,7 +209,9 @@ class DBTimedBelief(Base, TimedBelief):
             elif all_of_type(source_list, str):
                 q = q.join(DBBeliefSource).filter(DBBeliefSource.name.in_(source_list))
             else:
-                raise ValueError("Query by source failed: query only possible by integer id or string name.")
+                raise ValueError(
+                    "Query by source failed: query only possible by integer id or string name."
+                )
 
         # Build our DataFrame of beliefs
         df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
