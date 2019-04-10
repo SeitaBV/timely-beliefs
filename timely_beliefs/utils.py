@@ -1,3 +1,4 @@
+from typing import Sequence
 from datetime import datetime
 from functools import wraps
 
@@ -12,6 +13,14 @@ def enforce_utc(dt: datetime) -> pd.Timestamp:
             "The timely-beliefs package does not work with timezone-naive datetimes. Please localize your datetime."
         )
     return pd.Timestamp(dt.astimezone(utc))
+
+
+def all_of_type(l: Sequence, element_type) -> bool:
+    """Return true if all elements in sequence are of the same type."""
+    for item in l:
+        if type(item) != element_type:
+            return False
+    return True
 
 
 def with_error_settings(**new_settings):

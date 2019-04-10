@@ -12,7 +12,7 @@ from sqlalchemy.orm import relationship, backref
 from timely_beliefs.base import Base, session
 from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 from timely_beliefs.sensors.classes import Sensor, DBSensor
-from timely_beliefs.utils import enforce_utc
+from timely_beliefs.utils import enforce_utc, all_of_type
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.beliefs import utils as belief_utils
 
@@ -140,6 +140,7 @@ class DBTimedBelief(Base, TimedBelief):
         event_not_before: datetime = None,
         belief_before: datetime = None,
         belief_not_before: datetime = None,
+        source: Union[int, List[int], str, List[str]] = None,
     ) -> "BeliefsDataFrame":
         """Query beliefs about sensor events.
         :param sensor: sensor to which the beliefs pertain
@@ -147,6 +148,7 @@ class DBTimedBelief(Base, TimedBelief):
         :param event_not_before: only return beliefs about events that start after this datetime (inclusive)
         :param belief_before: only return beliefs formed before this datetime (inclusive)
         :param belief_not_before: only return beliefs formed after this datetime (inclusive)
+        :param source: only return beliefs formed by the given source or list of sources (pass their id or name)
         :returns: a multi-index DataFrame with all relevant beliefs
 
         TODO: rename params for clarity: event_finished_before, even_starts_not_before (or similar), same for beliefs
@@ -198,6 +200,16 @@ class DBTimedBelief(Base, TimedBelief):
                 self.event_start
                 >= belief_not_before + self.belief_horizon + knowledge_horizon_min
             )
+
+        # Apply source filter
+        if source is not None:
+            source_list = [source] if not isinstance(source, list) else source
+            if all_of_type(source_list, int):
+                q = q.filter(self.source_id.in_(source_list))
+            elif all_of_type(source_list, str):
+                q = q.join(DBBeliefSource).filter(DBBeliefSource.name.in_(source_list))
+            else:
+                raise ValueError("Query by source failed: query only possible by integer id or string name.")
 
         # Build our DataFrame of beliefs
         df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
