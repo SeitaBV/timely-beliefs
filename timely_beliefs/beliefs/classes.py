@@ -304,7 +304,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 key=lambda b: (
                     b.event_start,
                     b.belief_time,
-                    b.source_id,
+                    b.source_id,  # Todo: check if this is correct or should be `b.source`
                     b.cumulative_probability,
                 ),
             )
@@ -315,7 +315,7 @@ class BeliefsDataFrame(pd.DataFrame):
         else:
             kwargs["index"] = pd.MultiIndex(
                 levels=[[] for _ in indices], codes=[[] for _ in indices], names=indices
-            )
+            )  # Todo support pandas 0.23
         super().__init__(*args, **kwargs)
 
         # Set the Sensor metadata (including timing properties of the sensor)
@@ -399,7 +399,7 @@ class BeliefsDataFrame(pd.DataFrame):
     def event_ends(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(
             self.event_starts.to_series(keep_tz=True, name="event_end").apply(
-                lambda event_start: event_start + self.sensor.event_resolution
+                lambda event_start: event_start + self.event_resolution
             )
         )
 
@@ -533,6 +533,8 @@ class BeliefsDataFrame(pd.DataFrame):
                 )
             belief_time_window = (None, belief_time)
         df = self
+        if "belief_time" not in df.index.names:
+            df = df.convert_index_from_belief_horizon_to_time()
         if belief_time_window[0] is not None:
             df = df[
                 df.index.get_level_values("belief_time")
@@ -579,7 +581,9 @@ class BeliefsDataFrame(pd.DataFrame):
                     "Cannot pass both a belief horizon and belief horizon window."
                 )
             belief_horizon_window = (belief_horizon, None)
-        df = self.convert_index_from_belief_time_to_horizon()
+        df = self
+        if "belief_horizon" not in df.index.names:
+            df = df.convert_index_from_belief_time_to_horizon()
         if belief_horizon_window[0] is not None:
             df = df[
                 df.index.get_level_values("belief_horizon") >= belief_horizon_window[0]

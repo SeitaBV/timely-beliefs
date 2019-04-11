@@ -49,7 +49,7 @@ def select_most_recent_belief(
         )
 
     # Convert columns to index levels (only columns that represent index levels)
-    return df.set_index(indices)
+    return df.set_index(indices).sort_index()
 
 
 def replace_multi_index_level(

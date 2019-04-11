@@ -77,18 +77,7 @@ class BeliefsAccessor(object):
     def number_of_beliefs(self) -> int:
         """Return the total number of beliefs in the BeliefsDataFrame, including both deterministic beliefs (which
         require a single row) and probabilistic beliefs (which require multiple rows)."""
-        index_names = []
-        index_names.append(
-            "event_start"
-        ) if "event_start" in self._obj.index.names else index_names.append("event_end")
-        index_names.append(
-            "belief_time"
-        ) if "belief_time" in self._obj.index.names else index_names.append(
-            "belief_horizon"
-        )
-        index_names.append("source")
-        gr = self._obj.groupby(index_names)
-        return len(gr)
+        return len(self._obj.for_each_belief(df=self._obj))
 
     @property
     def sources(self) -> List[int]:
