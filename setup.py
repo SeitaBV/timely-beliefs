@@ -5,11 +5,18 @@ setup(
     description="Data modelled as beliefs (at a certain time) about events (at a certain time).",
     author="Seita BV",
     author_email="felix@seita.nl",
-    keywords=["time series", "uncertainty", "lineage"],
-    version="0.0.2",
+    keywords=[
+        "time series",
+        "forecasting",
+        "analytics",
+        "visualization",
+        "uncertainty",
+        "lineage",
+    ],
+    version="0.0.3",
     install_requires=[
         "pytz",
-        "pandas>=0.23",
+        "pandas>=0.24",
         "numpy",
         "pyerf",
         "SQLAlchemy",
@@ -20,12 +27,13 @@ setup(
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
-    packages=["timely_beliefs",
-              "timely_beliefs.beliefs",
-              "timely_beliefs.sensors",
-              "timely_beliefs.sensors.func_store",
-              "timely_beliefs.sources",
-              ],
+    packages=[
+        "timely_beliefs",
+        "timely_beliefs.beliefs",
+        "timely_beliefs.sensors",
+        "timely_beliefs.sensors.func_store",
+        "timely_beliefs.sources",
+    ],
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python",
@@ -38,7 +46,7 @@ setup(
         "Topic :: Scientific/Engineering :: Information Analysis",
     ],
     long_description="""\
-    Model to represent data as beliefs about events, stored in the form of 
+    Model to represent data as beliefs about events, stored in the form of
     a multi-index pandas DataFrame enriched with attributes to get out convenient representations of the data.
     """,
 )
