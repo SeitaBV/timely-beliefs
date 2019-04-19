@@ -12,27 +12,27 @@ def test_mae():
     """For deterministic forecasts, our scoring rule (continuous ranked probability score) should equal the mean
     absolute error."""
     df = example_df.xs(0.5, level="cumulative_probability", drop_level=False)
-    mae = df.rolling_horizon_accuracy(
+    mae = df.rolling_viewpoint_accuracy(
         timedelta(days=2, hours=9), reference_source=df.lineage.sources[0]
     )["mae"]
     assert (mae.values == np.array([0, (100 + 200 + 300 + 400) / 4])).all()
-    mae = df.rolling_horizon_accuracy(
+    mae = df.rolling_viewpoint_accuracy(
         timedelta(days=2, hours=10), reference_source=df.lineage.sources[0]
     )["mae"]
     assert (
         mae.values == np.array([0, (200 + 300 + 400) / 3])
     ).all()  # No forecast yet for the first event
-    mae = df.rolling_horizon_accuracy(
+    mae = df.rolling_viewpoint_accuracy(
         timedelta(days=2, hours=10), reference_source=df.lineage.sources[1]
     )["mae"]
     assert (
         mae.values == np.array([(200 + 300 + 400) / 3, 0])
     ).all()  # Same error, but by the other source
-    mae = df.fixed_horizon_accuracy(
+    mae = df.fixed_viewpoint_accuracy(
         datetime(2000, 1, 2, tzinfo=utc), reference_source=df.lineage.sources[0]
     )["mae"]
     assert (mae.values == np.array([0, (100 + 200 + 300 + 400) / 4])).all()
-    mae = df.fixed_horizon_accuracy(
+    mae = df.fixed_viewpoint_accuracy(
         datetime(2000, 1, 1, tzinfo=utc), reference_source=df.lineage.sources[0]
     )["mae"]
     assert (mae.values == np.array([0, (100 + 200 + 300 + 400) / 4])).all()
@@ -46,7 +46,7 @@ def test_crps():
     """For probabilistic forecasts, our scoring rule (continuous ranked probability score) tells more than just whether
     you got the expected value right."""
     df = example_df
-    crps = df.rolling_horizon_accuracy(
+    crps = df.rolling_viewpoint_accuracy(
         timedelta(days=2, hours=9), reference_source=df.lineage.sources[0]
     )["mae"]
     assert (

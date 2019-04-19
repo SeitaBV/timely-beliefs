@@ -196,12 +196,12 @@ def test_query_rolling_horizon(
     belief_df = DBTimedBelief.query(
         sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc)
     )
-    rolling_df = belief_df.rolling_horizon(
+    rolling_df = belief_df.rolling_viewpoint(
         belief_horizon=timedelta(hours=49)
     )  # select only the five older beliefs
     assert len(rolling_df) == 5  # 5 older (made at 10,11,12,13,14 o'clock)
     assert (rolling_df["event_value"].values == np.arange(101, 106)).all()
-    rolling_df = belief_df.rolling_horizon(
+    rolling_df = belief_df.rolling_viewpoint(
         belief_horizon=timedelta(hours=48)
     )  # select mostly recent beliefs
     assert (
@@ -219,11 +219,11 @@ def test_query_fixed_horizon(
         belief_before=datetime(2050, 1, 1, 15, tzinfo=utc),
         source=[1, 2],
     )
-    df2 = df.fixed_horizon(belief_time=belief_time)
+    df2 = df.fixed_viewpoint(belief_time=belief_time)
     assert len(df2) == 2
     assert df2[df2.index.get_level_values("belief_time") > belief_time].empty
     assert (df2["event_value"].values == np.array([11, 102])).all()
-    df3 = df.fixed_horizon(
+    df3 = df.fixed_viewpoint(
         belief_time_window=(belief_time - timedelta(minutes=1), belief_time)
     )
     assert len(df3) == 2  # The belief formed at 10 AM is now considered too old

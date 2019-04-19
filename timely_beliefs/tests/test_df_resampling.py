@@ -181,7 +181,7 @@ def test_downsample_probabilistic(df_4323, test_source_a: BeliefSource):
 
 def test_rolling_horizon_probabilistic(df_4323):
     """Test whether probabilistic beliefs stay probabilistic when selecting a rolling horizon."""
-    df = df_4323.rolling_horizon(belief_horizon=timedelta(days=2))
+    df = df_4323.rolling_viewpoint(belief_horizon=timedelta(days=2))
     assert (
         len(df) == 4 * 1 * 2 * 3
     )  # 4 events, 1 belief, 2 sources and 3 probabilistic values
