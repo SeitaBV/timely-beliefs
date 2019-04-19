@@ -6,7 +6,7 @@ from pytz import utc
 import pandas as pd
 
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief
-from timely_beliefs.beliefs.utils import replace_multi_index_level
+from timely_beliefs.utils import replace_multi_index_level
 from timely_beliefs.tests.examples import df_example
 
 

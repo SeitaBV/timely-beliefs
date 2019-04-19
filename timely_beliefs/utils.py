@@ -1,8 +1,6 @@
 from typing import Sequence
 from datetime import datetime
-from functools import wraps
 
-import numpy as np
 from pytz import utc
 import pandas as pd
 
@@ -23,42 +21,17 @@ def all_of_type(l: Sequence, element_type) -> bool:
     return True
 
 
-def with_error_settings(**new_settings):
-    """
-    Function decorator to apply numpy error setting only to the decorated function.
-
-    :param new_settings: see https://docs.scipy.org/doc/numpy/reference/generated/numpy.seterr.html
-    """
-
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            old_settings = np.seterr(**new_settings)
-            out = fn(*args, **kwargs)
-            np.seterr(**old_settings)
-            return out
-
-        return wrapper
-
-    return decorator
-
-
-@with_error_settings(divide="ignore")
-def divide_ignore(*args, **kwargs):
-    return np.divide(*args, **kwargs)
-
-
 def replace_multi_index_level(
     df: "classes.BeliefsDataFrame",
     level: str,
     index: pd.Index,
     intersection: bool = False,
 ) -> "classes.BeliefsDataFrame":
-    """Replace one of the index levels of the multi-indexed DataFrame.
-    :param: df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
-    :param: level: the name of the index level to replace.
-    :param: index: the new index.
-    :param: intersection: policy for replacing the index level.
+    """Replace one of the index levels of the multi-indexed DataFrame. Returns a new DataFrame object.
+    :param df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
+    :param level: the name of the index level to replace.
+    :param index: the new index.
+    :param intersection: policy for replacing the index level.
     If intersection is False then simply replace (note that the new index should have the same length as the old index).
     If intersection is True then add indices not contained in the old index and delete indices not contained in the new
     index. New rows have nan columns values and copies of the first row for other index levels (note that the resulting
@@ -115,6 +88,7 @@ def replace_multi_index_level(
     # Construct new MultiIndex
     mux = pd.MultiIndex.from_arrays(new_index_values, names=new_index_names)
 
+    df = df.copy(deep=True)
     # Apply new MultiIndex
     if intersection is True:
         # Reindex such that new rows get nan column values

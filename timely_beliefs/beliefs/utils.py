@@ -12,8 +12,8 @@ from timely_beliefs.beliefs.probabilistic_utils import (
     probabilistic_nan_mean,
     set_truth,
 )
-from timely_beliefs import Sensor
-from timely_beliefs import BeliefSource
+from timely_beliefs import BeliefSource, Sensor
+from timely_beliefs import utils as tb_utils
 
 
 def select_most_recent_belief(
@@ -50,83 +50,6 @@ def select_most_recent_belief(
 
     # Convert columns to index levels (only columns that represent index levels)
     return df.set_index(indices).sort_index()
-
-
-def replace_multi_index_level(
-    df: "classes.BeliefsDataFrame",
-    level: str,
-    index: pd.Index,
-    intersection: bool = False,
-) -> "classes.BeliefsDataFrame":
-    """Replace one of the index levels of the multi-indexed DataFrame. Returns a new dataframe object.
-    :param: df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
-    :param: level: the name of the index level to replace.
-    :param: index: the new index.
-    :param: intersection: policy for replacing the index level.
-    If intersection is False then simply replace (note that the new index should have the same length as the old index).
-    If intersection is True then add indices not contained in the old index and delete indices not contained in the new
-    index. New rows have nan columns values and copies of the first row for other index levels (note that the resulting
-    index is usually longer and contains values that were both in the old and new index, i.e. the intersection).
-    """
-    # Todo: check whether timezone information is copied over correctly
-
-    if intersection is False and len(index) != len(df.index):
-        raise ValueError(
-            "Cannot simply replace multi-index level with an index of different length than the original. "
-            "Use intersection instead?"
-        )
-    if index.name is None:
-        index.name = level
-
-    new_index_values = []
-    new_index_names = []
-    if intersection is True:
-        contained_in_old = index.isin(df.index.get_level_values(level))
-        new_index_not_in_old = index[~contained_in_old]
-        contained_in_new = df.index.get_level_values(level).isin(index)
-        for i in df.index.names:
-            if i == level:  # For the index level that should be replaced
-                # Copy old values that the new index contains, and add new values that the old index does not contain
-                new_index_values.append(
-                    df.index.get_level_values(i)[contained_in_new].append(
-                        new_index_not_in_old
-                    )
-                )
-                new_index_names.append(index.name)
-            else:  # For the other index levels
-                # Copy old values that the new index contains, and add the first value to the new rows
-                new_row_values = pd.Index(
-                    [df.index.get_level_values(i)[0]] * len(new_index_not_in_old)
-                )
-                new_index_values.append(
-                    df.index.get_level_values(i)[contained_in_new].append(
-                        new_row_values
-                    )
-                )
-                new_index_names.append(i)
-    else:
-        for i in df.index.names:
-            if i == level:  # For the index level that should be replaced
-                # Replace with new index
-                new_index_values.append(index)
-                new_index_names.append(index.name)
-            else:  # For the other index levels
-                # Copy all old values
-                new_index_values.append(df.index.get_level_values(i))
-                new_index_names.append(i)
-
-    # Construct new MultiIndex
-    mux = pd.MultiIndex.from_arrays(new_index_values, names=new_index_names)
-
-    df = df.copy(deep=True)
-    # Apply new MultiIndex
-    if intersection is True:
-        # Reindex such that new rows get nan column values
-        df = df.reindex(mux)
-    else:
-        # Replace the index
-        df.index = mux
-    return df.sort_index()
 
 
 def upsample_event_start(
@@ -217,7 +140,7 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
                 name="event_start",
             )
             df = df.append(
-                replace_multi_index_level(
+                tb_utils.replace_multi_index_level(
                     df_slice, level="event_start", index=lvl0, intersection=True
                 )
             )
@@ -421,14 +344,20 @@ def load_time_series(
     return beliefs
 
 
-def compute_scores(
+def compute_accuracy_scores(
     df_forecast: "classes.BeliefsDataFrame",
     df_observation: "classes.BeliefsDataFrame",
-    source_anchor: "classes.BeliefSource" = None,
+    reference_source: "classes.BeliefSource" = None,
+    keep_reference_observation: bool = False,
 ) -> "classes.BeliefsDataFrame":
-    """
+    """ Compute the following accuracy scores:
+    - mean absolute error (mae)
+    - mean absolute percentage error (mape) *
+    - weighted absolute percentage error (wape) *
 
-    If df_true contains probabilistic beliefs, scores are determined with respect to the expected value (with cp=0.5).
+    * If df_observation contains probabilistic beliefs, scores are determined with respect to the expected value (with cp=0.5).
+
+    :param keep_reference_observation: Set to True to return the reference observation used to calculate mape and wape as a DataFrame column
 
     References
     ----------
@@ -448,10 +377,10 @@ def compute_scores(
         )
 
     # If applicable, decide which source provides the observations that are considered to be true when we compute scores
-    if source_anchor is not None:
+    if reference_source is not None:
         df_observation = df_observation.groupby(
             level=["event_start"], group_keys=False
-        ).apply(lambda x: x.groupby(level=["source"]).pipe(set_truth, source_anchor))
+        ).apply(lambda x: x.groupby(level=["source"]).pipe(set_truth, reference_source))
 
     # Combine the forecasts and observations into one DataFrame
     df_forecast.index = df_forecast.index.droplevel(
@@ -473,7 +402,7 @@ def compute_scores(
         lambda x: calculate_crps(x)
     )
 
-    # Rename to mae, calculate mape and wape, and drop the true values (only keep the scores)
+    # Rename to mae, calculate mape and wape
     df_scores = df_scores.rename(
         columns={"crps": "mae"}
     )  # Technically, we have yet to take the mean
@@ -484,6 +413,11 @@ def compute_scores(
     df_scores["wape"] = (df_scores["mae"] / df_scores["observation"]).replace(
         [np.inf, -np.inf], np.nan
     )
-    df_scores = df_scores.drop(columns=["observation"])
+
+    # Drop the reference observations by default (only keep the scores)
+    if keep_reference_observation is False:
+        df_scores = df_scores.drop(columns=["observation"])
+    else:
+        df_scores = df_scores.rename(columns={"observation": "reference_value"})
 
     return df_scores

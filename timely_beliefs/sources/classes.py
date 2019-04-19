@@ -30,3 +30,7 @@ class DBBeliefSource(Base):
 
     def __repr__(self):
         return "<DBBeliefSource %s (%s)>" % (self.id, self.name)
+
+    def __lt__(self, other):
+        """Set a rule for ordering."""
+        return self.name < other.name

@@ -186,7 +186,8 @@ Select the latest forecasts for a rolling horizon (beliefs formed at least 2 day
 Select a history of beliefs about a single event:
 
     >>> from datetime import datetime
-    >>> df.belief_history(datetime(2000, 1, 3, 11))
+    >>> from pytz import utc
+    >>> df.belief_history(datetime(2000, 1, 3, 11, tzinfo=utc))
                                                                 event_value
     belief_time               source cumulative_probability             
     2000-01-01 00:00:00+00:00 1         0.1587                          270

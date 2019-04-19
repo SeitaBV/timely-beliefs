@@ -10,7 +10,7 @@ import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
 
 from timely_beliefs.beliefs import classes  # noqa: F401
-from timely_beliefs.utils import replace_multi_index_level
+from timely_beliefs import utils as tb_utils
 
 
 def interpret_complete_cdf(
@@ -376,7 +376,10 @@ def equalize_bins(
 def set_truth(
     grouped: DataFrameGroupBy, right_source: "classes.BeliefSource"
 ) -> "classes.BeliefsDataFrame":
-    """Decide who is right (which source)."""
+    """Overwrite the beliefs of each source by those of the given source.
+    Terminology-wise, we say the given source is considered to be right,
+    so it's beliefs contain the truth to be used as a reference for accuracy calculations.
+    """
 
     # Pick out the group that is considered to contain the true observations
     gr_dict = dict(grouped.__iter__())
@@ -387,7 +390,7 @@ def set_truth(
 
     # Replace each original group with the truth group, while adding back the source id for each original group
     gr_list = [
-        replace_multi_index_level(
+        tb_utils.replace_multi_index_level(
             truth_group, "source", pd.Index([key] * len(truth_group))
         )
         for key, group in grouped

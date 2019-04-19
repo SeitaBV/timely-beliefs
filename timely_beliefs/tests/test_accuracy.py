@@ -13,27 +13,27 @@ def test_mae():
     absolute error."""
     df = example_df.xs(0.5, level="cumulative_probability", drop_level=False)
     mae = df.rolling_horizon_accuracy(
-        timedelta(days=2, hours=9), source_anchor=df.lineage.sources[0]
+        timedelta(days=2, hours=9), reference_source=df.lineage.sources[0]
     )["mae"]
     assert (mae.values == np.array([0, (100 + 200 + 300 + 400) / 4])).all()
     mae = df.rolling_horizon_accuracy(
-        timedelta(days=2, hours=10), source_anchor=df.lineage.sources[0]
+        timedelta(days=2, hours=10), reference_source=df.lineage.sources[0]
     )["mae"]
     assert (
         mae.values == np.array([0, (200 + 300 + 400) / 3])
     ).all()  # No forecast yet for the first event
     mae = df.rolling_horizon_accuracy(
-        timedelta(days=2, hours=10), source_anchor=df.lineage.sources[1]
+        timedelta(days=2, hours=10), reference_source=df.lineage.sources[1]
     )["mae"]
     assert (
         mae.values == np.array([(200 + 300 + 400) / 3, 0])
     ).all()  # Same error, but by the other source
     mae = df.fixed_horizon_accuracy(
-        datetime(2000, 1, 2, tzinfo=utc), source_anchor=df.lineage.sources[0]
+        datetime(2000, 1, 2, tzinfo=utc), reference_source=df.lineage.sources[0]
     )["mae"]
     assert (mae.values == np.array([0, (100 + 200 + 300 + 400) / 4])).all()
     mae = df.fixed_horizon_accuracy(
-        datetime(2000, 1, 1, tzinfo=utc), source_anchor=df.lineage.sources[0]
+        datetime(2000, 1, 1, tzinfo=utc), reference_source=df.lineage.sources[0]
     )["mae"]
     assert (mae.values == np.array([0, (100 + 200 + 300 + 400) / 4])).all()
     mae = df.accuracy(timedelta(days=2, hours=9))["mae"]
@@ -47,7 +47,7 @@ def test_crps():
     you got the expected value right."""
     df = example_df
     crps = df.rolling_horizon_accuracy(
-        timedelta(days=2, hours=9), source_anchor=df.lineage.sources[0]
+        timedelta(days=2, hours=9), reference_source=df.lineage.sources[0]
     )["mae"]
     assert (
         crps[df.lineage.sources[0]] > 0
