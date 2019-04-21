@@ -640,8 +640,15 @@ class BeliefsDataFrame(pd.DataFrame):
     ) -> "BeliefsDataFrame":
         """Simply get the accuracy of beliefs about events, at a given time (pass a datetime) or at a given horizon
         (pass a timedelta).
-        Optionally, set a reference to get the accuracy of beliefs with respect to those held by a specific source.
+
+        By default the accuracy is determined with respect to the most recent beliefs held by the same source.
+        Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
+
         By default the accuracy is determined with respect to the most recent beliefs.
+
+        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        the weighted absolute percentage error (WAPE) are returned.
+
         For more options, use df.fixed_viewpoint_accuracy() or df.rolling_viewpoint_accuracy() instead.
 
         :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
@@ -677,9 +684,14 @@ class BeliefsDataFrame(pd.DataFrame):
         Alternatively, select the accuracy of beliefs formed within a certain time window. This allows setting a maximum
         acceptable freshness of the data.
 
-        By default the accuracy is determined with respect to the most recent beliefs.
+        By default the accuracy is determined with respect to the most recent beliefs held by the same source.
         Optionally, set a reference belief time to determine accuracy with respect to beliefs at a specific time.
         Alternatively, set a reference belief horizon instead of a reference belief time.
+        Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
+        These allow to define what is considered to be true at a certain time.
+
+        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        the weighted absolute percentage error (WAPE) are returned.
 
         :Example:
 
@@ -752,29 +764,19 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_source: int = None,
         keep_reference_observation: bool = False,
     ) -> "BeliefsDataFrame":
-        """Get the accuracy of belief about events at a given horizon.
+        """Get the accuracy of beliefs about events at a given horizon.
 
-        By default the accuracy is determined with respect to the most recent beliefs.
+        Alternatively, set a horizon window to select the accuracy of beliefs formed within a certain time window before
+        knowledge time (with negative horizons indicating post knowledge time).
+        This allows setting a maximum acceptable freshness of the data.
+
+        By default the accuracy is determined with respect to the most recent beliefs held by the same source.
         Optionally, set a reference belief horizon to determine accuracy with respect to beliefs at a specific horizon.
+        Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
+        These allow to define what is considered to be true at a certain time after an event.
 
         By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
-
-        For probabilistic forecasts, the MAE is computed as the Continuous Ranked Probability Score (CRPS),
-        which is a generalisation of the MAE. Metrics similar to MAPE and WAPE are obtained by dividing the CRPS over
-        the true values or true average value, respectively.
-        For your convenience, hopefully, we left the column names unchanged.
-        For probabilistic truths, the CRPS takes into account all possible outcomes.
-        However, the MAPE and WAPE use the expected true value (cp=0.5) as their denominator.
-
-        As an alternative to selecting the most recent belief as the reference,
-        set a horizon window to select the accuracy of beliefs formed within a certain time window before knowledge time
-        (with negative horizons indicating post knowledge time).
-        This allows setting a maximum acceptable freshness of the data.
-
-        Optionally, set a reference to get the accuracy of beliefs at a given horizon with respect to some other horizon,
-        and/or another source.
-        This allows to define what is considered to be true at a certain time after an event.
 
         :Example:
 

@@ -352,10 +352,15 @@ def compute_accuracy_scores(
 ) -> "classes.BeliefsDataFrame":
     """ Compute the following accuracy scores:
     - mean absolute error (mae)
-    - mean absolute percentage error (mape) *
-    - weighted absolute percentage error (wape) *
+    - mean absolute percentage error (mape)
+    - weighted absolute percentage error (wape)
 
-    * If df_observation contains probabilistic beliefs, scores are determined with respect to the expected value (with cp=0.5).
+    For probabilistic forecasts, the MAE is computed as the Continuous Ranked Probability Score (CRPS),
+    which is a generalisation of the MAE. Metrics similar to MAPE and WAPE are obtained by dividing the CRPS over
+    the reference observations or the average reference observation, respectively.
+    For your convenience, hopefully, we left the column names unchanged.
+    For probabilistic reference observations, the CRPS takes into account all possible outcomes.
+    However, the MAPE and WAPE use the expected observation (cp=0.5) as their denominator.
 
     :param keep_reference_observation: Set to True to return the reference observation used to calculate mape and wape as a DataFrame column
 
