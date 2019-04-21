@@ -40,16 +40,16 @@ The example BeliefsDataFrame in our tests module demonstrates the basic timely-b
     >>> import timely_beliefs
     >>> df = timely_beliefs.tests.example_df
     >>> df.head(8)
-                                                                                          event_value
-    event_start               belief_time               source    cumulative_probability             
-    2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 1         0.1587                           90
-                                                                  0.5000                          100
-                                                                  0.8413                          110
-                                                        2         0.5000                            0
-                                                                  1.0000                          100
-                              2000-01-01 01:00:00+00:00 1         0.1587                           99
-                                                                  0.5000                          100
-                                                                  0.8413                          101
+                                                                                         event_value
+    event_start               belief_time               source   cumulative_probability             
+    2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 Source A 0.1587                           90
+                                                                 0.5000                          100
+                                                                 0.8413                          110
+                                                        Source B 0.5000                            0
+                                                                 1.0000                          100
+                              2000-01-01 01:00:00+00:00 Source A 0.1587                           99
+                                                                 0.5000                          100
+                                                                 0.8413                          101
 The first 8 entries of this BeliefsDataFrame show beliefs about a single event.
 Beliefs were formed by two distinct sources (1 and 2), with the first updating its beliefs at a later time.
 Source 1 first thought the value of this event would be 100 ± 10 (the probabilities suggest a normal distribution),
@@ -167,39 +167,57 @@ Our concept of `knowledge_time` supports to define sensors for agreements about 
 
 ### Convenient slicing methods
 
-Select the latest forecasts for a rolling horizon (beliefs formed at least 2 days and 10 hours before the event could be known): 
+Select the latest forecasts from a rolling viewpoint (beliefs formed at least 2 days and 10 hours before the event could be known): 
 
     >>> from datetime import timedelta
     >>> df = timely_beliefs.tests.example_df
-    >>> df.rolling_horizon(timedelta(days=2, hours=10))
-                                                                                event_value
-    event_start               belief_horizon  source cumulative_probability             
-    2000-01-03 11:00:00+00:00 2 days 10:15:00 1         0.1587                          297
-                                                        0.5000                          300
-                                                        0.8413                          303
-                                              2         1.0000                          300
-    2000-01-03 12:00:00+00:00 2 days 11:15:00 1         0.1587                          396
-                                                        0.8413                          404
-                                              2         0.5000                            0
-                                                        1.0000                          400
+    >>> df.rolling_viewpoint(timedelta(days=2, hours=10))
+                                                                               event_value
+    event_start               belief_horizon  source   cumulative_probability             
+    2000-01-03 10:00:00+00:00 2 days 10:15:00 Source A 0.1587                          180
+                                                       0.5000                          200
+                                                       0.8413                          220
+                                              Source B 0.5000                            0
+                                                       1.0000                          200
+    2000-01-03 11:00:00+00:00 2 days 10:15:00 Source A 0.1587                          297
+                                                       0.5000                          300
+                                                       0.8413                          303
+                                              Source B 0.5000                            0
+                                                       1.0000                          300
+    2000-01-03 12:00:00+00:00 2 days 11:15:00 Source A 0.1587                          396
+                                                       0.5000                          400
 
-Select a history of beliefs about a single event:
+Select the latest forecasts from a fixed viewpoint (beliefs formed at least before 2 AM January 1st 2000:
 
     >>> from datetime import datetime
     >>> from pytz import utc
+    >>> df.fixed_viewpoint(datetime(2000, 1, 1, 2, tzinfo=utc)).head(8)
+                                                                                         event_value
+    event_start               belief_time               source   cumulative_probability             
+    2000-01-03 09:00:00+00:00 2000-01-01 01:00:00+00:00 Source A 0.1587                           99
+                                                                 0.5000                          100
+                                                                 0.8413                          101
+                                                        Source B 0.5000                            0
+                                                                 1.0000                          100
+    2000-01-03 10:00:00+00:00 2000-01-01 01:00:00+00:00 Source A 0.1587                          198
+                                                                 0.5000                          200
+                                                                 0.8413                          202
+    
+Select a history of beliefs about a single event:
+
     >>> df.belief_history(datetime(2000, 1, 3, 11, tzinfo=utc))
-                                                                event_value
-    belief_time               source cumulative_probability             
-    2000-01-01 00:00:00+00:00 1         0.1587                          270
-                                        0.5000                          300
-                                        0.8413                          330
-                              2         0.5000                            0
-                                        1.0000                          300
-    2000-01-01 01:00:00+00:00 1         0.1587                          297
-                                        0.5000                          300
-                                        0.8413                          303
-                              2         0.5000                            0
-                                        1.0000                          300
+                                                               event_value
+    belief_time               source   cumulative_probability             
+    2000-01-01 00:00:00+00:00 Source A 0.1587                          270
+                                       0.5000                          300
+                                       0.8413                          330
+                              Source B 0.5000                            0
+                                       1.0000                          300
+    2000-01-01 01:00:00+00:00 Source A 0.1587                          297
+                                       0.5000                          300
+                                       0.8413                          303
+                              Source B 0.5000                            0
+                                       1.0000                          300
 
 ### Resampling
 
@@ -207,42 +225,42 @@ Upsample to events with a resolution of 5 minutes:
 
     >>> from datetime import timedelta
     >>> df = timely_beliefs.tests.example_df
-    >>> df = df.resample_events(timedelta(minutes=5))
-    >>> df.sort_index(level=["belief_time", "source"]).head(9)
-                                                                                          event_value
-    event_start               belief_time               source cumulative_probability             
-    2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 1         0.1587                         90.0
-                                                                  0.5000                        100.0
-                                                                  0.8413                        110.0
-    2000-01-03 09:05:00+00:00 2000-01-01 00:00:00+00:00 1         0.1587                         90.0
-                                                                  0.5000                        100.0
-                                                                  0.8413                        110.0
-    2000-01-03 09:10:00+00:00 2000-01-01 00:00:00+00:00 1         0.1587                         90.0
-                                                                  0.5000                        100.0
-                                                                  0.8413                        110.0
+    >>> df5m = df.resample_events(timedelta(minutes=5))
+    >>> df5m.sort_index(level=["belief_time", "source"]).head(9)
+                                                                                         event_value
+    event_start               belief_time               source   cumulative_probability             
+    2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 Source A 0.1587                         90.0
+                                                                 0.5000                        100.0
+                                                                 0.8413                        110.0
+    2000-01-03 09:05:00+00:00 2000-01-01 00:00:00+00:00 Source A 0.1587                         90.0
+                                                                 0.5000                        100.0
+                                                                 0.8413                        110.0
+    2000-01-03 09:10:00+00:00 2000-01-01 00:00:00+00:00 Source A 0.1587                         90.0
+                                                                 0.5000                        100.0
+                                                                 0.8413                        110.0
 
 Downsample to events with a resolution of 2 hours:
 
-    >>> df = timely_beliefs.tests.example_df
     >>> df2h = df.resample_events(timedelta(hours=2))
     >>> df2h.sort_index(level=["belief_time", "source"]).head(15)
-                                                                                          event_value
-    event_start               belief_time               source cumulative_probability             
-    2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 1         0.158700                       90.0
-                                                                  0.500000                      100.0
-                                                                  1.000000                      110.0
-    2000-01-03 10:00:00+00:00 2000-01-01 00:00:00+00:00 1         0.025186                      225.0
-                                                                  0.079350                      235.0
-                                                                  0.133514                      240.0
-                                                                  0.212864                      245.0
-                                                                  0.329350                      250.0
-                                                                  0.408700                      255.0
-                                                                  0.579350                      260.0
-                                                                  0.750000                      265.0
-                                                                  1.000000                      275.0
-    2000-01-03 12:00:00+00:00 2000-01-01 00:00:00+00:00 1         0.158700                      360.0
-                                                                  0.500000                      400.0
-                                                                  1.000000                      440.0
+                                                                                         event_value
+    event_start               belief_time               source   cumulative_probability             
+    2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 Source A 0.158700                       90.0
+                                                                 0.500000                      100.0
+                                                                 1.000000                      110.0
+    2000-01-03 10:00:00+00:00 2000-01-01 00:00:00+00:00 Source A 0.025186                      225.0
+                                                                 0.079350                      235.0
+                                                                 0.133514                      240.0
+                                                                 0.212864                      245.0
+                                                                 0.329350                      250.0
+                                                                 0.408700                      255.0
+                                                                 0.579350                      260.0
+                                                                 0.750000                      265.0
+                                                                 1.000000                      275.0
+    2000-01-03 12:00:00+00:00 2000-01-01 00:00:00+00:00 Source A 0.158700                      360.0
+                                                                 0.500000                      400.0
+                                                                 1.000000                      440.0
+
 Notice the time-aggregation of probabilistic beliefs about the two events between 10 AM and noon.
 Three possible outcomes for both events led to nine possible worlds, because downsampling assumes by default that the values indicate discrete possible outcomes.
 
@@ -254,6 +272,22 @@ Get the (number of) sources contributing to the BeliefsDataFrame:
     array([1, 2], dtype=int64)
     >>> df.lineage.number_of_sources
     2
+
+## Accuracy
+
+    >>> df.rolling_viewpoint_accuracy(timedelta(days=2, hours=9), reference_source=df.lineage.sources[0])
+                     mae      mape      wape
+    source                                  
+    Source A    1.482075  0.014821  0.005928
+    Source B  125.853250  0.503413  0.503413
+
+    >>> df.fixed_viewpoint_accuracy(datetime(2000, 1, 2, tzinfo=utc), reference_source=df.lineage.sources[0])
+                    mae      mape      wape
+    source                                 
+    Source A    0.00000  0.000000  0.000000
+    Source B  125.85325  0.503413  0.503413
+
+...
 
 ## More examples
 
