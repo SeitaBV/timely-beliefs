@@ -4,7 +4,7 @@ from datetime import timedelta
 from timely_beliefs.base import Base, engine, session
 from timely_beliefs import DBBeliefSource, DBSensor
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
-    timedelta_x_days_ago_at_y_oclock,
+    timedelta_x_days_ago_at_y_oclock
 )
 
 

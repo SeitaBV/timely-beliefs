@@ -6,16 +6,13 @@ from pytz import utc
 import pandas as pd
 
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief
-from timely_beliefs.beliefs.utils import replace_multi_index_level
+from timely_beliefs.utils import replace_multi_index_level
 from timely_beliefs.tests.examples import df_example
 
 
 @pytest.fixture(scope="function", autouse=True)
 def df_4323(
-    time_slot_sensor: Sensor,
-    test_source_a: BeliefSource,
-    test_source_b: BeliefSource,
-    index_values: bool = True,
+    time_slot_sensor: Sensor, test_source_a: BeliefSource, test_source_b: BeliefSource
 ) -> BeliefsDataFrame:
     """Convenient BeliefsDataFrame to run tests on.
     For a single sensor, it contains 4 events, for each of which 3 beliefs by 2 sources each, described by 3
@@ -184,8 +181,10 @@ def test_downsample_probabilistic(df_4323, test_source_a: BeliefSource):
 
 def test_rolling_horizon_probabilistic(df_4323):
     """Test whether probabilistic beliefs stay probabilistic when selecting a rolling horizon."""
-    df = df_4323.rolling_horizon(belief_horizon=timedelta(days=2))
-    assert len(df) == 4 * 3
+    df = df_4323.rolling_viewpoint(belief_horizon=timedelta(days=2))
+    assert (
+        len(df) == 4 * 1 * 2 * 3
+    )  # 4 events, 1 belief, 2 sources and 3 probabilistic values
 
 
 def test_percentages_and_accuracy_of_probabilistic_model(df_4323: BeliefsDataFrame):
@@ -193,10 +192,10 @@ def test_percentages_and_accuracy_of_probabilistic_model(df_4323: BeliefsDataFra
     assert df.lineage.number_of_probabilistic_beliefs == 24
     assert df.lineage.percentage_of_probabilistic_beliefs == 1
     assert df.lineage.percentage_of_deterministic_beliefs == 0
-    assert df.lineage.probabilistic_accuracy == 3
+    assert df.lineage.probabilistic_depth == 3
 
     df = df_example()
     assert df.lineage.number_of_probabilistic_beliefs == 16
     assert df.lineage.percentage_of_probabilistic_beliefs == 1
     assert df.lineage.percentage_of_deterministic_beliefs == 0
-    assert df.lineage.probabilistic_accuracy == (8 * 3 + 8 * 2) / 16
+    assert df.lineage.probabilistic_depth == (8 * 3 + 8 * 2) / 16

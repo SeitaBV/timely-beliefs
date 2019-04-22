@@ -7,9 +7,13 @@ from pandas.tseries.frequencies import to_offset
 from pandas.core.groupby import DataFrameGroupBy
 
 from timely_beliefs.beliefs import classes
-from timely_beliefs.beliefs.probabilistic_utils import probabilistic_nan_mean
-from timely_beliefs import Sensor
-from timely_beliefs import BeliefSource
+from timely_beliefs.beliefs.probabilistic_utils import (
+    calculate_crps,
+    probabilistic_nan_mean,
+    set_truth,
+)
+from timely_beliefs import BeliefSource, Sensor
+from timely_beliefs import utils as tb_utils
 
 
 def select_most_recent_belief(
@@ -27,7 +31,7 @@ def select_most_recent_belief(
         df = (
             df.sort_values(by=["belief_horizon"], ascending=True)
             .drop_duplicates(
-                subset=["event_start", "cumulative_probability"], keep="first"
+                subset=["event_start", "source", "cumulative_probability"], keep="first"
             )
             .sort_values(by=["event_start"])
         )
@@ -35,7 +39,7 @@ def select_most_recent_belief(
         df = (
             df.sort_values(by=["belief_time"], ascending=True)
             .drop_duplicates(
-                subset=["event_start", "cumulative_probability"], keep="last"
+                subset=["event_start", "source", "cumulative_probability"], keep="last"
             )
             .sort_values(by=["event_start"])
         )
@@ -45,84 +49,7 @@ def select_most_recent_belief(
         )
 
     # Convert columns to index levels (only columns that represent index levels)
-    return df.set_index(indices)
-
-
-def replace_multi_index_level(
-    df: "classes.BeliefsDataFrame",
-    level: str,
-    index: pd.Index,
-    intersection: bool = False,
-) -> "classes.BeliefsDataFrame":
-    """Replace one of the index levels of the multi-indexed DataFrame. Returns a new dataframe object.
-    :param: df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
-    :param: level: the name of the index level to replace.
-    :param: index: the new index.
-    :param: intersection: policy for replacing the index level.
-    If intersection is False then simply replace (note that the new index should have the same length as the old index).
-    If intersection is True then add indices not contained in the old index and delete indices not contained in the new
-    index. New rows have nan columns values and copies of the first row for other index levels (note that the resulting
-    index is usually longer and contains values that were both in the old and new index, i.e. the intersection).
-    """
-    # Todo: check whether timezone information is copied over correctly
-
-    if intersection is False and len(index) != len(df.index):
-        raise ValueError(
-            "Cannot simply replace multi-index level with an index of different length than the original. "
-            "Use intersection instead?"
-        )
-    if index.name is None:
-        index.name = level
-
-    new_index_values = []
-    new_index_names = []
-    if intersection is True:
-        contained_in_old = index.isin(df.index.get_level_values(level))
-        new_index_not_in_old = index[~contained_in_old]
-        contained_in_new = df.index.get_level_values(level).isin(index)
-        for i in df.index.names:
-            if i == level:  # For the index level that should be replaced
-                # Copy old values that the new index contains, and add new values that the old index does not contain
-                new_index_values.append(
-                    df.index.get_level_values(i)[contained_in_new].append(
-                        new_index_not_in_old
-                    )
-                )
-                new_index_names.append(index.name)
-            else:  # For the other index levels
-                # Copy old values that the new index contains, and add the first value to the new rows
-                new_row_values = pd.Index(
-                    [df.index.get_level_values(i)[0]] * len(new_index_not_in_old)
-                )
-                new_index_values.append(
-                    df.index.get_level_values(i)[contained_in_new].append(
-                        new_row_values
-                    )
-                )
-                new_index_names.append(i)
-    else:
-        for i in df.index.names:
-            if i == level:  # For the index level that should be replaced
-                # Replace with new index
-                new_index_values.append(index)
-                new_index_names.append(index.name)
-            else:  # For the other index levels
-                # Copy all old values
-                new_index_values.append(df.index.get_level_values(i))
-                new_index_names.append(i)
-
-    # Construct new MultiIndex
-    mux = pd.MultiIndex.from_arrays(new_index_values, names=new_index_names)
-
-    df = df.copy(deep=True)
-    # Apply new MultiIndex
-    if intersection is True:
-        # Reindex such that new rows get nan column values
-        df = df.reindex(mux)
-    else:
-        # Replace the index
-        df.index = mux
-    return df.sort_index()
+    return df.set_index(indices).sort_index()
 
 
 def upsample_event_start(
@@ -132,6 +59,8 @@ def upsample_event_start(
     fill_method: Optional[str] = "pad",
 ):
     """Upsample event_start (which must be the first index level) from input_resolution to output_resolution."""
+
+    # Check input
     if output_resolution > input_resolution:
         raise ValueError(
             "Cannot use an upsampling policy to downsample from %s to %s."
@@ -143,6 +72,7 @@ def upsample_event_start(
         raise KeyError(
             "Upsampling only works if the event_start is the first index level."
         )
+
     lvl0 = pd.date_range(
         start=df.index.get_level_values(0)[0],
         periods=input_resolution // output_resolution,
@@ -177,7 +107,7 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
     >>> df = df.groupby([pd.Grouper(freq="1D", level="event_start"), "belief_time", "source"]).pipe(respect_event_resolution, timedelta(hours=1))
 
     So don't pass a BeliefsDataFrame directly, but pipe it so that we receive a DataFrameGroupBy object, which we can
-    iterate over to obtain a BeliefsDataFrame slice for a unique belief time, source id and (in our example) day of
+    iterate over to obtain a BeliefsDataFrame slice for a unique belief time, source and (in our example) day of
     events. We then make sure an event is stated explicitly for (in our example) each hour.
     """
 
@@ -197,9 +127,9 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
         group
     ) in (
         groups
-    ):  # Loop over the groups (we grouped by unique belief time and unique source id)
+    ):  # Loop over the groups (we grouped by unique belief time and unique source)
 
-        # Get the BeliefsDataFrame for a unique belief time and source id
+        # Get the BeliefsDataFrame for a unique belief time and source
         df_slice = group[1]
         if not df_slice.empty:
             lvl0 = pd.date_range(
@@ -210,7 +140,7 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
                 name="event_start",
             )
             df = df.append(
-                replace_multi_index_level(
+                tb_utils.replace_multi_index_level(
                     df_slice, level="event_start", index=lvl0, intersection=True
                 )
             )
@@ -228,6 +158,7 @@ def align_belief_times(
     The input BeliefsDataFrame should represent beliefs about a single event formed by a single source.
     """
 
+    # Check input
     if not slice.lineage.number_of_events == 1:
         raise ValueError("BeliefsDataFrame slice must describe a single event.")
     if not slice.lineage.number_of_sources == 1:
@@ -235,7 +166,7 @@ def align_belief_times(
             "BeliefsDataFrame slice must describe beliefs by a single source"
         )
 
-    # Get unique source id for this slice
+    # Get unique source for this slice
     assert slice.lineage.number_of_sources == 1
     source = slice.lineage.sources[0]
 
@@ -308,6 +239,7 @@ def join_beliefs(
     multiple rows).
     """
 
+    # Check input
     if not slice.lineage.number_of_belief_times == 1:
         raise ValueError(
             "BeliefsDataFrame slice must describe beliefs formed at the exact same time."
@@ -361,7 +293,7 @@ def resample_event_start(
     input_resolution: timedelta,
     distribution: Optional[str] = None,
 ) -> "classes.BeliefsDataFrame":
-    """For a unique source id."""
+    """For a unique source."""
 
     # Determine unique set of belief times
     unique_belief_times = np.sort(
@@ -410,3 +342,87 @@ def load_time_series(
             )
         )
     return beliefs
+
+
+def compute_accuracy_scores(
+    df_forecast: "classes.BeliefsDataFrame",
+    df_observation: "classes.BeliefsDataFrame",
+    reference_source: "classes.BeliefSource" = None,
+    keep_reference_observation: bool = False,
+) -> "classes.BeliefsDataFrame":
+    """ Compute the following accuracy scores:
+    - mean absolute error (mae)
+    - mean absolute percentage error (mape)
+    - weighted absolute percentage error (wape)
+
+    For probabilistic forecasts, the MAE is computed as the Continuous Ranked Probability Score (CRPS),
+    which is a generalisation of the MAE. Metrics similar to MAPE and WAPE are obtained by dividing the CRPS over
+    the reference observations or the average reference observation, respectively.
+    For your convenience, hopefully, we left the column names unchanged.
+    For probabilistic reference observations, the CRPS takes into account all possible outcomes.
+    However, the MAPE and WAPE use the expected observation (cp=0.5) as their denominator.
+
+    :param keep_reference_observation: Set to True to return the reference observation used to calculate mape and wape as a DataFrame column
+
+    References
+    ----------
+    Hans Hersbach. Decomposition of the Continuous Ranked Probability Score for Ensemble Prediction Systems
+        in Weather and Forecasting, Volume 15, No. 5, pages 559-570, 2000.
+        https://journals.ametsoc.org/doi/pdf/10.1175/1520-0434%282000%29015%3C0559%3ADOTCRP%3E2.0.CO%3B2
+    """
+
+    # Check input
+    if not df_forecast.lineage.unique_beliefs_per_event_per_source:
+        raise ValueError(
+            "BeliefsDataFrame slice with forecasts must describe a single belief per source per event."
+        )
+    if not df_observation.lineage.unique_beliefs_per_event_per_source:
+        raise ValueError(
+            "BeliefsDataFrame slice with observations must describe a single belief per source per event."
+        )
+
+    # If applicable, decide which source provides the observations that are considered to be true when we compute scores
+    if reference_source is not None:
+        df_observation = df_observation.groupby(
+            level=["event_start"], group_keys=False
+        ).apply(lambda x: x.groupby(level=["source"]).pipe(set_truth, reference_source))
+
+    # Combine the forecasts and observations into one DataFrame
+    df_forecast.index = df_forecast.index.droplevel(
+        "belief_horizon"
+        if "belief_horizon" in df_forecast.index.names
+        else "belief_time"
+    )
+    df_observation.index = df_observation.index.droplevel(
+        "belief_horizon"
+        if "belief_horizon" in df_observation.index.names
+        else "belief_time"
+    )
+    df_forecast.columns = ["forecast"]
+    df_observation.columns = ["observation"]
+    df = pd.concat([df_forecast, df_observation], axis=1)
+
+    # Calculate the continuous ranked probability score
+    df_scores = df.groupby(level=["event_start", "source"], group_keys=False).apply(
+        lambda x: calculate_crps(x)
+    )
+
+    # Rename to mae, calculate mape and wape
+    df_scores = df_scores.rename(
+        columns={"crps": "mae"}
+    )  # Technically, we have yet to take the mean
+    df_scores["mape"] = (df_scores["mae"] / df_scores["observation"]).replace(
+        [np.inf, -np.inf], np.nan
+    )
+    df_scores = df_scores.groupby(level=["source"], group_keys=False).mean()
+    df_scores["wape"] = (df_scores["mae"] / df_scores["observation"]).replace(
+        [np.inf, -np.inf], np.nan
+    )
+
+    # Drop the reference observations by default (only keep the scores)
+    if keep_reference_observation is False:
+        df_scores = df_scores.drop(columns=["observation"])
+    else:
+        df_scores = df_scores.rename(columns={"observation": "reference_value"})
+
+    return df_scores
