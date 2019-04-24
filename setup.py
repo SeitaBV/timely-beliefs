@@ -13,7 +13,7 @@ setup(
         "uncertainty",
         "lineage",
     ],
-    version="0.0.3",
+    version="0.0.4",
     install_requires=[
         "pytz",
         "pandas>=0.24",
@@ -24,6 +24,8 @@ setup(
         "isodate",
         "openturns",
         "properscoring",
+        "altair",
+        "selenium",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
