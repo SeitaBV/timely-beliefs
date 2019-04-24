@@ -6,6 +6,7 @@ Below, we register customer accessors.
 """
 
 from typing import List
+from datetime import datetime, timedelta
 
 from pandas.api.extensions import register_dataframe_accessor
 
@@ -56,7 +57,27 @@ class BeliefsAccessor(object):
         return len(self.events)
 
     @property
-    def belief_times(self) -> List[int]:
+    def belief_horizons(self) -> List[timedelta]:
+        """Return the unique belief horizons in this BeliefsDataFrame."""
+        if "belief_horizon" in self._obj.index.names:
+            return (
+                self._obj.index.get_level_values(level="belief_horizon").unique().values
+            )
+        else:
+            return (
+                self._obj.convert_index_from_belief_time_to_horizon()
+                .index.get_level_values(level="belief_horizon")
+                .unique()
+                .values
+            )
+
+    @property
+    def number_of_belief_horizons(self):
+        """Return the number of unique belief horizons described in this BeliefsDataFrame."""
+        return len(self.belief_horizons)
+
+    @property
+    def belief_times(self) -> List[datetime]:
         """Return the unique belief times in this BeliefsDataFrame."""
         if "belief_time" in self._obj.index.names:
             return self._obj.index.get_level_values(level="belief_time").unique().values

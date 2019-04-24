@@ -634,12 +634,12 @@ class BeliefsDataFrame(pd.DataFrame):
 
     def accuracy(
         self,
-        t: Union[datetime, timedelta],
+        t: Union[datetime, timedelta] = None,
         reference_source: "BeliefSource" = None,
         keep_reference_observation: bool = False,
     ) -> "BeliefsDataFrame":
-        """Simply get the accuracy of beliefs about events, at a given time (pass a datetime) or at a given horizon
-        (pass a timedelta).
+        """Simply get the accuracy of beliefs about events, at a given time (pass a datetime), at a given horizon
+                (pass a timedelta), or as a function of horizon (the default).
 
         By default the accuracy is determined with respect to the most recent beliefs held by the same source.
         Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
@@ -654,7 +654,25 @@ class BeliefsDataFrame(pd.DataFrame):
         :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
         :param keep_reference_observation: Set to True to return the reference observation used to calculate mape and wape as a DataFrame column
         """
-        if isinstance(t, datetime):
+
+        if t is None:
+            return pd.concat(
+                [
+                    pd.concat(
+                        [
+                            self.rolling_viewpoint_accuracy(
+                                h,
+                                reference_source=reference_source,
+                                keep_reference_observation=keep_reference_observation,
+                            )
+                        ],
+                        keys=[h],
+                        names=["belief_horizon"],
+                    )
+                    for h in self.lineage.belief_horizons
+                ]
+            )
+        elif isinstance(t, datetime):
             return self.fixed_viewpoint_accuracy(
                 t,
                 reference_source=reference_source,
