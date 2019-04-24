@@ -401,7 +401,14 @@ def set_truth(
 
 def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
     """Compute the continuous ranked probability score for a BeliefsDataFrame with a probabilistic (or deterministic)
-    forecast and observation. This function supports a probabilistic observation, too."""
+    forecast and observation. This function supports a probabilistic observation, too.
+
+    References
+    ----------
+    Hans Hersbach. Decomposition of the Continuous Ranked Probability Score for Ensemble Prediction Systems
+        in Weather and Forecasting, Volume 15, No. 5, pages 559-570, 2000.
+        https://journals.ametsoc.org/doi/pdf/10.1175/1520-0434%282000%29015%3C0559%3ADOTCRP%3E2.0.CO%3B2
+    """
 
     if len(df.groupby(level=["event_start", "source"])) > 1:
         raise ValueError(
