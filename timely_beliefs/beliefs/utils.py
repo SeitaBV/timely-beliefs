@@ -363,12 +363,6 @@ def compute_accuracy_scores(
     However, the MAPE and WAPE use the expected observation (cp=0.5) as their denominator.
 
     :param keep_reference_observation: Set to True to return the reference observation used to calculate mape and wape as a DataFrame column
-
-    References
-    ----------
-    Hans Hersbach. Decomposition of the Continuous Ranked Probability Score for Ensemble Prediction Systems
-        in Weather and Forecasting, Volume 15, No. 5, pages 559-570, 2000.
-        https://journals.ametsoc.org/doi/pdf/10.1175/1520-0434%282000%29015%3C0559%3ADOTCRP%3E2.0.CO%3B2
     """
 
     # Check input
