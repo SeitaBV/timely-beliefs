@@ -8,6 +8,7 @@ from pandas.tseries.frequencies import to_offset
 from sqlalchemy import Column, DateTime, Integer, Interval, Float, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import relationship, backref
+import altair as alt
 
 from timely_beliefs.base import Base, session
 from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
@@ -15,6 +16,7 @@ from timely_beliefs.sensors.classes import Sensor, DBSensor
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.beliefs import utils as belief_utils
+from timely_beliefs.visualization import utils as visualization_utils
 
 
 class TimedBelief(object):
@@ -829,3 +831,20 @@ class BeliefsDataFrame(pd.DataFrame):
         return belief_utils.compute_accuracy_scores(
             df_forecast, df_observation, reference_source, keep_reference_observation
         )
+
+    def plot(self, reference_source: BeliefSource) -> alt.LayerChart:
+        """Visualize the BeliefsDataFrame in an interactive Altair chart.
+
+        :param reference_source: BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
+        :returns: Altair chart object with a vega-lite representation (for more information, see reference below).
+
+        >>> chart = df.plot(df.lineage.sources[0])
+        >>> chart.save("chart.json")
+        >>> chart.serve()
+
+        References
+        ----------
+        Altair: Declarative Visualization in Python.
+            https://altair-viz.github.io
+        """
+        return visualization_utils.plot(self, reference_source=reference_source)
