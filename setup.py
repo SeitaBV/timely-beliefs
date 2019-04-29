@@ -13,7 +13,7 @@ setup(
         "uncertainty",
         "lineage",
     ],
-    version="0.0.3",
+    version="0.0.3.a",
     install_requires=[
         "pytz",
         "pandas>=0.24",
@@ -33,6 +33,7 @@ setup(
         "timely_beliefs.sensors",
         "timely_beliefs.sensors.func_store",
         "timely_beliefs.sources",
+        "timely_beliefs.tests",
     ],
     include_package_data=True,
     classifiers=[
