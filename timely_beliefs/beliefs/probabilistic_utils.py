@@ -517,6 +517,8 @@ def get_belief_at_cumulative_probability(
 ) -> "classes.BeliefsDataFrame":
     """Take the first value with cumulative probability equal or higher than the probability given.
     This selects the right value assuming a discrete probability distribution."""
+    if not len(df) > 1:
+        return df
     df2 = df[
         df.index.get_level_values("cumulative_probability") >= cumulative_probability
     ]
@@ -530,14 +532,14 @@ def get_belief_at_cumulative_probability(
 
 def get_mean_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
     """Convenience function to select the expected value."""
-    return get_belief_at_cumulative_probability(df, 0.5)
+    return get_belief_at_cumulative_probability(df, 0.5) if len(df) > 1 else df
 
 
 def get_nth_percentile_belief(
     df: "classes.BeliefsDataFrame", n: float
 ) -> "classes.BeliefsDataFrame":
     """Convenience function to select the value at the nth percentile."""
-    return get_belief_at_cumulative_probability(df, n / 100)
+    return get_belief_at_cumulative_probability(df, n / 100) if len(df) > 1 else df
 
 
 get_expected_belief = get_mean_belief  # Define alias

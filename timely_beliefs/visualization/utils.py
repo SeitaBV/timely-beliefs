@@ -108,35 +108,38 @@ def prepare_df_for_plotting(
         )
     )
     df["belief_horizon"] = df.knowledge_times - df.belief_times
-    df_ci0 = (
-        df.for_each_belief(get_nth_percentile_belief, n=(1 - ci) * 100 / 2, df=df)
-        .rename(columns={"event_value": "lower_value"})
-        .droplevel("cumulative_probability")
-        .drop("belief_horizon", axis=1)
+    if df.lineage.percentage_of_probabilistic_beliefs == 0:
+        df.index = df.index.droplevel("cumulative_probability")
+        df["expected_value"] = df["event_value"]
+        df["upper_value"] = df["event_value"]
+        df["lower_value"] = df["event_value"]
+    else:
+        df_ci0 = (
+            df.for_each_belief(get_nth_percentile_belief, n=(1 - ci) * 100 / 2, df=df)
+            .rename(columns={"event_value": "lower_value"})
+            .droplevel("cumulative_probability")
+            .drop("belief_horizon", axis=1)
+        )
+        df_exp = (
+            df.for_each_belief(get_nth_percentile_belief, n=50, df=df)
+            .rename(columns={"event_value": "expected_value"})
+            .droplevel("cumulative_probability")
+        )
+        df_ci1 = (
+            df.for_each_belief(
+                get_nth_percentile_belief, n=100 - (1 - ci) * 100 / 2, df=df
+            )
+            .rename(columns={"event_value": "upper_value"})
+            .droplevel("cumulative_probability")
+            .drop("belief_horizon", axis=1)
+        )
+        df = pd.concat([df_ci0, df_exp, df_ci1], axis=1)
+    df = df.reset_index().set_index(["event_start", "belief_horizon", "source"])
+    df = (
+        pd.concat([df, accuracy_df])
+        .reset_index()
+        .sort_values(["event_start", "belief_horizon", "source"])
     )
-    df_exp = (
-        df.for_each_belief(get_nth_percentile_belief, n=50, df=df)
-        .rename(columns={"event_value": "expected_value"})
-        .droplevel("cumulative_probability")
-    )
-    df_ci1 = (
-        df.for_each_belief(get_nth_percentile_belief, n=100 - (1 - ci) * 100 / 2, df=df)
-        .rename(columns={"event_value": "upper_value"})
-        .droplevel("cumulative_probability")
-        .drop("belief_horizon", axis=1)
-    )
-    df = pd.concat([df_ci0, df_exp, df_ci1], axis=1)
-    df = pd.concat(
-        [
-            df.reset_index()
-            .set_index(["event_start", "belief_horizon", "source"])
-            .sort_index(),
-            accuracy_df,
-        ],
-        axis=1,
-        sort=True,
-    )
-    df = df.reset_index()
     df, belief_horizon_unit = timedelta_to_human_range(df)
 
     df["source"] = df["source"].apply(lambda x: x.name)
