@@ -16,6 +16,7 @@ from timely_beliefs.sensors.classes import Sensor, DBSensor
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.beliefs import utils as belief_utils
+from timely_beliefs.beliefs import probabilistic_utils
 from timely_beliefs.visualization import utils as visualization_utils
 
 
@@ -361,6 +362,20 @@ class BeliefsDataFrame(pd.DataFrame):
     def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
         return tb_utils.replace_multi_index_level(self, "event_start", self.event_ends)
 
+    def drop_belief_time_or_horizon_index_level(self) -> "BeliefsDataFrame":
+        return self.droplevel(
+            "belief_horizon" if "belief_horizon" in self.index.names else "belief_time"
+        )
+
+    def set_event_value_from_source(
+        self, reference_source: BeliefSource
+    ) -> "BeliefsDataFrame":
+        return self.groupby(level=["event_start"], group_keys=False).apply(
+            lambda x: x.groupby(level=["source"]).pipe(
+                probabilistic_utils.set_truth, reference_source
+            )
+        )
+
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(
@@ -498,7 +513,7 @@ class BeliefsDataFrame(pd.DataFrame):
                     <= belief_horizon_window[1]
                 ]
             df = df.convert_index_from_belief_horizon_to_time()
-        df.index = df.index.droplevel("event_start")
+        df = df.droplevel("event_start")
         return df
 
     @hybrid_method
@@ -638,7 +653,6 @@ class BeliefsDataFrame(pd.DataFrame):
         self,
         t: Union[datetime, timedelta] = None,
         reference_source: BeliefSource = None,
-        keep_reference_observation: bool = False,
     ) -> "BeliefsDataFrame":
         """Simply get the accuracy of beliefs about events, at a given time (pass a datetime), at a given horizon
         (pass a timedelta), or as a function of horizon (the default).
@@ -655,38 +669,37 @@ class BeliefsDataFrame(pd.DataFrame):
 
         :param t: optional datetime or timedelta for a fixed or rolling viewpoint, respectively
         :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
-        :param keep_reference_observation: Set to True to return the reference observation used to calculate mape and wape as a DataFrame column
         """
 
+        df = self
         if t is None:
+
+            # Take the most recent belief to provide the observations that are considered to be true when we compute scores
+            df_observation = belief_utils.select_most_recent_belief(df.copy(deep=True))
+
+            # If applicable, decide which source provides the observations that are considered to be true when we compute scores
+            if reference_source is not None:
+                df_observation = df_observation.set_event_value_from_source(
+                    reference_source
+                )
+
             return pd.concat(
                 [
-                    pd.concat(
-                        [
-                            self.rolling_viewpoint_accuracy(
-                                h,
-                                reference_source=reference_source,
-                                keep_reference_observation=keep_reference_observation,
-                            )
-                        ],
-                        keys=[h],
-                        names=["belief_horizon"],
+                    df.rolling_viewpoint_accuracy(
+                        h,
+                        reference_source=reference_source,
+                        df_observation=df_observation,
                     )
-                    for h in self.lineage.belief_horizons
-                ]
+                    for h in df.lineage.belief_horizons
+                ],
+                keys=df.lineage.belief_horizons,
+                names=["belief_horizon"],
             )
+
         elif isinstance(t, datetime):
-            return self.fixed_viewpoint_accuracy(
-                t,
-                reference_source=reference_source,
-                keep_reference_observation=keep_reference_observation,
-            )
+            return df.fixed_viewpoint_accuracy(t, reference_source=reference_source)
         elif isinstance(t, timedelta):
-            return self.rolling_viewpoint_accuracy(
-                t,
-                reference_source=reference_source,
-                keep_reference_observation=keep_reference_observation,
-            )
+            return df.rolling_viewpoint_accuracy(t, reference_source=reference_source)
 
     def fixed_viewpoint_accuracy(
         self,
@@ -697,8 +710,7 @@ class BeliefsDataFrame(pd.DataFrame):
         ),
         reference_belief_time: datetime = None,
         reference_belief_horizon: timedelta = None,
-        reference_source: int = None,
-        keep_reference_observation: bool = False,
+        reference_source: BeliefSource = None,
     ) -> "BeliefsDataFrame":
         """Get the accuracy of beliefs about events at a given time.
 
@@ -741,7 +753,6 @@ class BeliefsDataFrame(pd.DataFrame):
         :param reference_belief_time: optional datetime to indicate that the accuracy should be determined with respect to the latest belief held at this time
         :param reference_belief_horizon: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
         :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
-        :param keep_reference_observation: Set to True to return the reference observation used to calculate mape and wape as a DataFrame column
         :returns: BeliefsDataFrame with columns for mae, mape and wape (and optionally, the reference values), indexed by source only
         """
         df = self
@@ -770,9 +781,20 @@ class BeliefsDataFrame(pd.DataFrame):
                 raise ValueError(
                     "Cannot pass both a reference belief time and a reference belief horizon."
                 )
-        return belief_utils.compute_accuracy_scores(
-            df_forecast, df_observation, reference_source, keep_reference_observation
-        )
+
+        # If applicable, decide which source provides the observations that are considered to be true when we compute scores
+        if reference_source is not None:
+            df_observation = df_observation.set_event_value_from_source(
+                reference_source
+            )
+
+        # Combine the forecasts and observations into one DataFrame
+        df_observation = df_observation.drop_belief_time_or_horizon_index_level()
+        df_forecast = df_forecast.drop_belief_time_or_horizon_index_level()
+        df = pd.concat([df_forecast, df_observation], axis=1)
+        df.columns = ["event_value", "reference_value"]
+
+        return belief_utils.compute_accuracy_scores(df)
 
     def rolling_viewpoint_accuracy(
         self,
@@ -783,7 +805,7 @@ class BeliefsDataFrame(pd.DataFrame):
         ),
         reference_belief_horizon: timedelta = None,
         reference_source: BeliefSource = None,
-        keep_reference_observation: bool = False,
+        df_observation: "BeliefsDataFrame" = None,
     ) -> "BeliefsDataFrame":
         """Get the accuracy of beliefs about events at a given horizon.
 
@@ -816,22 +838,36 @@ class BeliefsDataFrame(pd.DataFrame):
         :param belief_horizon_window: optional tuple specifying a horizon window (e.g. between 1 and 2 days before the event value could have been known)
         :param reference_belief_horizon: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
         :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
-        :param keep_reference_observation: Set to True to return the reference observation used to calculate mape and wape as a DataFrame column
+        :param df_observation: precomputed reference beliefs
         """
         df = self
         df_forecast = df.rolling_viewpoint(belief_horizon, belief_horizon_window)
-        if reference_belief_horizon is None:
-            df_observation = belief_utils.select_most_recent_belief(df)
-        else:
-            df_observation = belief_utils.select_most_recent_belief(
-                df[
-                    df.index.get_level_values("belief_horizon")
-                    >= reference_belief_horizon
-                ]
-            )
-        return belief_utils.compute_accuracy_scores(
-            df_forecast, df_observation, reference_source, keep_reference_observation
-        )
+        if df_observation is None:
+
+            # If applicable, decide which horizon provides the observations that are considered to be true when we compute scores
+            if reference_belief_horizon is None:
+                df_observation = belief_utils.select_most_recent_belief(df)
+            else:
+                df_observation = belief_utils.select_most_recent_belief(
+                    df[
+                        df.index.get_level_values("belief_horizon")
+                        >= reference_belief_horizon
+                    ]
+                )
+
+            # If applicable, decide which source provides the observations that are considered to be true when we compute scores
+            if reference_source is not None:
+                df_observation = df_observation.set_event_value_from_source(
+                    reference_source
+                )
+
+        # Combine the forecasts and observations into one DataFrame
+        df_observation = df_observation.drop_belief_time_or_horizon_index_level()
+        df_forecast = df_forecast.drop_belief_time_or_horizon_index_level()
+        df = pd.concat([df_forecast, df_observation], axis=1)
+        df.columns = ["event_value", "reference_value"]
+
+        return belief_utils.compute_accuracy_scores(df)
 
     def plot(
         self, show_accuracy: bool = True, reference_source: BeliefSource = None

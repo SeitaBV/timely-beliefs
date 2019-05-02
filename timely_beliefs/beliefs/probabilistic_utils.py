@@ -388,7 +388,7 @@ def set_truth(
     else:
         raise KeyError("Source %s not found in BeliefsDataFrame." % right_source)
 
-    # Replace each original group with the truth group, while adding back the source id for each original group
+    # Replace each original group with the truth group, while adding back the source for each original group
     gr_list = [
         tb_utils.replace_multi_index_level(
             truth_group, "source", pd.Index([key] * len(truth_group))
@@ -401,7 +401,8 @@ def set_truth(
 
 def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
     """Compute the continuous ranked probability score for a BeliefsDataFrame with a probabilistic (or deterministic)
-    forecast and observation. This function supports a probabilistic observation, too.
+    forecast (event_value column) and observation (reference_value column).
+    This function supports a probabilistic observation, too.
 
     References
     ----------
@@ -416,9 +417,9 @@ def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame"
             "BeliefsDataFrame cannot contain multiple events or sources."
         )
 
-    # Split DataFrame into forecast and observation
-    df_forecast = df.dropna(subset=["forecast"])["forecast"]
-    df_observation = df.dropna(subset=["observation"])["observation"]
+    # Split DataFrame into forecast (event_value) and observation (reference_value)
+    df_forecast = df.dropna(subset=["event_value"])["event_value"]
+    df_observation = df.dropna(subset=["reference_value"])["reference_value"]
 
     # Obtain the distributions
     pdf_p_forecast, pdf_v_forecast = get_pdfs_from_beliefsdataframe(df_forecast)

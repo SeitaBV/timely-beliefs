@@ -103,9 +103,7 @@ def prepare_df_for_plotting(
     :return:
     """
     accuracy_df = df.groupby(level="event_start").apply(
-        lambda x: x.accuracy(
-            reference_source=reference_source, keep_reference_observation=True
-        )
+        lambda x: x.accuracy(reference_source=reference_source)
     )
     df["belief_horizon"] = df.knowledge_times - df.belief_times
     if df.lineage.percentage_of_probabilistic_beliefs == 0:
@@ -136,7 +134,7 @@ def prepare_df_for_plotting(
         df = pd.concat([df_ci0, df_exp, df_ci1], axis=1)
     df = df.reset_index().set_index(["event_start", "belief_horizon", "source"])
     df = (
-        pd.concat([df, accuracy_df])
+        pd.concat([df, accuracy_df], axis=1)
         .reset_index()
         .sort_values(["event_start", "belief_horizon", "source"])
     )
