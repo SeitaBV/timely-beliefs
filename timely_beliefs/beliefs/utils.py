@@ -337,7 +337,7 @@ def load_time_series(
                 sensor=sensor,
                 source=source,
                 value=value,
-                event_time=time,
+                event_start=time,
                 belief_horizon=belief_horizon,
             )
         )
