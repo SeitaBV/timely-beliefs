@@ -637,11 +637,11 @@ class BeliefsDataFrame(pd.DataFrame):
     def accuracy(
         self,
         t: Union[datetime, timedelta] = None,
-        reference_source: "BeliefSource" = None,
+        reference_source: BeliefSource = None,
         keep_reference_observation: bool = False,
     ) -> "BeliefsDataFrame":
         """Simply get the accuracy of beliefs about events, at a given time (pass a datetime), at a given horizon
-                (pass a timedelta), or as a function of horizon (the default).
+        (pass a timedelta), or as a function of horizon (the default).
 
         By default the accuracy is determined with respect to the most recent beliefs held by the same source.
         Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
@@ -653,6 +653,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
         For more options, use df.fixed_viewpoint_accuracy() or df.rolling_viewpoint_accuracy() instead.
 
+        :param t: optional datetime or timedelta for a fixed or rolling viewpoint, respectively
         :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
         :param keep_reference_observation: Set to True to return the reference observation used to calculate mape and wape as a DataFrame column
         """
@@ -708,7 +709,7 @@ class BeliefsDataFrame(pd.DataFrame):
         Optionally, set a reference belief time to determine accuracy with respect to beliefs at a specific time.
         Alternatively, set a reference belief horizon instead of a reference belief time.
         Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
-        These allow to define what is considered to be true at a certain time.
+        These options allow to define what is considered to be true at a certain time.
 
         By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
@@ -781,7 +782,7 @@ class BeliefsDataFrame(pd.DataFrame):
             None,
         ),
         reference_belief_horizon: timedelta = None,
-        reference_source: int = None,
+        reference_source: BeliefSource = None,
         keep_reference_observation: bool = False,
     ) -> "BeliefsDataFrame":
         """Get the accuracy of beliefs about events at a given horizon.
@@ -793,7 +794,7 @@ class BeliefsDataFrame(pd.DataFrame):
         By default the accuracy is determined with respect to the most recent beliefs held by the same source.
         Optionally, set a reference belief horizon to determine accuracy with respect to beliefs at a specific horizon.
         Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
-        These allow to define what is considered to be true at a certain time after an event.
+        These options allow to define what is considered to be true at a certain time after an event.
 
         By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
@@ -808,8 +809,8 @@ class BeliefsDataFrame(pd.DataFrame):
         >>> df.rolling_viewpoint_accuracy(belief_horizon_window=(timedelta(days=1), timedelta(days=2)))
         >>> # Select the accuracy of beliefs formed 10 days beforehand with respect to 1 day past knowledge time
         >>> df.rolling_viewpoint_accuracy(belief_horizon=timedelta(days=10), reference_belief_horizon=timedelta(days=-1))
-        >>> # Select the accuracy of beliefs formed 10 days beforehand with respect to the latest belief formed by source 3
-        >>> df.rolling_viewpoint_accuracy(belief_horizon=timedelta(days=10), reference_source=3)
+        >>> # Select the accuracy of beliefs formed 10 days beforehand with respect to the latest belief formed by the first source
+        >>> df.rolling_viewpoint_accuracy(belief_horizon=timedelta(days=10), reference_source=df.lineage.sources[0])
 
         :param belief_horizon: timedelta indicating the belief should be formed at least this duration before knowledge time
         :param belief_horizon_window: optional tuple specifying a horizon window (e.g. between 1 and 2 days before the event value could have been known)
@@ -832,9 +833,12 @@ class BeliefsDataFrame(pd.DataFrame):
             df_forecast, df_observation, reference_source, keep_reference_observation
         )
 
-    def plot(self, reference_source: BeliefSource) -> alt.LayerChart:
+    def plot(
+        self, show_accuracy: bool = True, reference_source: BeliefSource = None
+    ) -> alt.LayerChart:
         """Visualize the BeliefsDataFrame in an interactive Altair chart.
 
+        :param show_accuracy: Set to False to plot time series data only
         :param reference_source: BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
         :returns: Altair chart object with a vega-lite representation (for more information, see reference below).
 
@@ -847,4 +851,6 @@ class BeliefsDataFrame(pd.DataFrame):
         Altair: Declarative Visualization in Python.
             https://altair-viz.github.io
         """
-        return visualization_utils.plot(self, reference_source=reference_source)
+        return visualization_utils.plot(
+            self, show_accuracy=show_accuracy, reference_source=reference_source
+        )

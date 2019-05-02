@@ -32,10 +32,19 @@ def base_chart(source, belief_horizon_unit: str) -> alt.Chart:
     )
 
 
-def time_series_chart(base, belief_horizon_unit, ci: float) -> alt.LayerChart:
+def time_series_chart(
+    base, show_accuracy, belief_horizon_unit, ci: float
+) -> alt.LayerChart:
 
-    # Configure the stepwise line and circle markers
-    ts_chart = base.mark_line(interpolate="step-before") + (
+    # Configure the stepwise line
+    ts_line_chart = base.mark_line(interpolate="step-before")
+    if show_accuracy is True:
+        ts_line_chart = ts_line_chart.transform_filter(
+            selectors.horizon_hover_brush | selectors.horizon_selection_brush
+        )
+
+    # Configure the circle markers
+    ts_circle_chart = (
         base.mark_circle()
         .encode(
             x=alt.X(
@@ -65,56 +74,48 @@ def time_series_chart(base, belief_horizon_unit, ci: float) -> alt.LayerChart:
                 alt.Tooltip("source", title="Source"),
             ],
         )
-        .transform_filter(
-            selectors.horizon_hover_brush | selectors.horizon_selection_brush
-        )
         .properties(title="Beliefs over time")
     )
-
-    # Configure the confidence intervals
-    confidence_interval = (
-        base.mark_area(interpolate="step-before", opacity=0.3)
-        .encode(
-            x=alt.X(
-                "event_start", scale={"domain": selectors.time_selection_brush.ref()}
-            ),
-            y="lower_value",
-            y2="upper_value",
-            color="source",
-            tooltip=[
-                alt.Tooltip(
-                    "event_start:T",
-                    timeUnit="yearmonthdatehoursminutes",
-                    title="Event start",
-                ),
-                alt.Tooltip("expected_value:Q", title="Expected value", format=".2f"),
-                alt.Tooltip(
-                    "belief_horizon:Q",
-                    title="Belief horizon (%s)" % belief_horizon_unit,
-                ),
-                alt.Tooltip("source", title="Source"),
-                alt.Tooltip(
-                    "upper_value:Q",
-                    format=".2f",
-                    title="Upper value of {0:.0f}% confidence interval".format(
-                        100 * ci
-                    ),
-                ),
-                alt.Tooltip(
-                    "lower_value:Q",
-                    format=".2f",
-                    title="Lower value of {0:.0f}% confidence interval".format(
-                        100 * ci
-                    ),
-                ),
-            ],
-        )
-        .transform_filter(
+    if show_accuracy is True:
+        ts_circle_chart = ts_circle_chart.transform_filter(
             selectors.horizon_hover_brush | selectors.horizon_selection_brush
         )
-    )
 
-    return ts_chart + confidence_interval
+    # Configure the confidence intervals
+    confidence_interval = base.mark_area(interpolate="step-before", opacity=0.3).encode(
+        x=alt.X("event_start", scale={"domain": selectors.time_selection_brush.ref()}),
+        y="lower_value",
+        y2="upper_value",
+        color="source",
+        tooltip=[
+            alt.Tooltip(
+                "event_start:T",
+                timeUnit="yearmonthdatehoursminutes",
+                title="Event start",
+            ),
+            alt.Tooltip("expected_value:Q", title="Expected value", format=".2f"),
+            alt.Tooltip(
+                "belief_horizon:Q", title="Belief horizon (%s)" % belief_horizon_unit
+            ),
+            alt.Tooltip("source", title="Source"),
+            alt.Tooltip(
+                "upper_value:Q",
+                format=".2f",
+                title="Upper value of {0:.0f}% confidence interval".format(100 * ci),
+            ),
+            alt.Tooltip(
+                "lower_value:Q",
+                format=".2f",
+                title="Lower value of {0:.0f}% confidence interval".format(100 * ci),
+            ),
+        ],
+    )
+    if show_accuracy is True:
+        confidence_interval = confidence_interval.transform_filter(
+            selectors.horizon_hover_brush | selectors.horizon_selection_brush
+        )
+
+    return ts_line_chart + ts_circle_chart + confidence_interval
 
 
 def horizon_accuracy_chart(
@@ -181,14 +182,13 @@ def horizon_accuracy_chart(
         .properties(title="Accuracy in the %s before" % belief_horizon_unit)
         # .configure_title(offset=-270, orient="bottom")
     )
-    ha_annotation_chart = (
-        ha_chart.mark_bar()
-        .encode(size=alt.value(1))
-        .transform_filter(
-            selectors.horizon_hover_brush | selectors.horizon_selection_brush
-        )
+    ha_interpolation_chart = ha_chart.mark_line(interpolate="monotone").encode(
+        size=alt.value(1)
     )
-    return ha_annotation_chart + ha_chart
+    ha_annotation_chart = ha_interpolation_chart.mark_bar().transform_filter(
+        selectors.horizon_hover_brush | selectors.horizon_selection_brush
+    )
+    return ha_annotation_chart + ha_chart + ha_interpolation_chart
 
 
 def hour_date_chart(base) -> alt.FacetChart:
@@ -205,7 +205,7 @@ def hour_date_chart(base) -> alt.FacetChart:
             on_the_fly_mae="mean(mae)",
             on_the_fly_reference="mean(reference_value)",
             frame=[None, None],
-            groupby=["monthdate(event_start)", "hoursminutes(event_start)", "source"],
+            groupby=["event_start", "source"],
         )
         .transform_calculate(
             on_the_fly_wape=alt.datum.on_the_fly_mae / alt.datum.on_the_fly_reference,
@@ -213,7 +213,12 @@ def hour_date_chart(base) -> alt.FacetChart:
         )
         .encode(
             x=alt.X("event_start:O", timeUnit="monthdate", title="UTC date"),
-            y=alt.Y("event_start:O", timeUnit="hoursminutes", title="UTC hour of day"),
+            y=alt.Y(
+                "event_start:O",
+                timeUnit="hours",
+                scale=alt.Scale(domain=list(range(24))),
+                title="UTC hour of day",
+            ),
             color=alt.condition(
                 selectors.time_selection_brush,
                 alt.Color(
@@ -225,9 +230,7 @@ def hour_date_chart(base) -> alt.FacetChart:
                 alt.value("lightgray"),
             ),
             tooltip=[
-                alt.Tooltip(
-                    "event_start:T", timeUnit="hoursminutes", title="Time of day"
-                ),
+                alt.Tooltip("event_start:T", timeUnit="hours", title="Hour of day"),
                 alt.Tooltip("accuracy:Q", title="Accuracy (1-WAPE)", format=".1%"),
             ],
         )

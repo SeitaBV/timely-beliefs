@@ -36,6 +36,7 @@ setup(
         "timely_beliefs.sensors.func_store",
         "timely_beliefs.sources",
         "timely_beliefs.tests",
+        "timely_beliefs.visualization",
     ],
     include_package_data=True,
     classifiers=[

@@ -2,7 +2,7 @@ import altair as alt
 
 
 time_selection_brush = alt.selection_interval(encodings=["x"])
-horizon_selection_brush = alt.selection_single(
+horizon_selection_brush = alt.selection_multi(
     nearest=False, encodings=["x"]
 )  # , empty="none", init=unique_belief_horizons[-1])  # Todo: set initial value once altair supports the init property: https://vega.github.io/vega-lite/docs/selection.html
 horizon_hover_brush = alt.selection_single(
@@ -17,7 +17,7 @@ def time_window_selector(base) -> alt.LayerChart:
             x=alt.X("event_start", bin=alt.Bin(maxbins=1000), title=""),
             y=alt.Y("expected_value", title="", axis=alt.Axis(values=[])),
             color=alt.ColorValue("lightgray"),
-            tooltip={},
+            # tooltip={},
         )
         .properties(height=30, title="Select time window")
     )

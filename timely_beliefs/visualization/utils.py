@@ -11,9 +11,14 @@ from timely_beliefs.visualization import graphs, selectors
 
 def plot(
     df: "classes.BeliefsDataFrame",
-    reference_source: "classes.BeliefSource",
+    show_accuracy: bool = True,
+    reference_source: "classes.BeliefSource" = None,
     ci: float = 0.9,
 ) -> alt.LayerChart:
+
+    # Validate input
+    if show_accuracy is True and reference_source is None:
+        raise ValueError("Must set reference source to calculate accuracy metrics.")
 
     # Set up data source
     df, belief_horizon_unit = prepare_df_for_plotting(
@@ -29,20 +34,23 @@ def plot(
 
     # Construct selectors
     time_window_selector = selectors.time_window_selector(base)
-    horizon_selector = selectors.horizon_selector(
-        base, belief_horizon_unit, unique_belief_horizons
-    )
+    if show_accuracy is True:
+        horizon_selector = selectors.horizon_selector(
+            base, belief_horizon_unit, unique_belief_horizons
+        )
 
     # Construct charts
-    ts_chart = graphs.time_series_chart(base, belief_horizon_unit, ci)
-    ha_chart = graphs.horizon_accuracy_chart(
-        base, belief_horizon_unit, unique_belief_horizons
-    )
-    hd_chart = graphs.hour_date_chart(base)
-
-    return (
-        (time_window_selector & ts_chart) | (horizon_selector & ha_chart)
-    ) & hd_chart
+    ts_chart = graphs.time_series_chart(base, show_accuracy, belief_horizon_unit, ci)
+    if show_accuracy is True:
+        ha_chart = graphs.horizon_accuracy_chart(
+            base, belief_horizon_unit, unique_belief_horizons
+        )
+        hd_chart = graphs.hour_date_chart(base)
+        return (
+            (time_window_selector & ts_chart) | (horizon_selector & ha_chart)
+        ) & hd_chart
+    else:
+        return time_window_selector & ts_chart
 
 
 def timedelta_to_human_range(
@@ -132,7 +140,6 @@ def prepare_df_for_plotting(
     df, belief_horizon_unit = timedelta_to_human_range(df)
 
     df["source"] = df["source"].apply(lambda x: x.name)
-    df["event_start_copy"] = df["event_start"]
 
     return df, belief_horizon_unit
 
