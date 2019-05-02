@@ -10,7 +10,6 @@ from timely_beliefs.beliefs import classes
 from timely_beliefs.beliefs.probabilistic_utils import (
     calculate_crps,
     probabilistic_nan_mean,
-    set_truth,
 )
 from timely_beliefs import BeliefSource, Sensor
 from timely_beliefs import utils as tb_utils
@@ -345,10 +344,7 @@ def load_time_series(
 
 
 def compute_accuracy_scores(
-    df_forecast: "classes.BeliefsDataFrame",
-    df_observation: "classes.BeliefsDataFrame",
-    reference_source: "classes.BeliefSource" = None,
-    keep_reference_observation: bool = False,
+    df: "classes.BeliefsDataFrame",
 ) -> "classes.BeliefsDataFrame":
     """ Compute the following accuracy scores:
     - mean absolute error (mae)
@@ -361,40 +357,18 @@ def compute_accuracy_scores(
     For your convenience, hopefully, we left the column names unchanged.
     For probabilistic reference observations, the CRPS takes into account all possible outcomes.
     However, the MAPE and WAPE use the expected observation (cp=0.5) as their denominator.
-
-    :param keep_reference_observation: Set to True to return the reference observation used to calculate mape and wape as a DataFrame column
     """
 
-    # Check input
-    if not df_forecast.lineage.unique_beliefs_per_event_per_source:
-        raise ValueError(
-            "BeliefsDataFrame slice with forecasts must describe a single belief per source per event."
-        )
-    if not df_observation.lineage.unique_beliefs_per_event_per_source:
-        raise ValueError(
-            "BeliefsDataFrame slice with observations must describe a single belief per source per event."
-        )
-
-    # If applicable, decide which source provides the observations that are considered to be true when we compute scores
-    if reference_source is not None:
-        df_observation = df_observation.groupby(
-            level=["event_start"], group_keys=False
-        ).apply(lambda x: x.groupby(level=["source"]).pipe(set_truth, reference_source))
-
-    # Combine the forecasts and observations into one DataFrame
-    df_forecast.index = df_forecast.index.droplevel(
-        "belief_horizon"
-        if "belief_horizon" in df_forecast.index.names
-        else "belief_time"
-    )
-    df_observation.index = df_observation.index.droplevel(
-        "belief_horizon"
-        if "belief_horizon" in df_observation.index.names
-        else "belief_time"
-    )
-    df_forecast.columns = ["forecast"]
-    df_observation.columns = ["observation"]
-    df = pd.concat([df_forecast, df_observation], axis=1)
+    # Todo: put back checks when BeliefsDataFrame validation works after an index level becomes an attribute
+    # # Check input
+    # if not df_forecast.lineage.unique_beliefs_per_event_per_source:
+    #     raise ValueError(
+    #         "BeliefsDataFrame slice with forecasts must describe a single belief per source per event."
+    #     )
+    # if not df_observation.lineage.unique_beliefs_per_event_per_source:
+    #     raise ValueError(
+    #         "BeliefsDataFrame slice with observations must describe a single belief per source per event."
+    #     )
 
     # Calculate the continuous ranked probability score
     df_scores = df.groupby(level=["event_start", "source"], group_keys=False).apply(
@@ -405,18 +379,12 @@ def compute_accuracy_scores(
     df_scores = df_scores.rename(
         columns={"crps": "mae"}
     )  # Technically, we have yet to take the mean
-    df_scores["mape"] = (df_scores["mae"] / df_scores["observation"]).replace(
+    df_scores["mape"] = (df_scores["mae"] / df_scores["reference_value"]).replace(
         [np.inf, -np.inf], np.nan
     )
     df_scores = df_scores.groupby(level=["source"], group_keys=False).mean()
-    df_scores["wape"] = (df_scores["mae"] / df_scores["observation"]).replace(
+    df_scores["wape"] = (df_scores["mae"] / df_scores["reference_value"]).replace(
         [np.inf, -np.inf], np.nan
     )
-
-    # Drop the reference observations by default (only keep the scores)
-    if keep_reference_observation is False:
-        df_scores = df_scores.drop(columns=["observation"])
-    else:
-        df_scores = df_scores.rename(columns={"observation": "reference_value"})
 
     return df_scores
