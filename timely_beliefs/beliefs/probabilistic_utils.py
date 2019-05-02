@@ -450,7 +450,7 @@ def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame"
                 ([cdf_p_forecast_i[0]], np.diff(cdf_p_forecast_i))
             )
 
-            # Calculate the continuous ranked profile score for this step (i.e. how well does the forecast descibe this possible outcome for the observation)
+            # Calculate the continuous ranked profile score for this step (i.e. how well does the forecast describe this possible outcome for the observation)
             crpss.append(
                 ps.crps_ensemble(v_observation, cdf_v_forecast_i, pdf_p_forecast_i)
             )
