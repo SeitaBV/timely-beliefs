@@ -110,8 +110,9 @@ def horizon_accuracy_chart(
     ha_chart = (
         base.mark_circle()
         .transform_filter(
-            selectors.time_selection_brush and selectors.source_selection_brush
+            selectors.time_selection_brush
         )  # Apply brush before calculating accuracy metrics for the selected events on the fly
+        .transform_filter(selectors.source_selection_brush)
         .transform_window(
             on_the_fly_mae="mean(mae)",
             on_the_fly_reference="mean(reference_value)",
@@ -182,8 +183,9 @@ def hour_date_chart(base) -> alt.FacetChart:
     return (
         base.mark_rect()
         .transform_filter(
-            selectors.time_selection_brush and selectors.source_selection_brush
+            selectors.time_selection_brush
         )  # Apply brushes before calculating accuracy metrics for the selected events on the fly
+        .transform_filter(selectors.source_selection_brush)
         .transform_filter(
             selectors.horizon_hover_brush | selectors.horizon_selection_brush
         )
@@ -198,10 +200,16 @@ def hour_date_chart(base) -> alt.FacetChart:
             accuracy=1 - alt.datum.on_the_fly_wape,
         )
         .encode(
-            x=alt.X("event_start:O", timeUnit="monthdate", title="UTC date"),
+            x=alt.X(
+                "event_start:O",
+                timeUnit="monthdate",
+                title="UTC date",
+                axis=alt.Axis(domain=False, ticks=False),
+            ),
             y=alt.Y(
                 "event_start:O",
                 timeUnit="hours",
+                axis=alt.Axis(domain=False, ticks=False),
                 scale=alt.Scale(domain=list(range(24))),
                 title="UTC hour of day",
             ),
