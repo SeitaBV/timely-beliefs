@@ -13,7 +13,7 @@ def base_chart(source, belief_horizon_unit: str) -> alt.Chart:
                 title="Event start",
             ),
             y=alt.Y("expected_value", title="Event value"),
-            color=selectors.source_color_or(("lightgray")),
+            color=selectors.source_color_or(selectors.idle_color),
             tooltip=[
                 alt.Tooltip(
                     "event_start:T",
@@ -42,8 +42,10 @@ def time_series_chart(
 ) -> alt.LayerChart:
 
     # Configure the stepwise line
-    ts_line_chart = base.mark_rule(interpolate="step-before").encode(
-        x2=alt.X2("event_end:T")
+    ts_line_chart = (
+        base.mark_rule(interpolate="step-before")
+        .transform_filter(selectors.source_selection_brush)
+        .encode(x2=alt.X2("event_end:T"))
     )
     if show_accuracy is True:
         ts_line_chart = ts_line_chart.transform_filter(
@@ -51,42 +53,53 @@ def time_series_chart(
         )
 
     # Configure the confidence intervals
-    confidence_interval = base.mark_bar(opacity=0.3).encode(
-        x=alt.X("event_start", scale={"domain": selectors.time_selection_brush.ref()}),
-        x2=alt.X2("event_end:T"),
-        y="lower_value",
-        y2="upper_value",
-        color=selectors.source_color_or(""),
-        tooltip=[
-            alt.Tooltip(
-                "event_start:T",
-                timeUnit="yearmonthdatehoursminutes",
-                title="Event start",
+    confidence_interval = (
+        base.mark_bar(opacity=0.3)
+        .transform_filter(selectors.source_selection_brush)
+        .encode(
+            x=alt.X(
+                "event_start", scale={"domain": selectors.time_selection_brush.ref()}
             ),
-            alt.Tooltip(
-                "event_end:T", timeUnit="yearmonthdatehoursminutes", title="Event end"
+            x2=alt.X2("event_end:T"),
+            y="lower_value",
+            y2="upper_value",
+            color=selectors.source_color_or(
+                None, selectors.horizon_selection_brush | selectors.horizon_hover_brush
             ),
-            alt.Tooltip("expected_value:Q", title="Expected value", format=".2f"),
-            alt.Tooltip(
-                "belief_horizon:Q", title="Belief horizon (%s)" % belief_horizon_unit
-            ),
-            alt.Tooltip("source", title="Source"),
-            alt.Tooltip(
-                "upper_value:Q",
-                format=".2f",
-                title="Upper value of {0:.0f}% confidence interval".format(100 * ci),
-            ),
-            alt.Tooltip(
-                "lower_value:Q",
-                format=".2f",
-                title="Lower value of {0:.0f}% confidence interval".format(100 * ci),
-            ),
-        ],
-    )
-    if show_accuracy is True:
-        confidence_interval = confidence_interval.transform_filter(
-            selectors.horizon_hover_brush | selectors.horizon_selection_brush
+            tooltip=[
+                alt.Tooltip(
+                    "event_start:T",
+                    timeUnit="yearmonthdatehoursminutes",
+                    title="Event start",
+                ),
+                alt.Tooltip(
+                    "event_end:T",
+                    timeUnit="yearmonthdatehoursminutes",
+                    title="Event end",
+                ),
+                alt.Tooltip("expected_value:Q", title="Expected value", format=".2f"),
+                alt.Tooltip(
+                    "belief_horizon:Q",
+                    title="Belief horizon (%s)" % belief_horizon_unit,
+                ),
+                alt.Tooltip("source", title="Source"),
+                alt.Tooltip(
+                    "upper_value:Q",
+                    format=".2f",
+                    title="Upper value of {0:.0f}% confidence interval".format(
+                        100 * ci
+                    ),
+                ),
+                alt.Tooltip(
+                    "lower_value:Q",
+                    format=".2f",
+                    title="Lower value of {0:.0f}% confidence interval".format(
+                        100 * ci
+                    ),
+                ),
+            ],
         )
+    )
 
     return (ts_line_chart + confidence_interval).properties(title="Beliefs over time")
 
@@ -97,7 +110,7 @@ def horizon_accuracy_chart(
     ha_chart = (
         base.mark_circle()
         .transform_filter(
-            selectors.time_selection_brush
+            selectors.time_selection_brush and selectors.source_selection_brush
         )  # Apply brush before calculating accuracy metrics for the selected events on the fly
         .transform_window(
             on_the_fly_mae="mean(mae)",
@@ -132,7 +145,10 @@ def horizon_accuracy_chart(
                 axis=alt.Axis(format="%", minExtent=30),
                 scale={"domain": (0, 1)},
             ),
-            color=selectors.source_color_or("lightgray"),
+            color=selectors.source_color_or(
+                selectors.idle_color,
+                brush=selectors.horizon_selection_brush | selectors.horizon_hover_brush,
+            ),
             # size=alt.Size(
             #     "belief_horizon:Q",
             #     scale=alt.Scale(zero=False),
@@ -166,7 +182,7 @@ def hour_date_chart(base) -> alt.FacetChart:
     return (
         base.mark_rect()
         .transform_filter(
-            selectors.time_selection_brush
+            selectors.time_selection_brush and selectors.source_selection_brush
         )  # Apply brushes before calculating accuracy metrics for the selected events on the fly
         .transform_filter(
             selectors.horizon_hover_brush | selectors.horizon_selection_brush
@@ -197,7 +213,7 @@ def hour_date_chart(base) -> alt.FacetChart:
                     title="Accuracy (1-WAPE)",
                     legend=alt.Legend(format=".0%"),
                 ),
-                alt.value("lightgray"),
+                alt.value(selectors.idle_color),
             ),
             tooltip=[
                 alt.Tooltip("event_start:T", timeUnit="hours", title="Hour of day"),
