@@ -302,6 +302,13 @@ class BeliefsDataFrame(pd.DataFrame):
         # Call the pandas DataFrame constructor with the right input
         kwargs["columns"] = columns
         if beliefs:
+            sources = set(belief.source for belief in beliefs)
+            source_names = set(source.name for source in sources)
+            if len(source_names) != len(sources):
+                raise ValueError(
+                    "Source names must be unique. Cannot initialise BeliefsDataFrame given the following unique sources:\n%s"
+                    % sources
+                )
             beliefs = sorted(
                 beliefs,
                 key=lambda b: (
@@ -330,12 +337,16 @@ class BeliefsDataFrame(pd.DataFrame):
         event_value_series: pd.Series,
         source: BeliefSource,
         belief_horizon: timedelta,
+        cumulative_probability: float = 0.5,
     ) -> "BeliefsDataFrame":
         """Append beliefs from time series entries into this BeliefsDataFrame. Sensor is assumed to be the same.
-        Returns a new BeliefsDataFrame object.
-        TODO: enable to add probability data."""
+        Returns a new BeliefsDataFrame object."""
         beliefs = belief_utils.load_time_series(
-            event_value_series, self.sensor, source, belief_horizon
+            event_value_series,
+            self.sensor,
+            source,
+            belief_horizon,
+            cumulative_probability,
         )
         return self.append(BeliefsDataFrame(sensor=self.sensor, beliefs=beliefs))
 
