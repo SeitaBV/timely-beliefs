@@ -28,9 +28,8 @@ def plot(
     df = df.groupby(["event_start", "source"], group_keys=False).apply(
         lambda x: align_belief_horizons(x, unique_belief_horizons)
     )  # Propagate beliefs so that each event has the same set of unique belief horizons
-    source = pd.DataFrame(df)
 
-    base = graphs.base_chart(source, belief_horizon_unit)
+    base = graphs.base_chart(df, belief_horizon_unit)
 
     # Construct selectors
     time_window_selector = selectors.time_window_selector(base)
@@ -47,10 +46,11 @@ def plot(
         )
         hd_chart = graphs.hour_date_chart(base)
         return (
-            (time_window_selector & ts_chart) | (horizon_selector & ha_chart)
+            ((time_window_selector & ts_chart) | selectors.source_selector(df))
+            | (horizon_selector & ha_chart)
         ) & hd_chart
     else:
-        return time_window_selector & ts_chart
+        return (time_window_selector & ts_chart) | selectors.source_selector(df)
 
 
 def timedelta_to_human_range(
@@ -102,6 +102,7 @@ def prepare_df_for_plotting(
     :param ci: Confidence interval (default is 95%)
     :return:
     """
+    event_resolution = df.event_resolution
     accuracy_df = df.groupby(level="event_start").apply(
         lambda x: x.accuracy(reference_source=reference_source)
     )
@@ -140,6 +141,7 @@ def prepare_df_for_plotting(
     )
     df, belief_horizon_unit = timedelta_to_human_range(df)
 
+    df["event_end"] = df["event_start"] + event_resolution
     df["source"] = df["source"].apply(lambda x: x.name)
 
     return df, belief_horizon_unit
