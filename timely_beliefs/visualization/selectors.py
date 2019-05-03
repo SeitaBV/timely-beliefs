@@ -8,13 +8,15 @@ horizon_selection_brush = alt.selection_multi(
 horizon_hover_brush = alt.selection_single(
     on="mouseover", nearest=False, encodings=["x"]
 )
+source_selection_brush = alt.selection_multi(fields=["source"])
 
 
 def time_window_selector(base) -> alt.LayerChart:
     tws = (
-        base.mark_area(interpolate="step-before")
+        base.mark_bar()
         .encode(
             x=alt.X("event_start", bin=alt.Bin(maxbins=1000), title=""),
+            x2=alt.X2("event_end:T"),
             y=alt.Y("expected_value", title="", axis=alt.Axis(values=[])),
             color=alt.ColorValue("lightgray"),
             # tooltip={},
@@ -89,4 +91,25 @@ def horizon_selector(
     return (
         bar_chart.add_selection(horizon_selection_brush, horizon_hover_brush)
         + circle_chart
+    )
+
+
+def source_color_or(alternative_color: str = "lightgray"):
+    return alt.condition(
+        source_selection_brush,
+        alt.Color("source:N", legend=None),
+        alt.value(alternative_color),
+    )
+
+
+def source_selector(source) -> alt.Chart:
+    return (
+        alt.Chart(source)
+        .mark_square(size=50, opacity=0.3)
+        .encode(
+            y=alt.Y("source:N", axis=alt.Axis(orient="right"), title=None),
+            color=source_color_or("lightgray"),
+        )
+        .add_selection(source_selection_brush)
+        .properties(title="Select source")
     )

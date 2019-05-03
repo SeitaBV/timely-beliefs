@@ -13,12 +13,17 @@ def base_chart(source, belief_horizon_unit: str) -> alt.Chart:
                 title="Event start",
             ),
             y=alt.Y("expected_value", title="Event value"),
-            color=alt.Color("source", title="Source"),
+            color=selectors.source_color_or(("lightgray")),
             tooltip=[
                 alt.Tooltip(
                     "event_start:T",
                     timeUnit="yearmonthdatehoursminutes",
                     title="Event start",
+                ),
+                alt.Tooltip(
+                    "event_end:T",
+                    timeUnit="yearmonthdatehoursminutes",
+                    title="Event end",
                 ),
                 alt.Tooltip("expected_value:Q", title="Expected value", format=".2f"),
                 alt.Tooltip(
@@ -37,61 +42,29 @@ def time_series_chart(
 ) -> alt.LayerChart:
 
     # Configure the stepwise line
-    ts_line_chart = base.mark_line(interpolate="step-before")
+    ts_line_chart = base.mark_rule(interpolate="step-before").encode(
+        x2=alt.X2("event_end:T")
+    )
     if show_accuracy is True:
         ts_line_chart = ts_line_chart.transform_filter(
             selectors.horizon_hover_brush | selectors.horizon_selection_brush
         )
 
-    # Configure the circle markers
-    ts_circle_chart = (
-        base.mark_circle()
-        .encode(
-            x=alt.X(
-                "event_start", scale={"domain": selectors.time_selection_brush.ref()}
-            ),
-            y="expected_value",
-            # size=alt.Size(
-            #     "belief_horizon:Q",
-            #     scale=alt.Scale(zero=False),
-            #     title="Belief horizon (%s)" % belief_horizon_unit,
-            #     sort="ascending",
-            #     legend=alt.Legend(format=".0f"),
-            # ),
-            size=alt.value(100),
-            color="source",
-            tooltip=[
-                alt.Tooltip(
-                    "event_start:T",
-                    timeUnit="yearmonthdatehoursminutes",
-                    title="Event start",
-                ),
-                alt.Tooltip("expected_value:Q", title="Expected value", format=".2f"),
-                alt.Tooltip(
-                    "belief_horizon:Q",
-                    title="Belief horizon (%s)" % belief_horizon_unit,
-                ),
-                alt.Tooltip("source", title="Source"),
-            ],
-        )
-        .properties(title="Beliefs over time")
-    )
-    if show_accuracy is True:
-        ts_circle_chart = ts_circle_chart.transform_filter(
-            selectors.horizon_hover_brush | selectors.horizon_selection_brush
-        )
-
     # Configure the confidence intervals
-    confidence_interval = base.mark_area(interpolate="step-before", opacity=0.3).encode(
+    confidence_interval = base.mark_bar(opacity=0.3).encode(
         x=alt.X("event_start", scale={"domain": selectors.time_selection_brush.ref()}),
+        x2=alt.X2("event_end:T"),
         y="lower_value",
         y2="upper_value",
-        color="source",
+        color=selectors.source_color_or(""),
         tooltip=[
             alt.Tooltip(
                 "event_start:T",
                 timeUnit="yearmonthdatehoursminutes",
                 title="Event start",
+            ),
+            alt.Tooltip(
+                "event_end:T", timeUnit="yearmonthdatehoursminutes", title="Event end"
             ),
             alt.Tooltip("expected_value:Q", title="Expected value", format=".2f"),
             alt.Tooltip(
@@ -115,7 +88,7 @@ def time_series_chart(
             selectors.horizon_hover_brush | selectors.horizon_selection_brush
         )
 
-    return ts_line_chart + ts_circle_chart + confidence_interval
+    return (ts_line_chart + confidence_interval).properties(title="Beliefs over time")
 
 
 def horizon_accuracy_chart(
@@ -159,9 +132,7 @@ def horizon_accuracy_chart(
                 axis=alt.Axis(format="%", minExtent=30),
                 scale={"domain": (0, 1)},
             ),
-            color=alt.Color(
-                "source:O", title="Source"
-            ),  # , legend=alt.Legend(orient="right")),
+            color=selectors.source_color_or("lightgray"),
             # size=alt.Size(
             #     "belief_horizon:Q",
             #     scale=alt.Scale(zero=False),
