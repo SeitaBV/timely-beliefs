@@ -22,7 +22,7 @@ def time_window_selector(base) -> alt.LayerChart:
             x=alt.X("event_start", title=""),
             x2=alt.X2("event_end:T"),
             y=alt.Y(
-                "expected_value",
+                "reference_value",
                 title="",
                 axis=alt.Axis(values=[], domain=False, ticks=False),
             ),
