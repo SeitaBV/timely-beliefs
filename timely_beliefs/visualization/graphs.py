@@ -209,5 +209,5 @@ def hour_date_chart(base) -> alt.FacetChart:
         .facet(column=alt.Column("source:O", title=None))
         .properties(
             title=alt.TitleParams("Accuracy given a time of day", anchor="middle")
-        )  # Todo: title should move to the middle once altair supports it: https://github.com/vega/vega-lite/pull/4710
+        )
     )
