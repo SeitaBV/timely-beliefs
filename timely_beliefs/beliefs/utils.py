@@ -326,9 +326,9 @@ def load_time_series(
     sensor: Sensor,
     source: BeliefSource,
     belief_horizon: timedelta,
+    cumulative_probability: float = 0.5,
 ) -> List["classes.TimedBelief"]:
-    """Turn series entries into TimedBelief objects.
-       TODO: enable to add probability data."""
+    """Turn series entries into TimedBelief objects."""
     beliefs = []
     for time, value in event_value_series.iteritems():
         beliefs.append(
@@ -338,6 +338,7 @@ def load_time_series(
                 value=value,
                 event_start=time,
                 belief_horizon=belief_horizon,
+                cumulative_probability=cumulative_probability,
             )
         )
     return beliefs

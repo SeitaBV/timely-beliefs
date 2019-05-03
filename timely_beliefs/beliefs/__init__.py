@@ -115,7 +115,7 @@ class BeliefsAccessor(object):
     def number_of_probabilistic_beliefs(self) -> int:
         """Return the number of beliefs in the BeliefsDataFrame that are probabilistic (more than 1 unique value)."""
         df = self._obj.for_each_belief(df=self._obj).nunique(dropna=True)
-        return len(df[df > 1].dropna())
+        return len(df[df > 1].max(axis=1).dropna())
 
     @property
     def number_of_deterministic_beliefs(self) -> int:
