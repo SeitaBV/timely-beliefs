@@ -165,7 +165,6 @@ def horizon_accuracy_chart(
 def hour_date_chart(base) -> alt.FacetChart:
     return (
         base.mark_rect()
-        # .transform_calculate(event_start_copy=alt.datum.event_start)
         .transform_filter(
             selectors.time_selection_brush
         )  # Apply brushes before calculating accuracy metrics for the selected events on the fly
