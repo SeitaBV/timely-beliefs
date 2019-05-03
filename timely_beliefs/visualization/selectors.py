@@ -19,11 +19,15 @@ def time_window_selector(base) -> alt.LayerChart:
     tws = (
         base.mark_bar()
         .encode(
-            x=alt.X("event_start", bin=alt.Bin(maxbins=1000), title=""),
+            x=alt.X("event_start", title=""),
             x2=alt.X2("event_end:T"),
-            y=alt.Y("expected_value", title="", axis=alt.Axis(values=[])),
+            y=alt.Y(
+                "expected_value",
+                title="",
+                axis=alt.Axis(values=[], domain=False, ticks=False),
+            ),
             color=alt.ColorValue(idle_color),
-            # tooltip={},
+            tooltip=None,
         )
         .properties(height=30, title="Select time window")
     )
@@ -63,7 +67,11 @@ def horizon_selector(
                 ),
                 title="",
             ),
-            y=alt.Y("constant:Q", title=" ", axis=alt.Axis(values=[])),
+            y=alt.Y(
+                "constant:Q",
+                title=" ",
+                axis=alt.Axis(values=[], domain=False, ticks=False),
+            ),
             color=alt.condition(
                 horizon_selection_brush or horizon_hover_brush,
                 alt.ColorValue("#c21431"),
@@ -113,7 +121,11 @@ def source_selector(source) -> alt.Chart:
         alt.Chart(source)
         .mark_square(size=50, opacity=0.3)
         .encode(
-            y=alt.Y("source:N", axis=alt.Axis(orient="right"), title=None),
+            y=alt.Y(
+                "source:N",
+                axis=alt.Axis(orient="right", domain=False, ticks=False),
+                title=None,
+            ),
             color=source_color_or(idle_color),
         )
         .add_selection(source_selection_brush)
