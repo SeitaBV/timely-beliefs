@@ -111,5 +111,5 @@ def source_selector(source) -> alt.Chart:
             color=source_color_or("lightgray"),
         )
         .add_selection(source_selection_brush)
-        .properties(title="Select source")
+        .properties(title=alt.TitleParams("Select source", anchor="start"))
     )
