@@ -176,7 +176,7 @@ def horizon_accuracy_chart(
     ha_annotation_chart = ha_interpolation_chart.mark_bar().transform_filter(
         selectors.horizon_hover_brush | selectors.horizon_selection_brush
     )
-    return ha_annotation_chart + ha_chart + ha_interpolation_chart
+    return ha_annotation_chart + ha_interpolation_chart + ha_chart
 
 
 def hour_date_chart(base) -> alt.FacetChart:
