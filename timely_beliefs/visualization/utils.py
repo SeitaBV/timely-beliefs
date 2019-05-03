@@ -46,11 +46,22 @@ def plot(
         )
         hd_chart = graphs.hour_date_chart(base)
         return (
-            ((time_window_selector & ts_chart) | selectors.source_selector(df))
-            | (horizon_selector & ha_chart)
-        ) & hd_chart
+            (
+                (
+                    ((time_window_selector & ts_chart) | selectors.source_selector(df))
+                    | (horizon_selector & ha_chart)
+                )
+                & hd_chart
+            )
+            .configure_axis(grid=False)
+            .configure_view(strokeWidth=0)
+        )
     else:
-        return (time_window_selector & ts_chart) | selectors.source_selector(df)
+        return (
+            ((time_window_selector & ts_chart) | selectors.source_selector(df))
+            .configure_axis(grid=False)
+            .configure_view(strokeWidth=0)
+        )
 
 
 def timedelta_to_human_range(

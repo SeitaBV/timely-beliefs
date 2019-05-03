@@ -1,5 +1,9 @@
+from typing import Optional
+
 import altair as alt
 
+
+idle_color = "lightgray"
 
 time_selection_brush = alt.selection_interval(encodings=["x"])
 horizon_selection_brush = alt.selection_multi(
@@ -18,7 +22,7 @@ def time_window_selector(base) -> alt.LayerChart:
             x=alt.X("event_start", bin=alt.Bin(maxbins=1000), title=""),
             x2=alt.X2("event_end:T"),
             y=alt.Y("expected_value", title="", axis=alt.Axis(values=[])),
-            color=alt.ColorValue("lightgray"),
+            color=alt.ColorValue(idle_color),
             # tooltip={},
         )
         .properties(height=30, title="Select time window")
@@ -27,7 +31,7 @@ def time_window_selector(base) -> alt.LayerChart:
         time_selection_brush
     ).encode(
         color=alt.condition(
-            time_selection_brush, alt.ColorValue("#c21431"), alt.ColorValue("lightgray")
+            time_selection_brush, alt.ColorValue("#c21431"), alt.ColorValue(idle_color)
         )
     )
     return tws
@@ -63,7 +67,7 @@ def horizon_selector(
             color=alt.condition(
                 horizon_selection_brush or horizon_hover_brush,
                 alt.ColorValue("#c21431"),
-                alt.ColorValue("lightgray"),
+                alt.ColorValue(idle_color),
             ),
             size=alt.condition(
                 horizon_selection_brush or horizon_hover_brush,
@@ -94,11 +98,13 @@ def horizon_selector(
     )
 
 
-def source_color_or(alternative_color: str = "lightgray"):
+def source_color_or(alternative_color: Optional[str] = idle_color, brush=None):
+    if alternative_color is None:
+        alternative_color = ""
+    if brush is None:
+        brush = source_selection_brush
     return alt.condition(
-        source_selection_brush,
-        alt.Color("source:N", legend=None),
-        alt.value(alternative_color),
+        brush, alt.Color("source:N", legend=None), alt.value(alternative_color)
     )
 
 
@@ -108,7 +114,7 @@ def source_selector(source) -> alt.Chart:
         .mark_square(size=50, opacity=0.3)
         .encode(
             y=alt.Y("source:N", axis=alt.Axis(orient="right"), title=None),
-            color=source_color_or("lightgray"),
+            color=source_color_or(idle_color),
         )
         .add_selection(source_selection_brush)
         .properties(title=alt.TitleParams("Select source", anchor="start"))
