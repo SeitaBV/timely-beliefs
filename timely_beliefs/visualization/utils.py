@@ -14,7 +14,17 @@ def plot(
     show_accuracy: bool = True,
     reference_source: "classes.BeliefSource" = None,
     ci: float = 0.9,
+    intuitive_forecast_horizon: bool = True,
 ) -> alt.LayerChart:
+    """Plot the BeliefsDataFrame with the Altair visualization library.
+
+    :param df: The BeliefsDataFrame to visualize
+    :param show_accuracy: If true, show additional graphs with accuracy over time and horizon
+    :param reference_source: The BeliefSource serving as a reference for accuracy calculations
+    :param ci: The confidence interval to highlight in the time series graph
+    :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
+    :return: Altair LayerChart
+    """
 
     # Validate input
     if show_accuracy is True and reference_source is None:
@@ -22,29 +32,61 @@ def plot(
 
     # Set up data source
     df, belief_horizon_unit = prepare_df_for_plotting(
-        df, ci=ci, reference_source=reference_source
+        df,
+        ci=ci,
+        reference_source=reference_source,
+        intuitive_forecast_horizon=intuitive_forecast_horizon,
     )
     unique_belief_horizons = df["belief_horizon"].unique()
     df = df.groupby(["event_start", "source"], group_keys=False).apply(
         lambda x: align_belief_horizons(x, unique_belief_horizons)
     )  # Propagate beliefs so that each event has the same set of unique belief horizons
 
+    # Construct base chart
     base = graphs.base_chart(df, belief_horizon_unit)
 
     # Construct selectors
     time_window_selector = selectors.time_window_selector(base)
     if show_accuracy is True:
+        horizon_selection_brush = selectors.horizon_selection_brush(
+            init_belief_horizon=unique_belief_horizons[0]
+        )
         horizon_selector = selectors.horizon_selector(
-            base, belief_horizon_unit, unique_belief_horizons
+            base,
+            horizon_selection_brush,
+            belief_horizon_unit,
+            intuitive_forecast_horizon,
+            unique_belief_horizons,
         )
 
+    # Add generic filters to base chart
+    base = base.transform_filter(selectors.source_selection_brush).transform_filter(
+        selectors.time_selection_brush
+    )
+    if show_accuracy is True:
+        filtered_base = base.transform_filter(
+            selectors.horizon_hover_brush | horizon_selection_brush
+        )
+    else:
+        filtered_base = base
+
     # Construct charts
-    ts_chart = graphs.time_series_chart(base, show_accuracy, belief_horizon_unit, ci)
+    ts_chart = graphs.time_series_chart(
+        filtered_base,
+        show_accuracy,
+        belief_horizon_unit,
+        intuitive_forecast_horizon,
+        ci,
+    )
     if show_accuracy is True:
         ha_chart = graphs.horizon_accuracy_chart(
-            base, belief_horizon_unit, unique_belief_horizons
+            base,
+            horizon_selection_brush,
+            belief_horizon_unit,
+            intuitive_forecast_horizon,
+            unique_belief_horizons,
         )
-        hd_chart = graphs.hour_date_chart(base)
+        hd_chart = graphs.hour_date_chart(filtered_base)
         return (
             (
                 (
@@ -58,7 +100,13 @@ def plot(
         )
     else:
         return (
-            ((time_window_selector & ts_chart) | selectors.source_selector(df))
+            (
+                (
+                    time_window_selector
+                    & selectors.fixed_viewpoint_selector(base) + ts_chart
+                )
+                | selectors.source_selector(df)
+            )
             .configure_axis(grid=False)
             .configure_view(strokeWidth=0)
         )
@@ -106,6 +154,7 @@ def prepare_df_for_plotting(
     df: "classes.BeliefsDataFrame",
     ci: float = 0.95,
     reference_source: "classes.BeliefSource" = None,
+    intuitive_forecast_horizon: bool = True,
 ) -> Tuple[pd.DataFrame, str]:
     """
 
@@ -148,8 +197,12 @@ def prepare_df_for_plotting(
     df = (
         pd.concat([df, accuracy_df], axis=1)
         .reset_index()
-        .sort_values(["event_start", "belief_horizon", "source"])
+        .sort_values(
+            ["event_start", "belief_horizon", "source"], ascending=[True, True, True]
+        )
     )
+    if intuitive_forecast_horizon is True:
+        df["belief_horizon"] = df["event_start"] - df["belief_time"]
     df, belief_horizon_unit = timedelta_to_human_range(df)
 
     df["event_end"] = df["event_start"] + event_resolution

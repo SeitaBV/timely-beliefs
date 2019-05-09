@@ -5,14 +5,57 @@ import altair as alt
 
 idle_color = "lightgray"
 
-time_selection_brush = alt.selection_interval(encodings=["x"])
-horizon_selection_brush = alt.selection_multi(
-    nearest=False, encodings=["x"]
-)  # , empty="none", init=unique_belief_horizons[-1])  # Todo: set initial value once altair supports the init property: https://vega.github.io/vega-lite/docs/selection.html
+time_selection_brush = alt.selection_interval(encodings=["x"], name="time_select")
 horizon_hover_brush = alt.selection_single(
-    on="mouseover", nearest=False, encodings=["x"]
+    on="mouseover", nearest=True, encodings=["x"], empty="all"
 )
-source_selection_brush = alt.selection_multi(fields=["source"])
+source_selection_brush = alt.selection_multi(fields=["source"], name="source_select")
+
+# Create selection brushes that choose the nearest point & selects based on x-value
+nearest_x_hover_brush = alt.selection_single(
+    nearest=True, on="mouseover", encodings=["x"], empty="none", name="nearest_x_hover"
+)
+nearest_x_select_brush = alt.selection_single(
+    nearest=True, encodings=["x"], empty="all", name="nearest_x_select"
+)
+
+
+def horizon_selection_brush(init_belief_horizon=None) -> alt.MultiSelection:
+    """Create a brush for selecting one or multiple horizons.
+
+    :param init_belief_horizon: Optional initialisation value
+    """
+    if init_belief_horizon is None:
+        return alt.selection_multi(
+            nearest=False, encodings=["x"], empty="all", name="horizon_select"
+        )
+    else:
+        return alt.selection_multi(
+            nearest=False,
+            encodings=["x"],
+            name="horizon_select",
+            empty="all",
+            init={"belief_horizon": init_belief_horizon},
+        )
+
+
+def fixed_viewpoint_selector(base) -> alt.LayerChart:
+    """Transparent selectors across the chart. This is what tells us the x-value of the cursor."""
+    selector = base.mark_rule().encode(
+        x=alt.X("belief_time:T", scale={"domain": time_selection_brush.ref()}),
+        color=alt.ColorValue("#c21431"),
+        opacity=alt.condition(nearest_x_hover_brush, alt.value(1), alt.value(0)),
+        tooltip=[
+            alt.Tooltip(
+                "belief_time:T",
+                timeUnit="yearmonthdatehoursminutes",
+                title="Click to select belief time",
+            )
+        ],
+    )
+    return selector.add_selection(nearest_x_select_brush).add_selection(
+        nearest_x_hover_brush
+    )
 
 
 def time_window_selector(base) -> alt.LayerChart:
@@ -27,7 +70,7 @@ def time_window_selector(base) -> alt.LayerChart:
                 axis=alt.Axis(values=[], domain=False, ticks=False),
             ),
             color=alt.ColorValue(idle_color),
-            tooltip=None,
+            tooltip=alt.TooltipValue("Click and drag to select time window"),
         )
         .properties(height=30, title="Select time window")
     )
@@ -42,14 +85,26 @@ def time_window_selector(base) -> alt.LayerChart:
 
 
 def horizon_selector(
-    base, belief_horizon_unit: str, unique_belief_horizons
+    base,
+    horizon_selection_brush: alt.MultiSelection,
+    belief_horizon_unit: str,
+    intuitive_forecast_horizon: bool,
+    unique_belief_horizons,
 ) -> alt.LayerChart:
     bar_chart = (
-        base.mark_bar(orient="vertical")
+        base.mark_rule(orient="vertical")
+        # # Remove the most recent belief horizon from the selector
+        # .transform_joinaggregate(most_recent_belief_horizon="min(belief_horizon)")
+        # .transform_filter(
+        #     alt.datum.belief_horizon > alt.datum.most_recent_belief_horizon
+        # )
         .transform_filter(
             time_selection_brush
         )  # Apply brush before calculating accuracy metrics for the selected events on the fly
         .transform_calculate(constant=1 + alt.datum.event_start - alt.datum.event_start)
+        .transform_calculate(
+            belief_horizon_str='datum.belief_horizon + " %s"' % belief_horizon_unit
+        )
         .encode(
             opacity=alt.condition(
                 time_selection_brush,
@@ -84,8 +139,9 @@ def horizon_selector(
             ),
             tooltip=[
                 alt.Tooltip(
-                    "belief_horizon:Q",
-                    title="Belief horizon (%s)" % belief_horizon_unit,
+                    "belief_horizon_str:N",
+                    title="Click to select %s"
+                    % ("horizon" if intuitive_forecast_horizon else "belief horizon"),
                 )
             ],
         )
