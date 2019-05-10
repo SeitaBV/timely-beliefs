@@ -39,11 +39,11 @@ def horizon_selection_brush(init_belief_horizon=None) -> alt.MultiSelection:
         )
 
 
-def fixed_viewpoint_selector(base) -> alt.LayerChart:
+def fixed_viewpoint_selector(base, idle: bool = False) -> alt.LayerChart:
     """Transparent selectors across the chart. This is what tells us the x-value of the cursor."""
     selector = base.mark_rule().encode(
         x=alt.X("belief_time:T", scale={"domain": time_selection_brush.ref()}),
-        color=alt.ColorValue("#c21431"),
+        color=alt.ColorValue(idle_color) if idle is True else alt.ColorValue("#c21431"),
         opacity=alt.condition(nearest_x_hover_brush, alt.value(1), alt.value(0)),
         tooltip=[
             alt.Tooltip(

@@ -95,7 +95,14 @@ def plot(
         return (
             (
                 (
-                    ((time_window_selector & ts_chart) | selectors.source_selector(df))
+                    (
+                        (
+                            time_window_selector
+                            & selectors.fixed_viewpoint_selector(base, idle=True)
+                            + ts_chart
+                        )
+                        | selectors.source_selector(df)
+                    )
                     | (horizon_selector & ha_chart)
                 )
                 & hd_chart
