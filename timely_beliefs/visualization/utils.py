@@ -31,6 +31,8 @@ def plot(
         raise ValueError("Must set reference source to calculate accuracy metrics.")
 
     # Set up data source
+    sensor_name = df.sensor.name
+    sensor_unit = df.sensor.unit if df.sensor.unit != "" else "a.u."  # arbitrary unit
     df, belief_horizon_unit = prepare_df_for_plotting(
         df,
         ci=ci,
@@ -75,6 +77,8 @@ def plot(
     ts_chart = graphs.time_series_chart(
         filtered_base,
         show_accuracy,
+        sensor_name,
+        sensor_unit,
         belief_horizon_unit,
         intuitive_forecast_horizon,
         ci,
