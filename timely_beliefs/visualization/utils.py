@@ -34,6 +34,7 @@ def plot(
     df, belief_horizon_unit = prepare_df_for_plotting(
         df,
         ci=ci,
+        show_accuracy=show_accuracy,
         reference_source=reference_source,
         intuitive_forecast_horizon=intuitive_forecast_horizon,
     )
@@ -153,22 +154,35 @@ def timedelta_to_human_range(
 def prepare_df_for_plotting(
     df: "classes.BeliefsDataFrame",
     ci: float = 0.95,
+    show_accuracy: bool = False,
     reference_source: "classes.BeliefSource" = None,
     intuitive_forecast_horizon: bool = True,
 ) -> Tuple[pd.DataFrame, str]:
-    """
+    """Convert a probabilistic BeliefsDataFrame to a Pandas DataFrame, and calculate accuracy metrics if needed.
 
-    :param df:
+    :param df: BeliefsDataFrame to visualize
     :param ci: Confidence interval (default is 95%)
-    :return:
+    :param show_accuracy: If true, calculate accuracy for each (probabilistic or deterministic) belief
+    :param reference_source: BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
+    :param intuitive_forecast_horizon: if True, anchor horizons to event_start rather than knowledge_time
+    :return: Two things:
+    - a DataFrame with probabilistic beliefs mapped to three columns (lower_value, expected_value and upper_value),
+    and horizons expressed as a (float) number of time units (e.g. days, hours or minutes), sorted by event_start,
+    belief_horizon and source.
+    - a string representing the time unit for the horizons
     """
     event_resolution = df.event_resolution
-    accuracy_df = df.groupby(level="event_start").apply(
-        lambda x: x.accuracy(reference_source=reference_source)
-    )
+    if show_accuracy is True:
+        reference_df = df.groupby(level="event_start").apply(
+            lambda x: x.accuracy(reference_source=reference_source, lite_metrics=True)
+        )
+    else:
+        reference_df = df.groupby(level="event_start").apply(
+            lambda x: x.set_reference_values(reference_source=reference_source)
+        )
     df["belief_horizon"] = df.knowledge_times - df.belief_times
     if df.lineage.percentage_of_probabilistic_beliefs == 0:
-        df.index = df.index.droplevel("cumulative_probability")
+        df = df.droplevel("cumulative_probability")
         df["expected_value"] = df["event_value"]
         df["upper_value"] = df["event_value"]
         df["lower_value"] = df["event_value"]
@@ -194,12 +208,9 @@ def prepare_df_for_plotting(
         )
         df = pd.concat([df_ci0, df_exp, df_ci1], axis=1)
     df = df.reset_index().set_index(["event_start", "belief_horizon", "source"])
-    df = (
-        pd.concat([df, accuracy_df], axis=1)
-        .reset_index()
-        .sort_values(
-            ["event_start", "belief_horizon", "source"], ascending=[True, True, True]
-        )
+    df = pd.concat([df, reference_df], axis=1)
+    df = df.reset_index().sort_values(
+        ["event_start", "belief_horizon", "source"], ascending=[True, True, True]
     )
     if intuitive_forecast_horizon is True:
         df["belief_horizon"] = df["event_start"] - df["belief_time"]
