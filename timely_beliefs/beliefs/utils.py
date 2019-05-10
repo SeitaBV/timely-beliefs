@@ -18,37 +18,23 @@ from timely_beliefs import utils as tb_utils
 def select_most_recent_belief(
     df: "classes.BeliefsDataFrame"
 ) -> "classes.BeliefsDataFrame":
-
-    # Remember original index levels
-    indices = df.index.names
-
-    # Convert index levels to columns
-    df = df.reset_index()
-
-    # Drop all but most recent belief
-    if "belief_horizon" in indices:
-        df = (
-            df.sort_values(by=["belief_horizon"], ascending=True)
-            .drop_duplicates(
-                subset=["event_start", "source", "cumulative_probability"], keep="first"
+    """Drop all but most recent belief."""
+    if "belief_horizon" in df.index.names:
+        return df.groupby(level=["event_start", "source"], group_keys=False).apply(
+            lambda x: x.xs(
+                min(x.lineage.belief_horizons), level="belief_horizon", drop_level=False
             )
-            .sort_values(by=["event_start"])
         )
-    elif "belief_time" in indices:
-        df = (
-            df.sort_values(by=["belief_time"], ascending=True)
-            .drop_duplicates(
-                subset=["event_start", "source", "cumulative_probability"], keep="last"
+    elif "belief_time" in df.index.names:
+        return df.groupby(level=["event_start", "source"], group_keys=False).apply(
+            lambda x: x.xs(
+                max(x.lineage.belief_times), level="belief_time", drop_level=False
             )
-            .sort_values(by=["event_start"])
         )
     else:
         raise KeyError(
             "No belief_horizon or belief_time index level found in DataFrame."
         )
-
-    # Convert columns to index levels (only columns that represent index levels)
-    return df.set_index(indices).sort_index()
 
 
 def upsample_event_start(
@@ -345,7 +331,7 @@ def load_time_series(
 
 
 def compute_accuracy_scores(
-    df: "classes.BeliefsDataFrame",
+    df: "classes.BeliefsDataFrame", lite_metrics: bool = False
 ) -> "classes.BeliefsDataFrame":
     """ Compute the following accuracy scores:
     - mean absolute error (mae)
@@ -376,16 +362,18 @@ def compute_accuracy_scores(
         lambda x: calculate_crps(x)
     )
 
-    # Rename to mae, calculate mape and wape
+    # Rename to mae, and calculate mape and wape if needed
     df_scores = df_scores.rename(
         columns={"crps": "mae"}
     )  # Technically, we have yet to take the mean
-    df_scores["mape"] = (df_scores["mae"] / df_scores["reference_value"]).replace(
-        [np.inf, -np.inf], np.nan
-    )
+    if lite_metrics is False:
+        df_scores["mape"] = (df_scores["mae"] / df_scores["reference_value"]).replace(
+            [np.inf, -np.inf], np.nan
+        )
     df_scores = df_scores.groupby(level=["source"], group_keys=False).mean()
-    df_scores["wape"] = (df_scores["mae"] / df_scores["reference_value"]).replace(
-        [np.inf, -np.inf], np.nan
-    )
+    if lite_metrics is False:
+        df_scores["wape"] = (df_scores["mae"] / df_scores["reference_value"]).replace(
+            [np.inf, -np.inf], np.nan
+        )
 
     return df_scores

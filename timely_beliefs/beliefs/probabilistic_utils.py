@@ -464,7 +464,7 @@ def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame"
 
     # List the expected observation as the reference for determining percentage scores
     df_score = get_expected_belief(df_observation.to_frame())
-    df_score.index = df_score.index.droplevel("cumulative_probability")
+    df_score = df_score.droplevel("cumulative_probability")
 
     # And of course return the score as well
     df_score["crps"] = crps
