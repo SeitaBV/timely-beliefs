@@ -329,7 +329,9 @@ class BeliefsDataFrame(pd.DataFrame):
         super().__init__(*args, **kwargs)
 
         # Clean up duplicate beliefs
+        self.reset_index(inplace=True)
         self.drop_duplicates(inplace=True)
+        self.set_index(indices, inplace=True)
 
         # Set the Sensor metadata (including timing properties of the sensor)
         self.sensor = sensor
