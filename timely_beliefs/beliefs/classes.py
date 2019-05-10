@@ -328,6 +328,9 @@ class BeliefsDataFrame(pd.DataFrame):
             )  # Todo support pandas 0.23
         super().__init__(*args, **kwargs)
 
+        # Clean up duplicate beliefs
+        self.drop_duplicates(inplace=True)
+
         # Set the Sensor metadata (including timing properties of the sensor)
         self.sensor = sensor
         self.event_resolution = self.sensor.event_resolution
