@@ -44,6 +44,8 @@ def base_chart(source, belief_horizon_unit: str) -> alt.Chart:
 def time_series_chart(
     base,
     show_accuracy,
+    sensor_name,
+    sensor_unit,
     belief_horizon_unit,
     intuitive_forecast_horizon: bool,
     ci: float,
@@ -69,7 +71,8 @@ def time_series_chart(
 
     # Configure the stepwise line for the beliefs
     ts_line_chart = base.mark_rule().encode(
-        x2=alt.X2("event_end:T"), y=alt.Y("expected_value", title="Event value")
+        x2=alt.X2("event_end:T"),
+        y=alt.Y("expected_value", title="%s (%s)" % (sensor_name, sensor_unit)),
     )
 
     if show_accuracy is False:
