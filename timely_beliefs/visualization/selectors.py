@@ -51,7 +51,9 @@ def fixed_viewpoint_selector(base, idle: bool = False) -> alt.LayerChart:
                 timeUnit="yearmonthdatehoursminutes",
                 title="Click to select belief time",
             )
-        ],
+        ]
+        if idle is False
+        else None,
     )
     return selector.add_selection(nearest_x_select_brush).add_selection(
         nearest_x_hover_brush
