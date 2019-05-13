@@ -200,7 +200,7 @@ def horizon_accuracy_chart(
         # .configure_title(offset=-270, orient="bottom")
     )
     ha_interpolation_chart = ha_chart.mark_line(interpolate="monotone").encode(
-        size=alt.value(1), color="source:O"
+        size=alt.value(1), color=alt.Color("source:N", legend=None)
     )
     return ha_interpolation_chart + ha_chart.transform_filter(
         selectors.horizon_hover_brush | horizon_selection_brush
