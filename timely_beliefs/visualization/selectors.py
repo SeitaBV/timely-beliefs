@@ -130,15 +130,11 @@ def horizon_selector(
                 axis=alt.Axis(values=[], domain=False, ticks=False),
             ),
             color=alt.condition(
-                horizon_selection_brush or horizon_hover_brush,
+                horizon_selection_brush | horizon_hover_brush,
                 alt.ColorValue("#c21431"),
                 alt.ColorValue(idle_color),
             ),
-            size=alt.condition(
-                horizon_selection_brush or horizon_hover_brush,
-                alt.value(1),
-                alt.value(1),
-            ),
+            size=alt.value(1),
             tooltip=[
                 alt.Tooltip(
                     "belief_horizon_str:N",
