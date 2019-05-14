@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Tuple, Union
 
 import altair as alt
 
@@ -39,7 +39,7 @@ def base_chart(source, belief_horizon_unit: str) -> alt.Chart:
                 alt.Tooltip("source", title="Source"),
             ],
         )
-        .properties(width=600, height=200)
+        .properties(width=550, height=200)
     )
 
 
@@ -51,12 +51,16 @@ def time_series_chart(
     belief_horizon_unit: str,
     intuitive_forecast_horizon: bool,
     ci: float,
+    event_value_range: Tuple[float, float],
 ) -> alt.LayerChart:
 
     # Configure the stepwise line for the reference
     ts_line_reference_chart = base.mark_rule().encode(
         x2=alt.X2("event_end:T"),
-        y=alt.Y("reference_value"),
+        y=alt.Y(
+            "reference_value",
+            scale=alt.Scale(domain=(event_value_range[0], event_value_range[-1])),
+        ),
         color=alt.ColorValue("black"),
         tooltip=[
             alt.Tooltip(
