@@ -237,7 +237,7 @@ def hour_date_chart(base, faceted: bool = False) -> Union[alt.Chart, alt.FacetCh
                 selectors.time_selection_brush,
                 alt.Color(
                     "accuracy:Q",
-                    scale=alt.Scale(zero=True, domain=(0, 1), scheme="rainbow"),
+                    scale=alt.Scale(zero=True, domain=(0, 1), scheme="redyellowgreen"),
                     title="Accuracy",  # "Accuracy (1-WAPE)",
                     legend=alt.Legend(format=".0%"),
                 ),
