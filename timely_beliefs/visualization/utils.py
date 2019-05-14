@@ -16,7 +16,7 @@ def plot(
     reference_source: "classes.BeliefSource" = None,
     ci: float = 0.9,
     intuitive_forecast_horizon: bool = True,
-    plottable_df: Tuple[pd.DataFrame, str, str] = None,
+    plottable_df: Tuple[pd.DataFrame, str, str, Tuple[float, float]] = None,
 ) -> alt.LayerChart:
     """Plot the BeliefsDataFrame with the Altair visualization library.
 
@@ -26,7 +26,7 @@ def plot(
     :param reference_source: The BeliefSource serving as a reference for accuracy calculations
     :param ci: The confidence interval to highlight in the time series graph
     :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
-    :param plottable_df: Optionally, specify as plottable DataFrame directly together with a sensor name and a sensor unit (if None, we create it)
+    :param plottable_df: Optionally, specify as plottable DataFrame directly together with a sensor name, a sensor unit and a y-axis value range for the event values (if None, we create it)
     :return: Altair LayerChart
     """
 
@@ -48,6 +48,7 @@ def plot(
             intuitive_forecast_horizon=intuitive_forecast_horizon,
         )
         unique_belief_horizons = plottable_df["belief_horizon"].unique()
+        event_value_range = (bdf.min()[0], bdf.max()[0])
         plottable_df = plottable_df.groupby(
             ["event_start", "source"], group_keys=False
         ).apply(
@@ -56,6 +57,7 @@ def plot(
     else:
         sensor_name = plottable_df[1]
         sensor_unit = plottable_df[2]
+        event_value_range = plottable_df[3]
         plottable_df = plottable_df[0]
         unique_belief_horizons = plottable_df["belief_horizon"].unique()
 
@@ -94,6 +96,7 @@ def plot(
         belief_horizon_unit,
         intuitive_forecast_horizon,
         ci,
+        event_value_range,
     )
     if show_accuracy is True:
         ha_chart = graphs.horizon_accuracy_chart(
