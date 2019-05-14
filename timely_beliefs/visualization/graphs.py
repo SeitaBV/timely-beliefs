@@ -1,3 +1,5 @@
+from typing import Union
+
 import altair as alt
 
 from timely_beliefs.visualization import selectors
@@ -205,8 +207,8 @@ def horizon_accuracy_chart(
     return ha_interpolation_chart + ha_chart
 
 
-def hour_date_chart(base) -> alt.FacetChart:
-    return (
+def hour_date_chart(base, faceted: bool = False) -> Union[alt.Chart, alt.FacetChart]:
+    hd_chart = (
         base.mark_rect()
         .transform_joinaggregate(
             on_the_fly_mae="mean(mae)",
@@ -220,23 +222,17 @@ def hour_date_chart(base) -> alt.FacetChart:
         .encode(
             x=alt.X(
                 "event_start:O",
-                timeUnit="monthdate",
-                title="UTC date",
-                axis=alt.Axis(domain=False, ticks=False),
-            ),
-            y=alt.Y(
-                "event_start:O",
                 timeUnit="hours",
-                axis=alt.Axis(domain=False, ticks=False),
+                axis=alt.Axis(domain=False, ticks=False, labelAngle=0),
                 scale=alt.Scale(domain=list(range(24))),
-                title="UTC hour of day",
+                title="Hour of day",  # "UTC hour of day"
             ),
             color=alt.condition(
                 selectors.time_selection_brush,
                 alt.Color(
                     "accuracy:Q",
                     scale=alt.Scale(zero=True, domain=(0, 1), scheme="redyellowgreen"),
-                    title="Accuracy (1-WAPE)",
+                    title="Accuracy",  # "Accuracy (1-WAPE)",
                     legend=alt.Legend(format=".0%"),
                 ),
                 alt.value(selectors.idle_color),
@@ -247,8 +243,19 @@ def hour_date_chart(base) -> alt.FacetChart:
             ],
         )
         # .properties(height=300, width=300)
-        .facet(column=alt.Column("source:O", title=None))
-        .properties(
-            title=alt.TitleParams("Accuracy given a time of day", anchor="middle")
+    )
+    if faceted:
+        hd_chart = hd_chart.facet(
+            row=alt.Row("source:O", title=None, header=alt.Header(labelAngle=0))
         )
+    else:
+        hd_chart = hd_chart.encode(
+            y=alt.Y(
+                "source:O",
+                axis=alt.Axis(domain=False, ticks=False, labelAngle=0),
+                title=None,
+            )
+        )
+    return hd_chart.properties(
+        title=alt.TitleParams("Accuracy given a time of day", anchor="middle")
     )

@@ -118,9 +118,9 @@ def plot(
                         )
                         | selectors.source_selector(plottable_df)
                     )
-                    | (horizon_selector & ha_chart)
+                    & (horizon_selector & ha_chart)
                 )
-                & hd_chart
+                | hd_chart
             )
             .configure_axis(grid=False)
             .configure_view(strokeWidth=0)
