@@ -899,12 +899,14 @@ class BeliefsDataFrame(pd.DataFrame):
     def plot(
         self,
         show_accuracy: bool = True,
+        active_fixed_viewpoint_selector: bool = True,
         reference_source: BeliefSource = None,
         intuitive_forecast_horizon: bool = True,
     ) -> alt.LayerChart:
         """Visualize the BeliefsDataFrame in an interactive Altair chart.
 
         :param show_accuracy: Set to False to plot time series data only
+        :param active_fixed_viewpoint_selector: If true, fixed viewpoint beliefs can be selected
         :param reference_source: BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
         :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
         :returns: Altair chart object with a vega-lite representation (for more information, see reference below).
@@ -921,6 +923,7 @@ class BeliefsDataFrame(pd.DataFrame):
         return visualization_utils.plot(
             self,
             show_accuracy=show_accuracy,
+            active_fixed_viewpoint_selector=active_fixed_viewpoint_selector,
             reference_source=reference_source,
             intuitive_forecast_horizon=intuitive_forecast_horizon,
         )

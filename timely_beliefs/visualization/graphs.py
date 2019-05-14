@@ -43,10 +43,10 @@ def base_chart(source, belief_horizon_unit: str) -> alt.Chart:
 
 def time_series_chart(
     base,
-    show_accuracy,
-    sensor_name,
-    sensor_unit,
-    belief_horizon_unit,
+    active_fixed_viewpoint_selector: bool,
+    sensor_name: str,
+    sensor_unit: str,
+    belief_horizon_unit: str,
     intuitive_forecast_horizon: bool,
     ci: float,
 ) -> alt.LayerChart:
@@ -75,7 +75,7 @@ def time_series_chart(
         y=alt.Y("expected_value", title="%s (%s)" % (sensor_name, sensor_unit)),
     )
 
-    if show_accuracy is False:
+    if active_fixed_viewpoint_selector is True:
         ts_line_chart = (
             ts_line_chart.transform_filter(
                 "datum.belief_time <= nearest_x_select.belief_time"
@@ -138,7 +138,7 @@ def time_series_chart(
 def horizon_accuracy_chart(
     base,
     horizon_selection_brush,
-    belief_horizon_unit,
+    belief_horizon_unit: str,
     intuitive_forecast_horizon: bool,
     unique_belief_horizons,
 ) -> alt.LayerChart:
@@ -202,9 +202,7 @@ def horizon_accuracy_chart(
     ha_interpolation_chart = ha_chart.mark_line(interpolate="monotone").encode(
         size=alt.value(1), color=alt.Color("source:N", legend=None)
     )
-    return ha_interpolation_chart + ha_chart.transform_filter(
-        selectors.horizon_hover_brush | horizon_selection_brush
-    )
+    return ha_interpolation_chart + ha_chart
 
 
 def hour_date_chart(base) -> alt.FacetChart:
