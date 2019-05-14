@@ -10,19 +10,23 @@ from timely_beliefs.visualization import graphs, selectors
 
 
 def plot(
-    df: "classes.BeliefsDataFrame",
+    bdf: "classes.BeliefsDataFrame",
     show_accuracy: bool = True,
+    active_fixed_viewpoint_selector: bool = True,
     reference_source: "classes.BeliefSource" = None,
     ci: float = 0.9,
     intuitive_forecast_horizon: bool = True,
+    plottable_df: Tuple[pd.DataFrame, str, str] = None,
 ) -> alt.LayerChart:
     """Plot the BeliefsDataFrame with the Altair visualization library.
 
-    :param df: The BeliefsDataFrame to visualize
+    :param bdf: The BeliefsDataFrame to visualize
     :param show_accuracy: If true, show additional graphs with accuracy over time and horizon
+    :param active_fixed_viewpoint_selector: If true, fixed viewpoint beliefs can be selected
     :param reference_source: The BeliefSource serving as a reference for accuracy calculations
     :param ci: The confidence interval to highlight in the time series graph
     :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
+    :param plottable_df: Optionally, specify as plottable DataFrame directly together with a sensor name and a sensor unit (if None, we create it)
     :return: Altair LayerChart
     """
 
@@ -31,22 +35,32 @@ def plot(
         raise ValueError("Must set reference source to calculate accuracy metrics.")
 
     # Set up data source
-    sensor_name = df.sensor.name
-    sensor_unit = df.sensor.unit if df.sensor.unit != "" else "a.u."  # arbitrary unit
-    df, belief_horizon_unit = prepare_df_for_plotting(
-        df,
-        ci=ci,
-        show_accuracy=show_accuracy,
-        reference_source=reference_source,
-        intuitive_forecast_horizon=intuitive_forecast_horizon,
-    )
-    unique_belief_horizons = df["belief_horizon"].unique()
-    df = df.groupby(["event_start", "source"], group_keys=False).apply(
-        lambda x: align_belief_horizons(x, unique_belief_horizons)
-    )  # Propagate beliefs so that each event has the same set of unique belief horizons
+    if plottable_df is None:
+        sensor_name = bdf.sensor.name
+        sensor_unit = (
+            bdf.sensor.unit if bdf.sensor.unit != "" else "a.u."
+        )  # arbitrary unit
+        plottable_df, belief_horizon_unit = prepare_df_for_plotting(
+            bdf,
+            ci=ci,
+            show_accuracy=show_accuracy,
+            reference_source=reference_source,
+            intuitive_forecast_horizon=intuitive_forecast_horizon,
+        )
+        unique_belief_horizons = plottable_df["belief_horizon"].unique()
+        plottable_df = plottable_df.groupby(
+            ["event_start", "source"], group_keys=False
+        ).apply(
+            lambda x: align_belief_horizons(x, unique_belief_horizons)
+        )  # Propagate beliefs so that each event has the same set of unique belief horizons
+    else:
+        sensor_name = plottable_df[1]
+        sensor_unit = plottable_df[2]
+        plottable_df = plottable_df[0]
+        unique_belief_horizons = plottable_df["belief_horizon"].unique()
 
     # Construct base chart
-    base = graphs.base_chart(df, belief_horizon_unit)
+    base = graphs.base_chart(plottable_df, belief_horizon_unit)
 
     # Construct selectors
     time_window_selector = selectors.time_window_selector(base)
@@ -67,16 +81,14 @@ def plot(
         selectors.time_selection_brush
     )
     if show_accuracy is True:
-        filtered_base = base.transform_filter(
-            selectors.horizon_hover_brush | horizon_selection_brush
-        )
+        filtered_base = base.transform_filter(horizon_selection_brush)
     else:
         filtered_base = base
 
     # Construct charts
     ts_chart = graphs.time_series_chart(
         filtered_base,
-        show_accuracy,
+        active_fixed_viewpoint_selector,
         sensor_name,
         sensor_unit,
         belief_horizon_unit,
@@ -98,10 +110,13 @@ def plot(
                     (
                         (
                             time_window_selector
-                            & selectors.fixed_viewpoint_selector(base, idle=True)
+                            & selectors.fixed_viewpoint_selector(
+                                base,
+                                active_fixed_viewpoint_selector=active_fixed_viewpoint_selector,
+                            )
                             + ts_chart
                         )
-                        | selectors.source_selector(df)
+                        | selectors.source_selector(plottable_df)
                     )
                     | (horizon_selector & ha_chart)
                 )
@@ -117,7 +132,7 @@ def plot(
                     time_window_selector
                     & selectors.fixed_viewpoint_selector(base) + ts_chart
                 )
-                | selectors.source_selector(df)
+                | selectors.source_selector(plottable_df)
             )
             .configure_axis(grid=False)
             .configure_view(strokeWidth=0)
