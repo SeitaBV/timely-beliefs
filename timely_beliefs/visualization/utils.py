@@ -71,7 +71,7 @@ def plot(
             init_belief_horizon=unique_belief_horizons[0]
         )
         horizon_selector = selectors.horizon_selector(
-            base,
+            base.properties(width=1300),
             horizon_selection_brush,
             belief_horizon_unit,
             intuitive_forecast_horizon,
@@ -100,30 +100,25 @@ def plot(
     )
     if show_accuracy is True:
         ha_chart = graphs.horizon_accuracy_chart(
-            base,
+            base.properties(width=1300),
             horizon_selection_brush,
             belief_horizon_unit,
             intuitive_forecast_horizon,
             unique_belief_horizons,
         )
-        hd_chart = graphs.hour_date_chart(filtered_base)
+        hd_chart = graphs.hour_date_chart(filtered_base.properties(height=290))
         return (
             (
                 (
-                    (
-                        (
-                            time_window_selector
-                            & selectors.fixed_viewpoint_selector(
-                                base,
-                                active_fixed_viewpoint_selector=active_fixed_viewpoint_selector,
-                            )
-                            + ts_chart
-                        )
-                        | selectors.source_selector(plottable_df)
+                    (time_window_selector | selectors.source_selector(plottable_df))
+                    & selectors.fixed_viewpoint_selector(
+                        base,
+                        active_fixed_viewpoint_selector=active_fixed_viewpoint_selector,
                     )
-                    & (horizon_selector & ha_chart)
+                    + ts_chart
+                    | hd_chart
                 )
-                | hd_chart
+                & (horizon_selector & ha_chart)
             )
             .configure_axis(grid=False)
             .configure_view(strokeWidth=0)
