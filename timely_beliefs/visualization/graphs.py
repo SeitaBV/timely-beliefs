@@ -221,7 +221,9 @@ def hour_date_chart(base, faceted: bool = False) -> Union[alt.Chart, alt.FacetCh
         )
         .transform_calculate(
             on_the_fly_wape=alt.datum.on_the_fly_mae / alt.datum.on_the_fly_reference,
-            accuracy=1 - alt.datum.on_the_fly_wape,
+            accuracy=alt.expr.if_(
+                alt.datum.on_the_fly_wape > 1, "inf", 1 - alt.datum.on_the_fly_wape
+            ),  # draw white if off the chart
         )
         .encode(
             x=alt.X(
@@ -235,7 +237,7 @@ def hour_date_chart(base, faceted: bool = False) -> Union[alt.Chart, alt.FacetCh
                 selectors.time_selection_brush,
                 alt.Color(
                     "accuracy:Q",
-                    scale=alt.Scale(zero=True, domain=(0, 1), scheme="redyellowgreen"),
+                    scale=alt.Scale(zero=True, domain=(0, 1), scheme="rainbow"),
                     title="Accuracy",  # "Accuracy (1-WAPE)",
                     legend=alt.Legend(format=".0%"),
                 ),
