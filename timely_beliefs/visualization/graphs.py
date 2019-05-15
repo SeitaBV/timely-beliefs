@@ -50,13 +50,17 @@ def time_series_chart(
     sensor_unit: str,
     belief_horizon_unit: str,
     intuitive_forecast_horizon: bool,
+    interpolate: bool,
     ci: float,
     event_value_range: Tuple[float, float],
 ) -> alt.LayerChart:
 
     # Configure the stepwise line for the reference
-    ts_line_reference_chart = base.mark_rule().encode(
-        x2=alt.X2("event_end:T"),
+    if interpolate is True:
+        ts_line_reference_chart = base.mark_line(interpolate="monotone")
+    else:
+        ts_line_reference_chart = base.mark_rule().encode(x2=alt.X2("event_end:T"))
+    ts_line_reference_chart = ts_line_reference_chart.encode(
         y=alt.Y(
             "reference_value",
             scale=alt.Scale(domain=(event_value_range[0], event_value_range[-1])),
@@ -76,9 +80,12 @@ def time_series_chart(
     )
 
     # Configure the stepwise line for the beliefs
-    ts_line_chart = base.mark_rule().encode(
-        x2=alt.X2("event_end:T"),
-        y=alt.Y("expected_value", title="%s (%s)" % (sensor_name, sensor_unit)),
+    if interpolate is True:
+        ts_line_chart = base.mark_line(interpolate="monotone")
+    else:
+        ts_line_chart = base.mark_rule().encode(x2=alt.X2("event_end:T"))
+    ts_line_chart = ts_line_chart.encode(
+        y=alt.Y("expected_value", title="%s (%s)" % (sensor_name, sensor_unit))
     )
 
     if active_fixed_viewpoint_selector is True:
@@ -94,7 +101,13 @@ def time_series_chart(
         )
 
     # Configure the confidence intervals
-    confidence_interval = ts_line_chart.mark_bar(opacity=0.3).encode(
+    if interpolate is True:
+        confidence_interval = ts_line_chart.mark_area(
+            interpolate="monotone", opacity=0.3
+        )
+    else:
+        confidence_interval = ts_line_chart.mark_bar(opacity=0.3)
+    confidence_interval = confidence_interval.encode(
         y="lower_value",
         y2="upper_value",
         tooltip=[

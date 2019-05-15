@@ -16,6 +16,7 @@ def plot(
     reference_source: "classes.BeliefSource" = None,
     ci: float = 0.9,
     intuitive_forecast_horizon: bool = True,
+    interpolate: bool = True,
     plottable_df: Tuple[pd.DataFrame, str, str, Tuple[float, float]] = None,
 ) -> alt.LayerChart:
     """Plot the BeliefsDataFrame with the Altair visualization library.
@@ -26,6 +27,7 @@ def plot(
     :param reference_source: The BeliefSource serving as a reference for accuracy calculations
     :param ci: The confidence interval to highlight in the time series graph
     :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
+    :param interpolate: If True, the time series chart shows a user-friendly interpolated line rather than more accurate stripes indicating average values
     :param plottable_df: Optionally, specify as plottable DataFrame directly together with a sensor name, a sensor unit and a y-axis value range for the event values (if None, we create it)
     :return: Altair LayerChart
     """
@@ -65,7 +67,7 @@ def plot(
     base = graphs.base_chart(plottable_df, belief_horizon_unit)
 
     # Construct selectors
-    time_window_selector = selectors.time_window_selector(base)
+    time_window_selector = selectors.time_window_selector(base, interpolate)
     if show_accuracy is True:
         horizon_selection_brush = selectors.horizon_selection_brush(
             init_belief_horizon=unique_belief_horizons[0]
@@ -95,6 +97,7 @@ def plot(
         sensor_unit,
         belief_horizon_unit,
         intuitive_forecast_horizon,
+        interpolate,
         ci,
         event_value_range,
     )
