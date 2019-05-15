@@ -11,6 +11,7 @@ def base_chart(source, belief_horizon_unit: str) -> alt.Chart:
         .encode(
             x=alt.X(
                 "event_start",
+                axis=alt.Axis(labelFlush=False),
                 scale={"domain": selectors.time_selection_brush.ref()},
                 title="Event start",
             ),
@@ -150,7 +151,7 @@ def time_series_chart(
     )
 
     return (ts_line_reference_chart + ts_line_chart + confidence_interval).properties(
-        title="Beliefs over time"
+        title="Model results"
     )
 
 
@@ -183,6 +184,7 @@ def horizon_accuracy_chart(
             # Trick to be able to apply the selection filter for event_start (event_start must be a field in one of the encoding channels)
             x=alt.X(
                 "belief_horizon:Q",
+                axis=alt.Axis(labelFlush=False),
                 scale=alt.Scale(
                     zero=False,
                     domain=(unique_belief_horizons[0], unique_belief_horizons[-1]),
@@ -215,7 +217,7 @@ def horizon_accuracy_chart(
                 alt.Tooltip("source:O", title="Source"),
             ],
         )
-        .properties(title="Accuracy in the %s before" % belief_horizon_unit)
+        .properties(title="Model accuracy in the %s before" % belief_horizon_unit)
         # .configure_title(offset=-270, orient="bottom")
     )
     ha_interpolation_chart = ha_chart.mark_line(interpolate="monotone").encode(
@@ -224,7 +226,9 @@ def horizon_accuracy_chart(
     return ha_interpolation_chart + ha_chart
 
 
-def hour_date_chart(base, faceted: bool = False) -> Union[alt.Chart, alt.FacetChart]:
+def hour_date_chart(
+    base, sensor_unit: str, max_absolute_error: float, faceted: bool = False
+) -> Union[alt.Chart, alt.FacetChart]:
     hd_chart = (
         base.mark_rect()
         .transform_joinaggregate(
@@ -232,12 +236,7 @@ def hour_date_chart(base, faceted: bool = False) -> Union[alt.Chart, alt.FacetCh
             on_the_fly_reference="mean(reference_value)",
             groupby=["event_start", "source"],
         )
-        .transform_calculate(
-            on_the_fly_wape=alt.datum.on_the_fly_mae / alt.datum.on_the_fly_reference,
-            accuracy=alt.expr.if_(
-                alt.datum.on_the_fly_wape > 1, "inf", 1 - alt.datum.on_the_fly_wape
-            ),  # draw white if off the chart
-        )
+        .transform_calculate(accuracy=alt.datum.on_the_fly_mae)
         .encode(
             x=alt.X(
                 "event_start:O",
@@ -250,18 +249,22 @@ def hour_date_chart(base, faceted: bool = False) -> Union[alt.Chart, alt.FacetCh
                 selectors.time_selection_brush,
                 alt.Color(
                     "accuracy:Q",
-                    scale=alt.Scale(zero=True, domain=(0, 1), scheme="redyellowgreen"),
-                    title="Accuracy",  # "Accuracy (1-WAPE)",
-                    legend=alt.Legend(format=".0%"),
+                    scale=alt.Scale(
+                        domain=(max_absolute_error, 0), scheme="redyellowgreen"
+                    ),
+                    title="Error",
                 ),
                 alt.value(selectors.idle_color),
             ),
             tooltip=[
                 alt.Tooltip("event_start:T", timeUnit="hours", title="Hour of day"),
-                alt.Tooltip("accuracy:Q", title="Accuracy (1-WAPE)", format=".1%"),
+                alt.Tooltip(
+                    "accuracy:Q",
+                    title="Mean absolute error (%s)" % sensor_unit,
+                    format=".2f",
+                ),
             ],
         )
-        # .properties(height=300, width=300)
     )
     if faceted:
         hd_chart = hd_chart.facet(
@@ -271,10 +274,10 @@ def hour_date_chart(base, faceted: bool = False) -> Union[alt.Chart, alt.FacetCh
         hd_chart = hd_chart.encode(
             y=alt.Y(
                 "source:O",
-                axis=alt.Axis(domain=False, ticks=False, labelAngle=0),
+                axis=alt.Axis(domain=False, ticks=False, labelAngle=0, labelPadding=5),
                 title=None,
             )
         )
     return hd_chart.properties(
-        title=alt.TitleParams("Accuracy given a time of day", anchor="middle")
+        title=alt.TitleParams("Model performance given a time of day", anchor="middle")
     )
