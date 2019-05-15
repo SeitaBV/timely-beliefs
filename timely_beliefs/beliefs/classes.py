@@ -902,6 +902,7 @@ class BeliefsDataFrame(pd.DataFrame):
         active_fixed_viewpoint_selector: bool = True,
         reference_source: BeliefSource = None,
         intuitive_forecast_horizon: bool = True,
+        interpolate: bool = True,
     ) -> alt.LayerChart:
         """Visualize the BeliefsDataFrame in an interactive Altair chart.
 
@@ -909,6 +910,7 @@ class BeliefsDataFrame(pd.DataFrame):
         :param active_fixed_viewpoint_selector: If true, fixed viewpoint beliefs can be selected
         :param reference_source: BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
         :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
+        :param interpolate: If True, the time series chart shows a user-friendly interpolated line rather than more accurate stripes indicating average values
         :returns: Altair chart object with a vega-lite representation (for more information, see reference below).
 
         >>> chart = df.plot(df.lineage.sources[0])
@@ -926,6 +928,7 @@ class BeliefsDataFrame(pd.DataFrame):
             active_fixed_viewpoint_selector=active_fixed_viewpoint_selector,
             reference_source=reference_source,
             intuitive_forecast_horizon=intuitive_forecast_horizon,
+            interpolate=interpolate,
         )
 
     def set_reference_values(

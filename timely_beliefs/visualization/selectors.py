@@ -68,22 +68,21 @@ def fixed_viewpoint_selector(
     )
 
 
-def time_window_selector(base) -> alt.LayerChart:
-    tws = (
-        base.mark_bar()
-        .encode(
-            x=alt.X("event_start", title=""),
-            x2=alt.X2("event_end:T"),
-            y=alt.Y(
-                "reference_value",
-                title="",
-                axis=alt.Axis(values=[], domain=False, ticks=False),
-            ),
-            color=alt.ColorValue(idle_color),
-            tooltip=alt.TooltipValue("Click and drag to select time window"),
-        )
-        .properties(height=30, title="Select time window")
-    )
+def time_window_selector(base, interpolate: bool) -> alt.LayerChart:
+    if interpolate is True:
+        tws = base.mark_area(interpolate="monotone")
+    else:
+        tws = base.mark_bar().encode(x2=alt.X2("event_end:T"))
+    tws = tws.encode(
+        x=alt.X("event_start", title=""),
+        y=alt.Y(
+            "reference_value",
+            title="",
+            axis=alt.Axis(values=[], domain=False, ticks=False),
+        ),
+        color=alt.ColorValue(idle_color),
+        tooltip=alt.TooltipValue("Click and drag to select time window"),
+    ).properties(height=30, title="Select time window")
     tws = tws.add_selection(time_selection_brush) + tws.transform_filter(
         time_selection_brush
     ).encode(
