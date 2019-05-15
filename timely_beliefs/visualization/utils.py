@@ -62,6 +62,7 @@ def plot(
         event_value_range = plottable_df[3]
         plottable_df = plottable_df[0]
         unique_belief_horizons = plottable_df["belief_horizon"].unique()
+    max_absolute_error = plottable_df["mae"].max()
 
     # Construct base chart
     base = graphs.base_chart(plottable_df, belief_horizon_unit)
@@ -109,7 +110,9 @@ def plot(
             intuitive_forecast_horizon,
             unique_belief_horizons,
         )
-        hd_chart = graphs.hour_date_chart(filtered_base.properties(height=290))
+        hd_chart = graphs.hour_date_chart(
+            filtered_base.properties(height=290), sensor_unit, max_absolute_error
+        )
         return (
             (
                 (

@@ -125,6 +125,7 @@ def horizon_selector(
             # Trick to be able to apply the selection filter for event_start (event_start must be a field in one of the encoding channels)
             x=alt.X(
                 "belief_horizon:Q",
+                axis=alt.Axis(labelFlush=False),
                 scale=alt.Scale(
                     zero=False,
                     domain=(unique_belief_horizons[0], unique_belief_horizons[-1]),
@@ -190,5 +191,5 @@ def source_selector(source) -> alt.Chart:
             color=source_color_or(idle_color),
         )
         .add_selection(source_selection_brush)
-        .properties(title=alt.TitleParams("Select source", anchor="start"))
+        .properties(title=alt.TitleParams("Select model", anchor="start"))
     )
