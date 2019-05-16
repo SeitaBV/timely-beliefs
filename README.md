@@ -21,6 +21,11 @@ Some use cases of the package:
 - Learn **when** someone is a bad predictor.
 - Evaluate the risk of being wrong about an event.
 
+Check out [our interactive demonstration](http://forecasting-accuracy.seita.nl) comparing forecasting models for renewable energy production.
+These visuals are created simply by calling the plot method on our BeliefsDataFrame, using the visualisation library [Altair](https://altair-viz.github.io/).
+
+![Comparing wind speed forecasting models](timely_beliefs/docs/comparing_wind_speed_forecasting_models.png)
+
 ## Table of contents
 1. [The data model](#the-data-model)
     1. [Keeping track of time](#keeping-track-of-time)
@@ -52,9 +57,9 @@ The example BeliefsDataFrame in our tests module demonstrates the basic timely-b
                                                                  0.8413                          101
 The first 8 entries of this BeliefsDataFrame show beliefs about a single event.
 Beliefs were formed by two distinct sources (1 and 2), with the first updating its beliefs at a later time.
-Source 1 first thought the value of this event would be 100 ± 10 (the probabilities suggest a normal distribution),
+Source A first thought the value of this event would be 100 ± 10 (the probabilities suggest a normal distribution),
 and then increased its accuracy by lowering the standard deviation to 1.
-Source 2 thought the value would be equally likely to be 0 or 100.
+Source B thought the value would be equally likely to be 0 or 100.
 
 - Read more about how the DataFrame is [keeping track of time](#keeping-track-of-time).
 - Discover [convenient slicing methods](#convenient-slicing-methods), e.g. to show a rolling horizon forecast.
@@ -105,12 +110,12 @@ That is:
 
 #### Beliefs in economics
 
-For economical events, the time at which we say an event could be known is typically not at the `end`.
+For economical events, the time at which we say an event could be known is typically not at the `event_end`.
 Most contracts deal with future events, such that:
 
     knowledge_time < event_start
 
-The `knowledge horizon` says how long before (the event starts) the event could be known:
+The `knowledge_horizon` says how long before (the event starts) the event could be known:
 
     knowledge_horizon > 0  # for most economical events
     knowledge_horizon = -resolution  # for physical events
@@ -137,6 +142,23 @@ In general, we have the following relationships:
     belief_time + belief_horizon = knowledge_time
     belief_time + belief_horizon + knowledge_horizon = event_start 
     belief_time + belief_horizon + knowledge_horizon + event_resolution = event_end
+
+#### A common misconception
+
+In many applications, people tend to interpret a forecast horizon as the duration between forming the belief and the start of the event.
+When this happens, we have:
+
+    forecast_horizon = event_start - belief_time
+
+and:
+
+    forecast_horizon = belief_horizon + knowledge_horizon
+
+For example, consider a forecast formed at 9 AM about the average wind speed between 10 and 11 AM.
+It may feel intuitive to talk about a forecast horizon of 1 hour, because people tend to index events by their start time and then talk about the timing of beliefs with respect to that index.
+
+While this is a perfectly acceptable definition, we set out to be precise in handling the timing of beliefs.
+Therefore, we use the term `belief_horizon` rather than `forecast_horizon` throughout the `timely-beliefs` package.
 
 #### Special cases
 
