@@ -32,10 +32,13 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
         1. [Events and sensors](#events-and-sensors)
         1. [Beliefs in physics](#beliefs-in-physics)
         1. [Beliefs in economics](#beliefs-in-economics)
+        1. [A common misconception](#a-common-misconception)
         1. [Special cases](#special-cases)
     1. [Convenient slicing methods](#convenient-slicing-methods)
     1. [Resampling](#resampling)
     1. [Lineage](#lineage)
+1. [Accuracy](#accuracy)
+1. [Visualisation](#visualisation)
 1. [More examples](#more-examples)
 
 ## The data model
@@ -308,6 +311,15 @@ Get the (number of) sources contributing to the BeliefsDataFrame:
     source                                 
     Source A    0.00000  0.000000  0.000000
     Source B  125.85325  0.503413  0.503413
+
+...
+
+## Visualisation
+
+Create interactive charts using Altair and view them in your browser.
+
+    >>> chart = df.plot(reference_source=df.lineage.sources[0], show_accuracy=True)
+    >>> chart.serve()
 
 ...
 
