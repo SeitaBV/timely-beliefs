@@ -38,6 +38,7 @@ def plot(
 
     # Set up data source
     if plottable_df is None:
+        bdf = bdf.copy()
         sensor_name = bdf.sensor.name
         sensor_unit = (
             bdf.sensor.unit if bdf.sensor.unit != "" else "a.u."
@@ -62,7 +63,7 @@ def plot(
         event_value_range = plottable_df[3]
         plottable_df = plottable_df[0]
         unique_belief_horizons = plottable_df["belief_horizon"].unique()
-    max_absolute_error = plottable_df["mae"].max() if show_accuracy else None
+    max_absolute_error = plottable_df["mae"].max() if show_accuracy is True else None
 
     # Construct base chart
     base = graphs.base_chart(plottable_df, belief_horizon_unit)
@@ -210,7 +211,6 @@ def prepare_df_for_plotting(
         reference_df = df.groupby(level="event_start").apply(
             lambda x: x.set_reference_values(reference_source=reference_source)
         )
-    df = df.copy()
     df["belief_horizon"] = df.knowledge_times - df.belief_times
     if df.lineage.percentage_of_probabilistic_beliefs == 0:
         df = df.droplevel("cumulative_probability")
