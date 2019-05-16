@@ -898,7 +898,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
     def plot(
         self,
-        show_accuracy: bool = True,
+        show_accuracy: bool = False,
         active_fixed_viewpoint_selector: bool = True,
         reference_source: BeliefSource = None,
         intuitive_forecast_horizon: bool = True,
