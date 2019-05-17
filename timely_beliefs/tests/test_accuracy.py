@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import numpy as np
 from pytz import utc
 
-from timely_beliefs.tests import example_df
+from timely_beliefs.examples import example_df
 from timely_beliefs.tests.utils import equal_lists
 from timely_beliefs.beliefs.probabilistic_utils import partial_cdf
 

@@ -7,7 +7,7 @@ import pandas as pd
 
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief
 from timely_beliefs.utils import replace_multi_index_level
-from timely_beliefs.tests.examples import df_example
+from timely_beliefs.examples.beliefs_data_frames import sixteen_probabilistic_beliefs
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -194,7 +194,7 @@ def test_percentages_and_accuracy_of_probabilistic_model(df_4323: BeliefsDataFra
     assert df.lineage.percentage_of_deterministic_beliefs == 0
     assert df.lineage.probabilistic_depth == 3
 
-    df = df_example()
+    df = sixteen_probabilistic_beliefs()
     assert df.lineage.number_of_probabilistic_beliefs == 16
     assert df.lineage.percentage_of_probabilistic_beliefs == 1
     assert df.lineage.percentage_of_deterministic_beliefs == 0
