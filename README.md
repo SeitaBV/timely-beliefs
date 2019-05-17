@@ -46,7 +46,7 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
 The example BeliefsDataFrame in our tests module demonstrates the basic timely-beliefs data model:
 
     >>> import timely_beliefs
-    >>> df = timely_beliefs.tests.example_df
+    >>> df = timely_beliefs.examples.example_df
     >>> df.head(8)
                                                                                          event_value
     event_start               belief_time               source   cumulative_probability             
@@ -195,7 +195,7 @@ Our concept of `knowledge_time` supports to define sensors for agreements about 
 Select the latest forecasts from a rolling viewpoint (beliefs formed at least 2 days and 10 hours before the event could be known): 
 
     >>> from datetime import timedelta
-    >>> df = timely_beliefs.tests.example_df
+    >>> df = timely_beliefs.examples.example_df
     >>> df.rolling_viewpoint(timedelta(days=2, hours=10))
                                                                                event_value
     event_start               belief_horizon  source   cumulative_probability             
@@ -249,7 +249,7 @@ Select a history of beliefs about a single event:
 Upsample to events with a resolution of 5 minutes:
 
     >>> from datetime import timedelta
-    >>> df = timely_beliefs.tests.example_df
+    >>> df = timely_beliefs.examples.example_df
     >>> df5m = df.resample_events(timedelta(minutes=5))
     >>> df5m.sort_index(level=["belief_time", "source"]).head(9)
                                                                                          event_value
