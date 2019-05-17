@@ -40,7 +40,7 @@ def horizon_selection_brush(init_belief_horizon=None) -> alt.MultiSelection:
 
 
 def fixed_viewpoint_selector(
-    base, active_fixed_viewpoint_selector: bool = False
+    base: alt.Chart, active_fixed_viewpoint_selector: bool = False
 ) -> alt.Chart:
     """Transparent selectors across the chart (visible on hover).
     This is what tells us the belief time for a given x-value of the cursor.
@@ -68,7 +68,7 @@ def fixed_viewpoint_selector(
     )
 
 
-def time_window_selector(base, interpolate: bool) -> alt.LayerChart:
+def time_window_selector(base: alt.Chart, interpolate: bool) -> alt.LayerChart:
     if interpolate is True:
         tws = base.mark_area(interpolate="monotone")
     else:
@@ -94,7 +94,7 @@ def time_window_selector(base, interpolate: bool) -> alt.LayerChart:
 
 
 def horizon_selector(
-    base,
+    base: alt.Chart,
     horizon_selection_brush: alt.MultiSelection,
     belief_horizon_unit: str,
     intuitive_forecast_horizon: bool,

@@ -1,12 +1,15 @@
 from typing import Tuple, Union
 
 import altair as alt
+import pandas as pd
 
 from timely_beliefs.visualization import selectors
 
 
 def base_chart(
-    source, belief_horizon_unit: str, intuitive_forecast_horizon: bool
+    source: Union[pd.DataFrame, str],
+    belief_horizon_unit: str,
+    intuitive_forecast_horizon: bool,
 ) -> alt.Chart:
     return (
         alt.Chart(source)
@@ -53,7 +56,7 @@ def base_chart(
 
 
 def time_series_chart(
-    base,
+    base: alt.Chart,
     active_fixed_viewpoint_selector: bool,
     sensor_name: str,
     sensor_unit: str,
@@ -164,8 +167,8 @@ def time_series_chart(
 
 
 def horizon_accuracy_chart(
-    base,
-    horizon_selection_brush,
+    base: alt.Chart,
+    horizon_selection_brush: alt.Selection,
     belief_horizon_unit: str,
     intuitive_forecast_horizon: bool,
     unique_belief_horizons,
@@ -241,7 +244,7 @@ def horizon_accuracy_chart(
 
 
 def hour_date_chart(
-    base, sensor_unit: str, max_absolute_error: float, faceted: bool = False
+    base: alt.Chart, sensor_unit: str, max_absolute_error: float, faceted: bool = False
 ) -> Union[alt.Chart, alt.FacetChart]:
     hd_chart = (
         base.mark_rect()
