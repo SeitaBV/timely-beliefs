@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String
 
-from timely_beliefs.base import Base
+from timely_beliefs.db_base import Base
 
 
 class BeliefSource(object):

@@ -7,10 +7,10 @@ from pandas.core.groupby import DataFrameGroupBy
 from pandas.tseries.frequencies import to_offset
 from sqlalchemy import Column, DateTime, Integer, Interval, Float, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm import relationship, backref, Session
 import altair as alt
 
-from timely_beliefs.base import Base, session
+from timely_beliefs.db_base import Base
 from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 from timely_beliefs.sensors.classes import Sensor, DBSensor
 import timely_beliefs.utils as tb_utils
@@ -135,9 +135,10 @@ class DBTimedBelief(Base, TimedBelief):
         TimedBelief.__init__(self, sensor, source, value, **kwargs)
         Base.__init__(self)
 
-    @hybrid_method
+    @classmethod
     def query(
-        self,
+        cls,
+        session: Session,
         sensor: DBSensor,
         event_before: datetime = None,
         event_not_before: datetime = None,
@@ -146,6 +147,7 @@ class DBTimedBelief(Base, TimedBelief):
         source: Union[int, List[int], str, List[str]] = None,
     ) -> "BeliefsDataFrame":
         """Query beliefs about sensor events.
+        :param session: the database session to use
         :param sensor: sensor to which the beliefs pertain
         :param event_before: only return beliefs about events that end before this datetime (inclusive)
         :param event_not_before: only return beliefs about events that start after this datetime (inclusive)
@@ -184,24 +186,24 @@ class DBTimedBelief(Base, TimedBelief):
         )
 
         # Query based on start_time_window
-        q = session.query(self).filter(self.sensor_id == sensor.id)
+        q = session.query(cls).filter(cls.sensor_id == sensor.id)
 
         # Apply event time filter
         if event_before is not None:
-            q = q.filter(self.event_start + event_resolution <= event_before)
+            q = q.filter(cls.event_start + event_resolution <= event_before)
         if event_not_before is not None:
-            q = q.filter(self.event_start >= event_not_before)
+            q = q.filter(cls.event_start >= event_not_before)
 
         # Apply rough belief time filter
         if belief_before is not None:
             q = q.filter(
-                self.event_start
-                <= belief_before + self.belief_horizon + knowledge_horizon_max
+                cls.event_start
+                <= belief_before + cls.belief_horizon + knowledge_horizon_max
             )
         if belief_not_before is not None:
             q = q.filter(
-                self.event_start
-                >= belief_not_before + self.belief_horizon + knowledge_horizon_min
+                cls.event_start
+                >= belief_not_before + cls.belief_horizon + knowledge_horizon_min
             )
 
         # Apply source filter
@@ -221,7 +223,7 @@ class DBTimedBelief(Base, TimedBelief):
                 )
             else:
                 q = q.join(DBBeliefSource).filter(
-                    (self.source_id.in_(id_list)) | (DBBeliefSource.name.in_(name_list))
+                    (cls.source_id.in_(id_list)) | (DBBeliefSource.name.in_(name_list))
                 )
 
         # Build our DataFrame of beliefs
