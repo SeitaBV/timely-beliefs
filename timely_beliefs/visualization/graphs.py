@@ -5,7 +5,9 @@ import altair as alt
 from timely_beliefs.visualization import selectors
 
 
-def base_chart(source, belief_horizon_unit: str) -> alt.Chart:
+def base_chart(
+    source, belief_horizon_unit: str, intuitive_forecast_horizon: bool
+) -> alt.Chart:
     return (
         alt.Chart(source)
         .encode(
@@ -35,7 +37,13 @@ def base_chart(source, belief_horizon_unit: str) -> alt.Chart:
                 ),
                 alt.Tooltip(
                     "belief_horizon:Q",
-                    title="Belief horizon (%s)" % belief_horizon_unit,
+                    title="%s (%s)"
+                    % (
+                        "Forecast horizon"
+                        if intuitive_forecast_horizon
+                        else "Belief horizon",
+                        belief_horizon_unit,
+                    ),
                 ),
                 alt.Tooltip("source", title="Source"),
             ],
@@ -212,7 +220,13 @@ def horizon_accuracy_chart(
                 alt.Tooltip("accuracy:Q", title="Accuracy (1-WAPE)", format=".1%"),
                 alt.Tooltip(
                     "belief_horizon:Q",
-                    title="Belief horizon (%s)" % belief_horizon_unit,
+                    title="%s (%s)"
+                    % (
+                        "Forecast horizon"
+                        if intuitive_forecast_horizon
+                        else "Belief horizon",
+                        belief_horizon_unit,
+                    ),
                 ),
                 alt.Tooltip("source:O", title="Source"),
             ],

@@ -102,11 +102,6 @@ def horizon_selector(
 ) -> alt.LayerChart:
     bar_chart = (
         base.mark_rule(orient="vertical")
-        # # Remove the most recent belief horizon from the selector
-        # .transform_joinaggregate(most_recent_belief_horizon="min(belief_horizon)")
-        # .transform_filter(
-        #     alt.datum.belief_horizon > alt.datum.most_recent_belief_horizon
-        # )
         .transform_filter(
             time_selection_brush
         )  # Apply brush before calculating accuracy metrics for the selected events on the fly
@@ -147,11 +142,19 @@ def horizon_selector(
                 alt.Tooltip(
                     "belief_horizon_str:N",
                     title="Click to select %s"
-                    % ("horizon" if intuitive_forecast_horizon else "belief horizon"),
+                    % (
+                        "forecast horizon"
+                        if intuitive_forecast_horizon
+                        else "belief horizon"
+                    ),
                 )
             ],
         )
-        .properties(height=30, title="Select horizon")
+        .properties(
+            height=30,
+            title="Select %s"
+            % ("forecast horizon" if intuitive_forecast_horizon else "belief horizon"),
+        )
         .transform_filter(time_selection_brush)
     )
     circle_chart = (

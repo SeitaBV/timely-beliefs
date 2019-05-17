@@ -66,7 +66,9 @@ def plot(
     max_absolute_error = plottable_df["mae"].max() if show_accuracy is True else None
 
     # Construct base chart
-    base = graphs.base_chart(plottable_df, belief_horizon_unit)
+    base = graphs.base_chart(
+        plottable_df, belief_horizon_unit, intuitive_forecast_horizon
+    )
 
     # Construct selectors
     time_window_selector = selectors.time_window_selector(base, interpolate)
