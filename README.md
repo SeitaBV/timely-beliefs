@@ -43,7 +43,7 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
 
 ## The data model
 
-The example BeliefsDataFrame in our tests module demonstrates the basic timely-beliefs data model:
+The example BeliefsDataFrame in our examples module demonstrates the basic timely-beliefs data model:
 
     >>> import timely_beliefs
     >>> df = timely_beliefs.examples.example_df
