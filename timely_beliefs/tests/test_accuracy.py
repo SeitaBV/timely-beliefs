@@ -3,9 +3,33 @@ from datetime import datetime, timedelta
 import numpy as np
 from pytz import utc
 
-from timely_beliefs.tests import example_df
+from timely_beliefs import BeliefsDataFrame
+from timely_beliefs.examples import example_df
 from timely_beliefs.tests.utils import equal_lists
 from timely_beliefs.beliefs.probabilistic_utils import partial_cdf
+
+
+def test_setting_reference():
+    """Set a column with reference values."""
+
+    # Deterministic reference values
+    df = example_df.set_reference_values(
+        reference_source=example_df.lineage.sources[0], return_expected_value=True
+    )
+    assert isinstance(df, BeliefsDataFrame)  # Check if type is maintained
+    assert df.sensor == example_df.sensor  # Check if sensor is kept
+    assert equal_lists(
+        df["reference_value"].values, [100] * 10 + [200] * 10 + [300] * 10 + [400] * 10
+    )
+    assert df.index.names == example_df.index.names
+
+    # Probabilistic reference values
+    df = example_df.set_reference_values(
+        reference_source=example_df.lineage.sources[0], return_expected_value=False
+    )
+    assert equal_lists(df["reference_value"].head(6).values, [99, 100, 101] * 2)
+
+    # Todo: Test event with missing reference belief
 
 
 def test_mae():

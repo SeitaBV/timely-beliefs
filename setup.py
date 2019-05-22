@@ -13,7 +13,7 @@ setup(
         "uncertainty",
         "lineage",
     ],
-    version="0.0.3.a",
+    version="0.0.4",
     install_requires=[
         "pytz",
         "pandas>=0.24",
@@ -24,6 +24,8 @@ setup(
         "isodate",
         "openturns",
         "properscoring",
+        "altair==3.0.0",
+        "selenium",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
@@ -33,7 +35,8 @@ setup(
         "timely_beliefs.sensors",
         "timely_beliefs.sensors.func_store",
         "timely_beliefs.sources",
-        "timely_beliefs.tests",
+        "timely_beliefs.examples",
+        "timely_beliefs.visualization",
     ],
     include_package_data=True,
     classifiers=[

@@ -1,7 +1,8 @@
 import pytest
 from datetime import timedelta
 
-from timely_beliefs.base import Base, engine, session
+from timely_beliefs.db_base import Base
+from timely_beliefs.tests import engine, session
 from timely_beliefs import DBBeliefSource, DBSensor
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
     timedelta_x_days_ago_at_y_oclock
@@ -64,7 +65,7 @@ def ex_post_time_slot_sensor(db):
 @pytest.fixture(scope="function", autouse=True)
 def test_source_a():
     """Define source for test beliefs."""
-    source = DBBeliefSource()
+    source = DBBeliefSource("Source A")
     session.add(source)
     return source
 
@@ -72,6 +73,6 @@ def test_source_a():
 @pytest.fixture(scope="function", autouse=True)
 def test_source_b():
     """Define source for test beliefs."""
-    source = DBBeliefSource()
+    source = DBBeliefSource("Source B")
     session.add(source)
     return source

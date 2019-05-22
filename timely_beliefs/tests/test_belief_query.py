@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
-from timely_beliefs.base import session
+from timely_beliefs.tests import session
 
 
 @pytest.fixture(scope="function")
@@ -91,6 +91,7 @@ def test_query_belief_by_belief_time(
     day_ahead_belief_about_ex_post_time_slot_event: DBTimedBelief,
 ):
     belief_df = DBTimedBelief.query(
+        session=session,
         sensor=ex_post_time_slot_sensor,
         belief_before=datetime(2018, 1, 1, 13, tzinfo=utc),
     )
@@ -112,6 +113,7 @@ def test_query_belief_by_belief_time(
     assert (
         len(
             DBTimedBelief.query(
+                session=session,
                 sensor=ex_post_time_slot_sensor,
                 belief_before=datetime(2017, 1, 1, 10, tzinfo=utc),
             ).index
@@ -123,6 +125,7 @@ def test_query_belief_by_belief_time(
     assert (
         len(
             DBTimedBelief.query(
+                session=session,
                 sensor=ex_post_time_slot_sensor,
                 belief_not_before=datetime(2018, 1, 3, 10, tzinfo=utc),
             ).index
@@ -134,6 +137,7 @@ def test_query_belief_by_belief_time(
     assert (
         len(
             DBTimedBelief.query(
+                session=session,
                 sensor=ex_post_time_slot_sensor,
                 belief_not_before=datetime(2018, 1, 1, 10, tzinfo=utc),
             ).index
@@ -145,6 +149,7 @@ def test_query_belief_by_belief_time(
     assert (
         len(
             DBTimedBelief.query(
+                session=session,
                 sensor=ex_post_time_slot_sensor,
                 belief_before=datetime(2018, 1, 1, 9, tzinfo=utc),
             ).index
@@ -156,6 +161,7 @@ def test_query_belief_by_belief_time(
     assert (
         len(
             DBTimedBelief.query(
+                session=session,
                 sensor=ex_post_time_slot_sensor,
                 belief_not_before=datetime(2018, 1, 1, 13, tzinfo=utc),
             ).index
@@ -168,7 +174,7 @@ def test_query_belief_history(
     ex_post_time_slot_sensor: DBSensor,
     multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
 ):
-    df = DBTimedBelief.query(sensor=ex_post_time_slot_sensor)
+    df = DBTimedBelief.query(session=session, sensor=ex_post_time_slot_sensor)
     event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
     df2 = df.belief_history(event_start).sort_index(
         level="belief_time", ascending=False
@@ -194,7 +200,9 @@ def test_query_rolling_horizon(
 ):
     # belief db selects all beliefs but one recent one (made exactly at 15h)
     belief_df = DBTimedBelief.query(
-        sensor=time_slot_sensor, belief_before=datetime(2050, 1, 1, 15, tzinfo=utc)
+        session=session,
+        sensor=time_slot_sensor,
+        belief_before=datetime(2050, 1, 1, 15, tzinfo=utc),
     )
     rolling_df = belief_df.rolling_viewpoint(
         belief_horizon=timedelta(hours=49)
@@ -215,6 +223,7 @@ def test_query_fixed_horizon(
 ):
     belief_time = datetime(2050, 1, 1, 11, tzinfo=utc)
     df = DBTimedBelief.query(
+        session=session,
         sensor=time_slot_sensor,
         belief_before=datetime(2050, 1, 1, 15, tzinfo=utc),
         source=[1, 2],
@@ -234,7 +243,9 @@ def test_downsample(time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_
     """Downsample from 15 minutes to 2 hours."""
     new_resolution = timedelta(hours=2)
     belief_df = DBTimedBelief.query(
-        sensor=time_slot_sensor, belief_before=datetime(2100, 1, 1, 13, tzinfo=utc)
+        session=session,
+        sensor=time_slot_sensor,
+        belief_before=datetime(2100, 1, 1, 13, tzinfo=utc),
     )
     belief_df = belief_df.resample_events(new_resolution)
     assert belief_df.sensor.event_resolution == timedelta(minutes=15)
@@ -245,7 +256,9 @@ def test_upsample(time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_ev
     """Upsample from 15 minutes to 5 minutes."""
     new_resolution = timedelta(minutes=5)
     belief_df = DBTimedBelief.query(
-        sensor=time_slot_sensor, belief_before=datetime(2100, 1, 1, 13, tzinfo=utc)
+        session=session,
+        sensor=time_slot_sensor,
+        belief_before=datetime(2100, 1, 1, 13, tzinfo=utc),
     )
     belief_df = belief_df.resample_events(new_resolution)
     assert belief_df.sensor.event_resolution == timedelta(minutes=15)

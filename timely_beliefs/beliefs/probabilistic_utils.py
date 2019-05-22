@@ -388,7 +388,7 @@ def set_truth(
     else:
         raise KeyError("Source %s not found in BeliefsDataFrame." % right_source)
 
-    # Replace each original group with the truth group, while adding back the source id for each original group
+    # Replace each original group with the truth group, while adding back the source for each original group
     gr_list = [
         tb_utils.replace_multi_index_level(
             truth_group, "source", pd.Index([key] * len(truth_group))
@@ -401,7 +401,15 @@ def set_truth(
 
 def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
     """Compute the continuous ranked probability score for a BeliefsDataFrame with a probabilistic (or deterministic)
-    forecast and observation. This function supports a probabilistic observation, too."""
+    forecast (event_value column) and observation (reference_value column).
+    This function supports a probabilistic observation, too.
+
+    References
+    ----------
+    Hans Hersbach. Decomposition of the Continuous Ranked Probability Score for Ensemble Prediction Systems
+        in Weather and Forecasting, Volume 15, No. 5, pages 559-570, 2000.
+        https://journals.ametsoc.org/doi/pdf/10.1175/1520-0434%282000%29015%3C0559%3ADOTCRP%3E2.0.CO%3B2
+    """
 
     if len(df.groupby(level=["event_start", "source"])) > 1:
         raise ValueError(
@@ -409,9 +417,9 @@ def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame"
             "BeliefsDataFrame cannot contain multiple events or sources."
         )
 
-    # Split DataFrame into forecast and observation
-    df_forecast = df.dropna(subset=["forecast"])["forecast"]
-    df_observation = df.dropna(subset=["observation"])["observation"]
+    # Split DataFrame into forecast (event_value) and observation (reference_value)
+    df_forecast = df.dropna(subset=["event_value"])["event_value"]
+    df_observation = df.dropna(subset=["reference_value"])["reference_value"]
 
     # Obtain the distributions
     pdf_p_forecast, pdf_v_forecast = get_pdfs_from_beliefsdataframe(df_forecast)
@@ -443,7 +451,7 @@ def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame"
                 ([cdf_p_forecast_i[0]], np.diff(cdf_p_forecast_i))
             )
 
-            # Calculate the continuous ranked profile score for this step (i.e. how well does the forecast descibe this possible outcome for the observation)
+            # Calculate the continuous ranked profile score for this step (i.e. how well does the forecast describe this possible outcome for the observation)
             crpss.append(
                 ps.crps_ensemble(v_observation, cdf_v_forecast_i, pdf_p_forecast_i)
             )
@@ -456,7 +464,7 @@ def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame"
 
     # List the expected observation as the reference for determining percentage scores
     df_score = get_expected_belief(df_observation.to_frame())
-    df_score.index = df_score.index.droplevel("cumulative_probability")
+    df_score = df_score.droplevel("cumulative_probability")
 
     # And of course return the score as well
     df_score["crps"] = crps
@@ -510,6 +518,8 @@ def get_belief_at_cumulative_probability(
 ) -> "classes.BeliefsDataFrame":
     """Take the first value with cumulative probability equal or higher than the probability given.
     This selects the right value assuming a discrete probability distribution."""
+    if not len(df) > 1:
+        return df
     df2 = df[
         df.index.get_level_values("cumulative_probability") >= cumulative_probability
     ]
@@ -523,14 +533,14 @@ def get_belief_at_cumulative_probability(
 
 def get_mean_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
     """Convenience function to select the expected value."""
-    return get_belief_at_cumulative_probability(df, 0.5)
+    return get_belief_at_cumulative_probability(df, 0.5) if len(df) > 1 else df
 
 
 def get_nth_percentile_belief(
     df: "classes.BeliefsDataFrame", n: float
 ) -> "classes.BeliefsDataFrame":
     """Convenience function to select the value at the nth percentile."""
-    return get_belief_at_cumulative_probability(df, n / 100)
+    return get_belief_at_cumulative_probability(df, n / 100) if len(df) > 1 else df
 
 
 get_expected_belief = get_mean_belief  # Define alias

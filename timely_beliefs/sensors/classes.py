@@ -5,7 +5,7 @@ from isodate import duration_isoformat
 from sqlalchemy import Column, Integer, Interval, JSON, String
 from sqlalchemy.ext.hybrid import hybrid_method
 
-from timely_beliefs.base import Base
+from timely_beliefs.db_base import Base
 from timely_beliefs.utils import enforce_utc
 from timely_beliefs.sensors.func_store.knowledge_horizons import constant_timedelta
 from timely_beliefs.sensors.utils import (

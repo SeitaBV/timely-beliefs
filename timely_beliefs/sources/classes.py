@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String
 
-from timely_beliefs.base import Base
+from timely_beliefs.db_base import Base
 
 
 class BeliefSource(object):
@@ -30,6 +30,9 @@ class DBBeliefSource(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(120), nullable=False, default="")
+
+    def __init__(self, name: str):
+        self.name = name
 
     def __repr__(self):
         return "<DBBeliefSource %s (%s)>" % (self.id, self.name)

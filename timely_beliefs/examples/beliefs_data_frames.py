@@ -4,7 +4,7 @@ from pytz import utc
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief
 
 
-def df_example() -> BeliefsDataFrame:
+def sixteen_probabilistic_beliefs() -> BeliefsDataFrame:
     """Nice BeliefsDataFrame to show.
     For a single sensor, it contains 4 events, for each of which 2 beliefs by 2 sources each, described by 2 or 3
     probabilistic values, depending on the source.

@@ -6,6 +6,7 @@ Below, we register customer accessors.
 """
 
 from typing import List
+from datetime import datetime, timedelta
 
 from pandas.api.extensions import register_dataframe_accessor
 
@@ -56,16 +57,42 @@ class BeliefsAccessor(object):
         return len(self.events)
 
     @property
-    def belief_times(self) -> List[int]:
+    def belief_horizons(self) -> List[timedelta]:
+        """Return the unique belief horizons in this BeliefsDataFrame."""
+        if "belief_horizon" in self._obj.index.names:
+            return (
+                self._obj.index.get_level_values(level="belief_horizon")
+                .unique()
+                .to_pytimedelta()
+            )
+        else:
+            return (
+                self._obj.convert_index_from_belief_time_to_horizon()
+                .index.get_level_values(level="belief_horizon")
+                .unique()
+                .to_pytimedelta()
+            )
+
+    @property
+    def number_of_belief_horizons(self):
+        """Return the number of unique belief horizons described in this BeliefsDataFrame."""
+        return len(self.belief_horizons)
+
+    @property
+    def belief_times(self) -> List[datetime]:
         """Return the unique belief times in this BeliefsDataFrame."""
         if "belief_time" in self._obj.index.names:
-            return self._obj.index.get_level_values(level="belief_time").unique().values
+            return (
+                self._obj.index.get_level_values(level="belief_time")
+                .unique()
+                .to_pydatetime()
+            )
         else:
             return (
                 self._obj.convert_index_from_belief_horizon_to_time()
                 .index.get_level_values(level="belief_time")
                 .unique()
-                .values
+                .to_pydatetime()
             )
 
     @property
@@ -94,7 +121,7 @@ class BeliefsAccessor(object):
     def number_of_probabilistic_beliefs(self) -> int:
         """Return the number of beliefs in the BeliefsDataFrame that are probabilistic (more than 1 unique value)."""
         df = self._obj.for_each_belief(df=self._obj).nunique(dropna=True)
-        return len(df[df > 1].dropna())
+        return len(df[df > 1].max(axis=1).dropna())
 
     @property
     def number_of_deterministic_beliefs(self) -> int:

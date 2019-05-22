@@ -1,5 +1,5 @@
 from typing import List, Optional
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pandas as pd
 import numpy as np
@@ -9,8 +9,8 @@ from pandas.core.groupby import DataFrameGroupBy
 from timely_beliefs.beliefs import classes
 from timely_beliefs.beliefs.probabilistic_utils import (
     calculate_crps,
+    get_expected_belief,
     probabilistic_nan_mean,
-    set_truth,
 )
 from timely_beliefs import BeliefSource, Sensor
 from timely_beliefs import utils as tb_utils
@@ -19,37 +19,23 @@ from timely_beliefs import utils as tb_utils
 def select_most_recent_belief(
     df: "classes.BeliefsDataFrame"
 ) -> "classes.BeliefsDataFrame":
-
-    # Remember original index levels
-    indices = df.index.names
-
-    # Convert index levels to columns
-    df = df.reset_index()
-
-    # Drop all but most recent belief
-    if "belief_horizon" in indices:
-        df = (
-            df.sort_values(by=["belief_horizon"], ascending=True)
-            .drop_duplicates(
-                subset=["event_start", "source", "cumulative_probability"], keep="first"
+    """Drop all but most recent belief."""
+    if "belief_horizon" in df.index.names:
+        return df.groupby(level=["event_start", "source"], group_keys=False).apply(
+            lambda x: x.xs(
+                min(x.lineage.belief_horizons), level="belief_horizon", drop_level=False
             )
-            .sort_values(by=["event_start"])
         )
-    elif "belief_time" in indices:
-        df = (
-            df.sort_values(by=["belief_time"], ascending=True)
-            .drop_duplicates(
-                subset=["event_start", "source", "cumulative_probability"], keep="last"
+    elif "belief_time" in df.index.names:
+        return df.groupby(level=["event_start", "source"], group_keys=False).apply(
+            lambda x: x.xs(
+                max(x.lineage.belief_times), level="belief_time", drop_level=False
             )
-            .sort_values(by=["event_start"])
         )
     else:
         raise KeyError(
             "No belief_horizon or belief_time index level found in DataFrame."
         )
-
-    # Convert columns to index levels (only columns that represent index levels)
-    return df.set_index(indices).sort_index()
 
 
 def upsample_event_start(
@@ -327,9 +313,9 @@ def load_time_series(
     sensor: Sensor,
     source: BeliefSource,
     belief_horizon: timedelta,
+    cumulative_probability: float = 0.5,
 ) -> List["classes.TimedBelief"]:
-    """Turn series entries into TimedBelief objects.
-       TODO: enable to add probability data."""
+    """Turn series entries into TimedBelief objects."""
     beliefs = []
     for time, value in event_value_series.iteritems():
         beliefs.append(
@@ -337,18 +323,16 @@ def load_time_series(
                 sensor=sensor,
                 source=source,
                 value=value,
-                event_time=time,
+                event_start=time,
                 belief_horizon=belief_horizon,
+                cumulative_probability=cumulative_probability,
             )
         )
     return beliefs
 
 
 def compute_accuracy_scores(
-    df_forecast: "classes.BeliefsDataFrame",
-    df_observation: "classes.BeliefsDataFrame",
-    reference_source: "classes.BeliefSource" = None,
-    keep_reference_observation: bool = False,
+    df: "classes.BeliefsDataFrame", lite_metrics: bool = False
 ) -> "classes.BeliefsDataFrame":
     """ Compute the following accuracy scores:
     - mean absolute error (mae)
@@ -361,68 +345,90 @@ def compute_accuracy_scores(
     For your convenience, hopefully, we left the column names unchanged.
     For probabilistic reference observations, the CRPS takes into account all possible outcomes.
     However, the MAPE and WAPE use the expected observation (cp=0.5) as their denominator.
-
-    :param keep_reference_observation: Set to True to return the reference observation used to calculate mape and wape as a DataFrame column
-
-    References
-    ----------
-    Hans Hersbach. Decomposition of the Continuous Ranked Probability Score for Ensemble Prediction Systems
-        in Weather and Forecasting, Volume 15, No. 5, pages 559-570, 2000.
-        https://journals.ametsoc.org/doi/pdf/10.1175/1520-0434%282000%29015%3C0559%3ADOTCRP%3E2.0.CO%3B2
     """
 
-    # Check input
-    if not df_forecast.lineage.unique_beliefs_per_event_per_source:
-        raise ValueError(
-            "BeliefsDataFrame slice with forecasts must describe a single belief per source per event."
-        )
-    if not df_observation.lineage.unique_beliefs_per_event_per_source:
-        raise ValueError(
-            "BeliefsDataFrame slice with observations must describe a single belief per source per event."
-        )
-
-    # If applicable, decide which source provides the observations that are considered to be true when we compute scores
-    if reference_source is not None:
-        df_observation = df_observation.groupby(
-            level=["event_start"], group_keys=False
-        ).apply(lambda x: x.groupby(level=["source"]).pipe(set_truth, reference_source))
-
-    # Combine the forecasts and observations into one DataFrame
-    df_forecast.index = df_forecast.index.droplevel(
-        "belief_horizon"
-        if "belief_horizon" in df_forecast.index.names
-        else "belief_time"
-    )
-    df_observation.index = df_observation.index.droplevel(
-        "belief_horizon"
-        if "belief_horizon" in df_observation.index.names
-        else "belief_time"
-    )
-    df_forecast.columns = ["forecast"]
-    df_observation.columns = ["observation"]
-    df = pd.concat([df_forecast, df_observation], axis=1)
+    # Todo: put back checks when BeliefsDataFrame validation works after an index level becomes an attribute
+    # # Check input
+    # if not df_forecast.lineage.unique_beliefs_per_event_per_source:
+    #     raise ValueError(
+    #         "BeliefsDataFrame slice with forecasts must describe a single belief per source per event."
+    #     )
+    # if not df_observation.lineage.unique_beliefs_per_event_per_source:
+    #     raise ValueError(
+    #         "BeliefsDataFrame slice with observations must describe a single belief per source per event."
+    #     )
 
     # Calculate the continuous ranked probability score
     df_scores = df.groupby(level=["event_start", "source"], group_keys=False).apply(
         lambda x: calculate_crps(x)
     )
 
-    # Rename to mae, calculate mape and wape
+    # Rename to mae, and calculate mape and wape if needed
     df_scores = df_scores.rename(
         columns={"crps": "mae"}
     )  # Technically, we have yet to take the mean
-    df_scores["mape"] = (df_scores["mae"] / df_scores["observation"]).replace(
-        [np.inf, -np.inf], np.nan
-    )
+    if lite_metrics is False:
+        df_scores["mape"] = (df_scores["mae"] / df_scores["reference_value"]).replace(
+            [np.inf, -np.inf], np.nan
+        )
     df_scores = df_scores.groupby(level=["source"], group_keys=False).mean()
-    df_scores["wape"] = (df_scores["mae"] / df_scores["observation"]).replace(
-        [np.inf, -np.inf], np.nan
-    )
-
-    # Drop the reference observations by default (only keep the scores)
-    if keep_reference_observation is False:
-        df_scores = df_scores.drop(columns=["observation"])
-    else:
-        df_scores = df_scores.rename(columns={"observation": "reference_value"})
+    if lite_metrics is False:
+        df_scores["wape"] = (df_scores["mae"] / df_scores["reference_value"]).replace(
+            [np.inf, -np.inf], np.nan
+        )
 
     return df_scores
+
+
+def set_reference(
+    df: "classes.BeliefsDataFrame",
+    reference_belief_time: datetime,
+    reference_belief_horizon: timedelta,
+    reference_source: BeliefSource,
+    return_expected_value: bool = False,
+) -> "classes.BeliefsDataFrame":
+
+    # If applicable, decide which horizon or time provides the beliefs to serve as the reference
+    if reference_belief_time is None:
+        if reference_belief_horizon is None:
+            reference_df = select_most_recent_belief(df)
+        else:
+            reference_df = select_most_recent_belief(
+                df[
+                    df.index.get_level_values("belief_horizon")
+                    >= reference_belief_horizon
+                ]
+            )
+    else:
+        if reference_belief_horizon is None:
+            df = df.convert_index_from_belief_horizon_to_time()
+            reference_df = select_most_recent_belief(
+                df[df.index.get_level_values("belief_time") <= reference_belief_time]
+            )
+        else:
+            raise ValueError(
+                "Cannot pass both a reference belief time and a reference belief horizon."
+            )
+
+    # If applicable, decide which source provides the beliefs that serve as the reference
+    if reference_source is not None:
+        reference_df = reference_df.set_event_value_from_source(reference_source)
+
+    # Take the expected value of the beliefs as the reference value
+    if return_expected_value is True:
+        reference_df = reference_df.for_each_belief(get_expected_belief)
+
+    reference_df = reference_df.droplevel(
+        ["event_start", "belief_time", "cumulative_probability"]
+        if return_expected_value is True
+        else ["event_start", "belief_time"]
+    ).rename(columns={"event_value": "reference_value"})
+
+    # Set the reference values for each belief
+    return pd.concat(
+        [reference_df] * df.lineage.number_of_belief_horizons,
+        keys=df.lineage.belief_horizons,
+        names=["belief_horizon", "source"]
+        if return_expected_value is True
+        else ["belief_horizon", "source", "cumulative_probability"],
+    )
