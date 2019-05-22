@@ -8,11 +8,20 @@
 
 The `timely-beliefs` package provides a convenient data model for numerical time series,
 that is both simple enough for humans to understand and sufficiently rich for forecasting and machine learning.
-The data model is an extended [pandas](https://pandas.pydata.org/) DataFrame that contains the origins of data to answer such question as:
+The data model is an extended [pandas](https://pandas.pydata.org/) DataFrame that assigns properties and index levels to describe:
 
-- Who (or what) created the data?
-- When was the data created?
-- How certain were they?
+- [What the data is about](#events-and-sensors)
+- Who (or what) created the data
+- [When the data was created](#beliefs-in-physics)
+- How certain they were
+
+The package contains the following functionality:
+
+- [A model for time series data](#the-data-model) suitable for a notebook or a database mixin
+- [Selecting/querying beliefs](#convenient-slicing-methods), e.g. those held at a certain moment in time
+- [Computing accuracy](#accuracy), e.g. that of probabilistic forecasts
+- [Resampling time series with uncertainty](#resampling) (experimental)
+- [Visualising time series and accuracy metrics](#visualisation) (experimental)
 
 Some use cases of the package:
 
@@ -192,6 +201,8 @@ Our concept of `knowledge_time` supports to define sensors for agreements about 
 
 ### Convenient slicing methods
 
+#### Rolling viewpoint
+
 Select the latest forecasts from a rolling viewpoint (beliefs formed at least 2 days and 10 hours before the event could be known): 
 
     >>> from datetime import timedelta
@@ -211,6 +222,8 @@ Select the latest forecasts from a rolling viewpoint (beliefs formed at least 2 
                                                        1.0000                          300
     2000-01-03 12:00:00+00:00 2 days 11:15:00 Source A 0.1587                          396
                                                        0.5000                          400
+
+#### Fixed viewpoint
 
 Select the latest forecasts from a fixed viewpoint (beliefs formed at least before 2 AM January 1st 2000:
 
@@ -300,19 +313,62 @@ Get the (number of) sources contributing to the BeliefsDataFrame:
 
 ## Accuracy
 
+The accuracy of a belief is defined with respect to some reference.
+The default reference is the most recent belief held by the same source,
+but it is possible to set beliefs held by a specific source at a specific time to serve as the reference instead.
+
+### Accuracy and error metrics
+
+To our knowledge, there is no standard metric for accuracy.
+However, there are some standard metrics for what can be considered to be its opposite: error. 
+By default, we give back the Mean Absolute Error (MAE),
+the Mean Absolute Percentage Error (MAPE)
+and the Weighted Absolute Percentage Error (WAPE).
+Each of these metrics is a representation of how wrong a belief is (believed to be),
+with its convenience depending on use case.
+For example, for intermittent demand time series (i.e. sparse data with lots of zero values) MAPE is not a useful metric.
+For an intuitive representation of accuracy that works in many cases, we suggest to use `df["accuracy"] = 1 - df["wape"]`.
+With this definition:
+
+- 100% accuracy denotes that all values are correct
+- 50% accuracy denotes that, on average, the values are wrong by half of the reference value
+- 0% accuracy denotes that, on average, the values are wrong by exactly the reference value (i.e. zeros or twice the reference value)
+- negative accuracy denotes that, on average, the values are off-the-chart wrong (by more than the reference value itself)
+
+### Probabilistic forecasts
+
+The previous metrics (MAE, MAPE and WAPE) are technically not defined for probabilistic beliefs.
+However, there is a straightforward generalisation of MAE called the Continuous Ranked Probability Score (CRPS), which is used instead.
+The other metrics follow by dividing over the deterministic reference value.
+For simplicity in usage of the `timely-beliefs` package,
+the metrics names in the BeliefsDataFrame are the same regardless of whether the beliefs are deterministic or probabilistic.  
+
+### Probabilistic reference
+
+It is possible that the reference itself is a probabilistic belief rather than a deterministic belief.
+Our implementation of CRPS handles this case, too, by calculating the distance between the cumulative distribution functions of each forecast and reference [(Hans Hersbach, 2000)](https://journals.ametsoc.org/doi/pdf/10.1175/1520-0434%282000%29015%3C0559%3ADOTCRP%3E2.0.CO%3B2).
+As the denominator for calculating MAPE and WAPE, we use the expected value of the probabilistic reference.
+
+### Viewpoints
+
+There are two common use cases for wanting to know the accuracy of beliefs,
+each with a different viewpoint.
+With a rolling viewpoint, you get the accuracy of beliefs at a certain `belief_horizon` before (or after) `knowledge_time`,
+for example, some days before each event ends.
+
     >>> df.rolling_viewpoint_accuracy(timedelta(days=2, hours=9), reference_source=df.lineage.sources[0])
                      mae      mape      wape
     source                                  
     Source A    1.482075  0.014821  0.005928
     Source B  125.853250  0.503413  0.503413
 
+With a fixed viewpoint, you get the accuracy of beliefs held at a certain `belief_time`. 
+
     >>> df.fixed_viewpoint_accuracy(datetime(2000, 1, 2, tzinfo=utc), reference_source=df.lineage.sources[0])
                     mae      mape      wape
     source                                 
     Source A    0.00000  0.000000  0.000000
     Source B  125.85325  0.503413  0.503413
-
-...
 
 ## Visualisation
 
