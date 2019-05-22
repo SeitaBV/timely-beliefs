@@ -363,8 +363,17 @@ class BeliefsDataFrame(pd.DataFrame):
 
     def __finalize__(self, other, method=None, **kwargs):
         """Propagate metadata from other to self."""
-        for name in self._metadata:
-            object.__setattr__(self, name, getattr(other, name, None))
+        # merge operation: using metadata of the left object
+        if method == "merge":
+            for name in self._metadata:
+                object.__setattr__(self, name, getattr(other.left, name, None))
+        # concat operation: using metadata of the first object
+        elif method == "concat":
+            for name in self._metadata:
+                object.__setattr__(self, name, getattr(other.objs[0], name, None))
+        else:
+            for name in self._metadata:
+                object.__setattr__(self, name, getattr(other, name, None))
         return self
 
     def convert_index_from_belief_time_to_horizon(self) -> "BeliefsDataFrame":
