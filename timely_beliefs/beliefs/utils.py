@@ -1,5 +1,5 @@
 from typing import List, Optional
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pandas as pd
 import numpy as np
@@ -9,6 +9,7 @@ from pandas.core.groupby import DataFrameGroupBy
 from timely_beliefs.beliefs import classes
 from timely_beliefs.beliefs.probabilistic_utils import (
     calculate_crps,
+    get_expected_belief,
     probabilistic_nan_mean,
 )
 from timely_beliefs import BeliefSource, Sensor
@@ -377,3 +378,57 @@ def compute_accuracy_scores(
         )
 
     return df_scores
+
+
+def set_reference(
+    df: "classes.BeliefsDataFrame",
+    reference_belief_time: datetime,
+    reference_belief_horizon: timedelta,
+    reference_source: BeliefSource,
+    return_expected_value: bool = False,
+) -> "classes.BeliefsDataFrame":
+
+    # If applicable, decide which horizon or time provides the beliefs to serve as the reference
+    if reference_belief_time is None:
+        if reference_belief_horizon is None:
+            reference_df = select_most_recent_belief(df)
+        else:
+            reference_df = select_most_recent_belief(
+                df[
+                    df.index.get_level_values("belief_horizon")
+                    >= reference_belief_horizon
+                ]
+            )
+    else:
+        if reference_belief_horizon is None:
+            df = df.convert_index_from_belief_horizon_to_time()
+            reference_df = select_most_recent_belief(
+                df[df.index.get_level_values("belief_time") <= reference_belief_time]
+            )
+        else:
+            raise ValueError(
+                "Cannot pass both a reference belief time and a reference belief horizon."
+            )
+
+    # If applicable, decide which source provides the beliefs that serve as the reference
+    if reference_source is not None:
+        reference_df = reference_df.set_event_value_from_source(reference_source)
+
+    # Take the expected value of the beliefs as the reference value
+    if return_expected_value is True:
+        reference_df = reference_df.for_each_belief(get_expected_belief)
+
+    reference_df = reference_df.droplevel(
+        ["event_start", "belief_time", "cumulative_probability"]
+        if return_expected_value is True
+        else ["event_start", "belief_time"]
+    ).rename(columns={"event_value": "reference_value"})
+
+    # Set the reference values for each belief
+    return pd.concat(
+        [reference_df] * df.lineage.number_of_belief_horizons,
+        keys=df.lineage.belief_horizons,
+        names=["belief_horizon", "source"]
+        if return_expected_value is True
+        else ["belief_horizon", "source", "cumulative_probability"],
+    )

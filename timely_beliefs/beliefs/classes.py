@@ -679,6 +679,7 @@ class BeliefsDataFrame(pd.DataFrame):
     def accuracy(
         self,
         t: Union[datetime, timedelta] = None,
+        reference_belief_horizon: timedelta = None,
         reference_source: BeliefSource = None,
         lite_metrics: bool = False,
     ) -> "BeliefsDataFrame":
@@ -696,6 +697,7 @@ class BeliefsDataFrame(pd.DataFrame):
         For more options, use df.fixed_viewpoint_accuracy() or df.rolling_viewpoint_accuracy() instead.
 
         :param t: optional datetime or timedelta for a fixed or rolling viewpoint, respectively
+        :param reference_belief_horizon: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
         :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
         :param lite_metrics: if True, skip calculation of MAPE and WAPE
         """
@@ -703,23 +705,20 @@ class BeliefsDataFrame(pd.DataFrame):
         df = self
         if t is None:
 
-            # Take the most recent belief to provide the reference observations for computing scores
-            reference_df = belief_utils.select_most_recent_belief(df.copy(deep=True))
-
-            # If applicable, decide which source provides the reference observations for computing scores
-            if reference_source is not None:
-                reference_df = reference_df.set_event_value_from_source(
-                    reference_source
+            # Set reference values if needed
+            if (
+                reference_belief_horizon is not None
+                or reference_source is not None
+                or "reference_value" not in df.columns
+            ):
+                df = df.set_reference_values(
+                    reference_belief_horizon=reference_belief_horizon,
+                    reference_source=reference_source,
                 )
 
             return pd.concat(
                 [
-                    df.rolling_viewpoint_accuracy(
-                        h,
-                        reference_source=reference_source,
-                        reference_df=reference_df,
-                        lite_metrics=lite_metrics,
-                    )
+                    df.rolling_viewpoint_accuracy(h, lite_metrics=lite_metrics)
                     for h in df.lineage.belief_horizons
                 ],
                 keys=df.lineage.belief_horizons,
@@ -745,7 +744,6 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_belief_time: datetime = None,
         reference_belief_horizon: timedelta = None,
         reference_source: BeliefSource = None,
-        reference_df: "BeliefsDataFrame" = None,
         lite_metrics: bool = False,
     ) -> "BeliefsDataFrame":
         """Get the accuracy of beliefs about events at a given time.
@@ -753,13 +751,13 @@ class BeliefsDataFrame(pd.DataFrame):
         Alternatively, select the accuracy of beliefs formed within a certain time window. This allows setting a maximum
         acceptable freshness of the data.
 
-        By default the accuracy is determined with respect to the most recent beliefs held by the same source.
-        Optionally, set a reference belief time to determine accuracy with respect to beliefs at a specific time.
-        Alternatively, set a reference belief horizon instead of a reference belief time.
-        Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
+        By default the accuracy is determined with respect to the reference values in the `reference_value` column.
+        This column is created if it does not exist, or if one of the following reference parameters is not None.
+        By default, the reference values are the most recent beliefs held by the same source.
+        - Optionally, set a reference belief time to determine accuracy with respect to beliefs at a specific time.
+        - Alternatively, set a reference belief horizon instead of a reference belief time.
+        - Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
         These options allow to define what is considered to be true at a certain time.
-        Alternatively, the beliefs that serve as the reference can be passed directly as `reference_df`.
-        In this case, `reference_belief_time`/`reference_belief_horizon` and `reference_source` are not used.
 
         By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
@@ -791,51 +789,26 @@ class BeliefsDataFrame(pd.DataFrame):
         :param reference_belief_time: optional datetime to indicate that the accuracy should be determined with respect to the latest belief held at this time
         :param reference_belief_horizon: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
         :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
-        :param reference_df: precomputed BeliefsDataFrame with reference values
         :param lite_metrics: if True, skip calculation of MAPE and WAPE
         :returns: BeliefsDataFrame with columns for mae, mape and wape (and optionally, the reference values), indexed by source only
         """
         df = self
-        forecast_df = df.fixed_viewpoint(belief_time, belief_time_window)
-        if reference_df is None:
 
-            # If applicable, decide which horizon provides the reference observations for computing scores
-            if reference_belief_time is None:
-                if reference_belief_horizon is None:
-                    reference_df = belief_utils.select_most_recent_belief(df)
-                else:
-                    df = df.convert_index_from_belief_time_to_horizon()
-                    reference_df = belief_utils.select_most_recent_belief(
-                        df[
-                            df.index.get_level_values("belief_horizon")
-                            >= reference_belief_horizon
-                        ]
-                    )
-            else:
-                if reference_belief_horizon is None:
-                    df = df.convert_index_from_belief_horizon_to_time()
-                    reference_df = belief_utils.select_most_recent_belief(
-                        df[
-                            df.index.get_level_values("belief_time")
-                            <= reference_belief_time
-                        ]
-                    )
-                else:
-                    raise ValueError(
-                        "Cannot pass both a reference belief time and a reference belief horizon."
-                    )
+        # Set reference values if needed
+        if (
+            reference_belief_time is not None
+            or reference_belief_horizon is not None
+            or reference_source is not None
+            or "reference_value" not in df.columns
+        ):
+            df = df.set_reference_values(
+                reference_belief_time=reference_belief_time,
+                reference_belief_horizon=reference_belief_horizon,
+                reference_source=reference_source,
+            )
 
-            # If applicable, decide which source provides the reference observations for computing scores
-            if reference_source is not None:
-                reference_df = reference_df.set_event_value_from_source(
-                    reference_source
-                )
-
-        # Combine the beliefs and reference into one DataFrame
-        reference_df = reference_df.drop_belief_time_or_horizon_index_level()
-        forecast_df = forecast_df.drop_belief_time_or_horizon_index_level()
-        df = pd.concat([forecast_df, reference_df], axis=1)
-        df.columns = ["event_value", "reference_value"]
+        # Take a fixed viewpoint
+        df = df.fixed_viewpoint(belief_time, belief_time_window)
 
         return belief_utils.compute_accuracy_scores(df, lite_metrics=lite_metrics)
 
@@ -848,7 +821,6 @@ class BeliefsDataFrame(pd.DataFrame):
         ),
         reference_belief_horizon: timedelta = None,
         reference_source: BeliefSource = None,
-        reference_df: "BeliefsDataFrame" = None,
         lite_metrics: bool = False,
     ) -> "BeliefsDataFrame":
         """Get the accuracy of beliefs about events at a given horizon.
@@ -857,12 +829,12 @@ class BeliefsDataFrame(pd.DataFrame):
         knowledge time (with negative horizons indicating post knowledge time).
         This allows setting a maximum acceptable freshness of the data.
 
-        By default the accuracy is determined with respect to the most recent beliefs held by the same source.
-        Optionally, set a reference belief horizon to determine accuracy with respect to beliefs at a specific horizon.
-        Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
+        By default the accuracy is determined with respect to the reference values in the `reference_value` column.
+        This column is created if it does not exist, or if one of the following reference parameters is not None.
+        By default, the reference values are the most recent beliefs held by the same source.
+        - Optionally, set a reference belief horizon to determine accuracy with respect to beliefs at a specific horizon.
+        - Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
         These options allow to define what is considered to be true at a certain time after an event.
-        Alternatively, the beliefs that serve as the reference can be passed directly as `reference_df`.
-        In this case, `reference_belief_horizon` and `reference_source` are not used.
 
         By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
@@ -884,35 +856,23 @@ class BeliefsDataFrame(pd.DataFrame):
         :param belief_horizon_window: optional tuple specifying a horizon window (e.g. between 1 and 2 days before the event value could have been known)
         :param reference_belief_horizon: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
         :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
-        :param reference_df: precomputed BeliefsDataFrame with reference values
         :param lite_metrics: if True, skip calculation of MAPE and WAPE
         """
         df = self
-        df_forecast = df.rolling_viewpoint(belief_horizon, belief_horizon_window)
-        if reference_df is None:
 
-            # If applicable, decide which horizon provides the reference observations for computing scores
-            if reference_belief_horizon is None:
-                reference_df = belief_utils.select_most_recent_belief(df)
-            else:
-                reference_df = belief_utils.select_most_recent_belief(
-                    df[
-                        df.index.get_level_values("belief_horizon")
-                        >= reference_belief_horizon
-                    ]
-                )
+        # Set reference values if needed
+        if (
+            reference_belief_horizon is not None
+            or reference_source is not None
+            or "reference_value" not in df.columns
+        ):
+            df = df.set_reference_values(
+                reference_belief_horizon=reference_belief_horizon,
+                reference_source=reference_source,
+            )
 
-            # If applicable, decide which source provides the reference observations for computing scores
-            if reference_source is not None:
-                reference_df = reference_df.set_event_value_from_source(
-                    reference_source
-                )
-
-        # Combine the beliefs and reference into one DataFrame
-        reference_df = reference_df.drop_belief_time_or_horizon_index_level()
-        df_forecast = df_forecast.drop_belief_time_or_horizon_index_level()
-        df = pd.concat([df_forecast, reference_df], axis=1)
-        df.columns = ["event_value", "reference_value"]
+        # Take a rolling viewpoint
+        df = df.rolling_viewpoint(belief_horizon, belief_horizon_window)
 
         return belief_utils.compute_accuracy_scores(df, lite_metrics=lite_metrics)
 
@@ -952,27 +912,51 @@ class BeliefsDataFrame(pd.DataFrame):
         )
 
     def set_reference_values(
-        self, reference_source: BeliefSource = None
+        self,
+        reference_belief_time: datetime = None,
+        reference_belief_horizon: timedelta = None,
+        reference_source: BeliefSource = None,
+        return_expected_value: bool = False,
     ) -> "BeliefsDataFrame":
+        """Add a column with reference values.
+        By default the reference will be the expected value of the most recent belief held by the same source.
+        Optionally, set a reference belief horizon.
+        Optionally, set a reference source present in the BeliefsDataFrame.
+        These options allow to define what is considered to be true at a certain time after an event.
+        Todo: Option to set probabilistic reference values
+
+        :param reference_belief_time: optional datetime to indicate that the accuracy should be determined with respect to the latest belief held at this time
+        :param reference_belief_horizon: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
+        :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
+        :param return_expected_value: if True, set a deterministic reference by picking the expected value
+        """
 
         df = self
 
-        # Take the most recent belief to serve as the reference
-        reference_df = belief_utils.select_most_recent_belief(df.copy(deep=True))
-
-        # Decide which source provides the beliefs that serve as the reference
-        reference_df = reference_df.set_event_value_from_source(reference_source)
-
-        # Take the expected value of the beliefs as the reference value
-        reference_df = (
-            reference_df.for_each_belief(probabilistic_utils.get_expected_belief)
-            .droplevel(["event_start", "belief_time", "cumulative_probability"])
-            .rename(columns={"event_value": "reference_value"})
+        reference_df = df.groupby(level="event_start").apply(
+            lambda x: belief_utils.set_reference(
+                x,
+                reference_belief_time=reference_belief_time,
+                reference_belief_horizon=reference_belief_horizon,
+                reference_source=reference_source,
+                return_expected_value=return_expected_value,
+            )
         )
 
-        # Set the reference values for each belief
-        return pd.concat(
-            [reference_df] * df.lineage.number_of_belief_horizons,
-            keys=df.lineage.belief_horizons,
-            names=["belief_horizon"],
-        )
+        # Concat to add a column while keeping original cp index level
+        if return_expected_value is True:
+            if "belief_time" in df.index.names:
+                df = df.convert_index_from_belief_time_to_horizon()
+                df = pd.concat(
+                    [df, reference_df.reindex(df.index, method="pad")], axis=1
+                )
+                return df.convert_index_from_belief_horizon_to_time()
+            else:
+                return pd.concat(
+                    [df, reference_df.reindex(df.index, method="pad")], axis=1
+                )
+        if "belief_time" in df.index.names:
+            df = df.convert_index_from_belief_time_to_horizon()
+            df = pd.concat([df, reference_df], axis=1)
+            return df.convert_index_from_belief_horizon_to_time()
+        return pd.concat([df, reference_df], axis=1)

@@ -210,8 +210,14 @@ def prepare_df_for_plotting(
             lambda x: x.accuracy(reference_source=reference_source, lite_metrics=True)
         )
     else:
-        reference_df = df.groupby(level="event_start").apply(
-            lambda x: x.set_reference_values(reference_source=reference_source)
+        reference_df = (
+            df.set_reference_values(
+                reference_source=reference_source, return_expected_value=True
+            )
+            .drop(columns="event_value")
+            .for_each_belief(get_nth_percentile_belief, 50)
+            .convert_index_from_belief_time_to_horizon()
+            .droplevel("cumulative_probability")
         )
     df["belief_horizon"] = df.knowledge_times - df.belief_times
     if df.lineage.percentage_of_probabilistic_beliefs == 0:
