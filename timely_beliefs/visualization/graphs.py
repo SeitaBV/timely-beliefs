@@ -6,7 +6,7 @@ import pandas as pd
 from timely_beliefs.visualization import selectors
 
 
-def base_chart(
+def time_series_base_chart(
     source: Union[pd.DataFrame, str],
     belief_horizon_unit: str,
     intuitive_forecast_horizon: bool,
@@ -55,7 +55,7 @@ def base_chart(
     )
 
 
-def time_series_chart(
+def value_vs_time_chart(
     base: alt.Chart,
     active_fixed_viewpoint_selector: bool,
     sensor_name: str,
@@ -166,7 +166,7 @@ def time_series_chart(
     )
 
 
-def horizon_accuracy_chart(
+def accuracy_vs_horizon_chart(
     base: alt.Chart,
     horizon_selection_brush: alt.Selection,
     belief_horizon_unit: str,
@@ -243,7 +243,7 @@ def horizon_accuracy_chart(
     return ha_interpolation_chart + ha_chart
 
 
-def hour_date_chart(
+def source_vs_hour_chart(
     base: alt.Chart, sensor_unit: str, max_absolute_error: float, faceted: bool = False
 ) -> Union[alt.Chart, alt.FacetChart]:
     hd_chart = (

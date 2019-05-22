@@ -66,7 +66,7 @@ def plot(
     max_absolute_error = plottable_df["mae"].max() if show_accuracy is True else None
 
     # Construct base chart
-    base = graphs.base_chart(
+    base = graphs.time_series_base_chart(
         plottable_df, belief_horizon_unit, intuitive_forecast_horizon
     )
 
@@ -94,7 +94,7 @@ def plot(
         filtered_base = base
 
     # Construct charts
-    ts_chart = graphs.time_series_chart(
+    ts_chart = graphs.value_vs_time_chart(
         filtered_base,
         active_fixed_viewpoint_selector,
         sensor_name,
@@ -106,14 +106,14 @@ def plot(
         event_value_range,
     )
     if show_accuracy is True:
-        ha_chart = graphs.horizon_accuracy_chart(
+        ha_chart = graphs.accuracy_vs_horizon_chart(
             base.properties(width=1300),
             horizon_selection_brush,
             belief_horizon_unit,
             intuitive_forecast_horizon,
             unique_belief_horizons,
         )
-        hd_chart = graphs.hour_date_chart(
+        hd_chart = graphs.source_vs_hour_chart(
             filtered_base.properties(height=290), sensor_unit, max_absolute_error
         )
         return (
