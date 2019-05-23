@@ -9,9 +9,9 @@ python setup.py -q alias -u release egg_info -Db ""
 if [ "$1" = "dev" ]; then
     if [ "$2" != "" ]; then
         dev_number=$2
-        cleandevtag=${dev_number//[0-9]/}  # only numbers
+        cleandevtag=${dev_number//[^0-9]/}  # only numbers
         if [ "$cleandevtag" != "$dev_number" ]; then
-            echo "Only numbers in the dev tag please!"
+            echo "Only numbers in the dev tag please! (leave out x.y.z.dev)"
             exit 2
         fi
         echo "Using $dev_number as dev build number ..."

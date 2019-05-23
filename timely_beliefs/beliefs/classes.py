@@ -5,9 +5,11 @@ import math
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
 from pandas.tseries.frequencies import to_offset
-from sqlalchemy import Column, DateTime, Integer, Interval, Float, ForeignKey
-from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
+from sqlalchemy import Column, DateTime, Integer, Interval, Float, String, ForeignKey
 from sqlalchemy.orm import relationship, backref, Session
+from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
+from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.schema import UniqueConstraint
 import altair as alt
 
 from timely_beliefs.db_base import Base
@@ -75,6 +77,10 @@ class TimedBelief(object):
                 self.sensor.knowledge_time(self.event_start) - belief_time
             )
 
+    def __repr__(self):
+        return "<TimedBelief: at %s, the value of %s is %.2f (by %s with horizon %s)>"\
+                % (self.event_start, self.sensor, self.event_value, self.source, self.belief_horizon)
+
     @hybrid_property
     def event_end(self) -> datetime:
         return self.event_start + self.sensor.event_resolution
@@ -107,7 +113,13 @@ class DBTimedBelief(Base, TimedBelief):
     """Database representation of TimedBelief"""
 
     __tablename__ = "timed_beliefs"
-
+    __table_args__ = (UniqueConstraint('event_start', 'belief_horizon', 'sensor_id', 
+                                       'source_id', name='_one_belief_by_one_source_uc'),
+                     )
+    # type is useful so we can use polymorphic inheritance
+    # (https://docs.sqlalchemy.org/en/13/orm/inheritance.html#single-table-inheritance)
+    type = Column(String(50), nullable=False)
+    
     event_start = Column(DateTime(timezone=True), primary_key=True)
     belief_horizon = Column(Interval(), nullable=False, primary_key=True)
     cumulative_probability = Column(Float, nullable=False, primary_key=True)
@@ -128,6 +140,16 @@ class DBTimedBelief(Base, TimedBelief):
             "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
     )
+
+    @declared_attr
+    def __mapper_args__(cls):
+        if cls.__name__ == 'DBTimedBelief':
+            return {
+                    "polymorphic_on":cls.type,
+                    "polymorphic_identity":"DBTimedBelief"
+            }
+        else:
+            return {"polymorphic_identity":cls.__name__}
 
     def __init__(
         self, sensor: DBSensor, source: DBBeliefSource, value: float, **kwargs

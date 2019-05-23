@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String
+from sqlalchemy.ext.declarative import declared_attr
 
 from timely_beliefs.db_base import Base
 
@@ -28,7 +29,12 @@ class DBBeliefSource(Base):
 
     __tablename__ = "belief_source"
 
+    # two columns for db purposes: id is a row identifier
     id = Column(Integer, primary_key=True)
+    # type is useful so we can use polymorphic inheritance
+    # (https://docs.sqlalchemy.org/en/13/orm/inheritance.html#single-table-inheritance)
+    type = Column(String(50), nullable=False)
+    
     name = Column(String(120), nullable=False, default="")
 
     def __init__(self, name: str):
@@ -43,3 +49,15 @@ class DBBeliefSource(Base):
     def __lt__(self, other):
         """Set a rule for ordering."""
         return self.name < other.name
+
+    @declared_attr
+    def __mapper_args__(cls):
+        if cls.__name__ == 'DBBeliefSource':
+            return {
+                    "polymorphic_on":cls.type,
+                    "polymorphic_identity":"DBBeliefSource"
+            }
+        else:
+            return {"polymorphic_identity":cls.__name__}
+
+

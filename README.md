@@ -4,7 +4,7 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/timely-beliefs.svg)](https://pypi.python.org/pypi/timely-beliefs)
 [![Pypi Version](https://img.shields.io/pypi/v/timely-beliefs.svg)](https://pypi.python.org/pypi/timely-beliefs)
 
-*Model data as beliefs (at a certain time) about events (at a certain time).*
+_Model data as beliefs (at a certain time) about events (at a certain time)._
 
 The `timely-beliefs` package provides a convenient data model for numerical time series,
 that is both simple enough for humans to understand and sufficiently rich for forecasting and machine learning.
@@ -17,9 +17,9 @@ The data model is an extended [pandas](https://pandas.pydata.org/) DataFrame tha
 
 The package contains the following functionality:
 
-- [A model for time series data](#the-data-model) suitable for a notebook or a database mixin
+- [A model for time series data](#the-data-model), suitable for a notebook or a database-backed program (using [sqlalchemy](https://sqlalche.me))
 - [Selecting/querying beliefs](#convenient-slicing-methods), e.g. those held at a certain moment in time
-- [Computing accuracy](#accuracy), e.g. that of probabilistic forecasts
+- [Computing accuracy](#accuracy), e.g. against after-the-fact knowledge, also works with probabilistic forecasts
 - [Resampling time series with uncertainty](#resampling) (experimental)
 - [Visualising time series and accuracy metrics](#visualisation) (experimental)
 
@@ -36,16 +36,20 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
 ![Comparing wind speed forecasting models](timely_beliefs/docs/comparing_wind_speed_forecasting_models.png)
 
 ## Table of contents
+
 1. [The data model](#the-data-model)
-    1. [Keeping track of time](#keeping-track-of-time)
-        1. [Events and sensors](#events-and-sensors)
-        1. [Beliefs in physics](#beliefs-in-physics)
-        1. [Beliefs in economics](#beliefs-in-economics)
-        1. [A common misconception](#a-common-misconception)
-        1. [Special cases](#special-cases)
-    1. [Convenient slicing methods](#convenient-slicing-methods)
-    1. [Resampling](#resampling)
-    1. [Lineage](#lineage)
+   1. [Keeping track of time](#keeping-track-of-time)
+      1. [Events and sensors](#events-and-sensors)
+      1. [Beliefs in physics](#beliefs-in-physics)
+      1. [Beliefs in economics](#beliefs-in-economics)
+      1. [A common misconception](#a-common-misconception)
+      1. [Special cases](#special-cases)
+   1. [Convenient slicing methods](#convenient-slicing-methods)
+   1. [Resampling](#resampling)
+   1. [Lineage](#lineage)
+   1. [Database storage](#database-storage)
+      1. [Table creation and session](#table-creation-and-session)
+      1. [Subclassing](#subclassing)
 1. [Accuracy](#accuracy)
 1. [Visualisation](#visualisation)
 1. [More examples](#more-examples)
@@ -58,7 +62,7 @@ The example BeliefsDataFrame in our examples module demonstrates the basic timel
     >>> df = timely_beliefs.examples.example_df
     >>> df.head(8)
                                                                                          event_value
-    event_start               belief_time               source   cumulative_probability             
+    event_start               belief_time               source   cumulative_probability
     2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 Source A 0.1587                           90
                                                                  0.5000                          100
                                                                  0.8413                          110
@@ -67,6 +71,7 @@ The example BeliefsDataFrame in our examples module demonstrates the basic timel
                               2000-01-01 01:00:00+00:00 Source A 0.1587                           99
                                                                  0.5000                          100
                                                                  0.8413                          101
+
 The first 8 entries of this BeliefsDataFrame show beliefs about a single event.
 Beliefs were formed by two distinct sources (1 and 2), with the first updating its beliefs at a later time.
 Source A first thought the value of this event would be 100 ± 10 (the probabilities suggest a normal distribution),
@@ -76,7 +81,7 @@ Source B thought the value would be equally likely to be 0 or 100.
 - Read more about how the DataFrame is [keeping track of time](#keeping-track-of-time).
 - Discover [convenient slicing methods](#convenient-slicing-methods), e.g. to show a rolling horizon forecast.
 - Serve your data fast by [resampling](#resampling), while taking into account auto-correlation.
-- Track where your data comes from, by following its [lineage](#lineage). 
+- Track where your data comes from, by following its [lineage](#lineage).
 
 ### Keeping track of time
 
@@ -108,7 +113,7 @@ For physical events, the time at which we can say the event could be known (whic
 
     knowledge_time = event_end
 
-The forecast horizon, or `belief_horizon`, says how long before (the event could be known) the belief was formed: 
+The forecast horizon, or `belief_horizon`, says how long before (the event could be known) the belief was formed:
 
     belief_horizon = knowledge_time - belief_time
 
@@ -138,7 +143,7 @@ For example, hourly prices on the day-ahead electricity market are determined at
     knowledge_time = event_start.replace(hour=12) - timedelta(days=1)
 
 Then for an hourly price between 3 and 4 PM on June 10th 2017:
-    
+  
     event_start = datetime(2017, 6, 10, hour=15)
     event_end = datetime(2017, 6, 10, hour=16)
     knowledge_time = datetime(2017, 6, 9, hour=12)
@@ -152,7 +157,7 @@ Continuing this example, a price forecast with a forecast horizon of 1 hour cons
 In general, we have the following relationships:
 
     belief_time + belief_horizon = knowledge_time
-    belief_time + belief_horizon + knowledge_horizon = event_start 
+    belief_time + belief_horizon + knowledge_horizon = event_start
     belief_time + belief_horizon + knowledge_horizon + event_resolution = event_end
 
 #### A common misconception
@@ -175,6 +180,7 @@ Therefore, we use the term `belief_horizon` rather than `forecast_horizon` throu
 #### Special cases
 
 ##### Instantaneous events
+
 Instantaneous events can be modelled by defining a sensor with:
 
     event_resolution = 0
@@ -189,7 +195,7 @@ Beliefs about past events can be modelled using a negative horizon:
 That is, your beliefs can still change after you (think you) know about an event.
 NB in the following case a price has been determined (you could know about it) for a future event:
 
-    knowledge_time < belief_time < event_start 
+    knowledge_time < belief_time < event_start
 
 ##### Ex-post knowledge
 
@@ -203,13 +209,13 @@ Our concept of `knowledge_time` supports to define sensors for agreements about 
 
 #### Rolling viewpoint
 
-Select the latest forecasts from a rolling viewpoint (beliefs formed at least 2 days and 10 hours before the event could be known): 
+Select the latest forecasts from a rolling viewpoint (beliefs formed at least 2 days and 10 hours before the event could be known):
 
     >>> from datetime import timedelta
     >>> df = timely_beliefs.examples.example_df
     >>> df.rolling_viewpoint(timedelta(days=2, hours=10))
                                                                                event_value
-    event_start               belief_horizon  source   cumulative_probability             
+    event_start               belief_horizon  source   cumulative_probability
     2000-01-03 10:00:00+00:00 2 days 10:15:00 Source A 0.1587                          180
                                                        0.5000                          200
                                                        0.8413                          220
@@ -231,7 +237,7 @@ Select the latest forecasts from a fixed viewpoint (beliefs formed at least befo
     >>> from pytz import utc
     >>> df.fixed_viewpoint(datetime(2000, 1, 1, 2, tzinfo=utc)).head(8)
                                                                                          event_value
-    event_start               belief_time               source   cumulative_probability             
+    event_start               belief_time               source   cumulative_probability
     2000-01-03 09:00:00+00:00 2000-01-01 01:00:00+00:00 Source A 0.1587                           99
                                                                  0.5000                          100
                                                                  0.8413                          101
@@ -240,12 +246,12 @@ Select the latest forecasts from a fixed viewpoint (beliefs formed at least befo
     2000-01-03 10:00:00+00:00 2000-01-01 01:00:00+00:00 Source A 0.1587                          198
                                                                  0.5000                          200
                                                                  0.8413                          202
-    
+
 Select a history of beliefs about a single event:
 
     >>> df.belief_history(datetime(2000, 1, 3, 11, tzinfo=utc))
                                                                event_value
-    belief_time               source   cumulative_probability             
+    belief_time               source   cumulative_probability
     2000-01-01 00:00:00+00:00 Source A 0.1587                          270
                                        0.5000                          300
                                        0.8413                          330
@@ -266,7 +272,7 @@ Upsample to events with a resolution of 5 minutes:
     >>> df5m = df.resample_events(timedelta(minutes=5))
     >>> df5m.sort_index(level=["belief_time", "source"]).head(9)
                                                                                          event_value
-    event_start               belief_time               source   cumulative_probability             
+    event_start               belief_time               source   cumulative_probability
     2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 Source A 0.1587                         90.0
                                                                  0.5000                        100.0
                                                                  0.8413                        110.0
@@ -282,7 +288,7 @@ Downsample to events with a resolution of 2 hours:
     >>> df2h = df.resample_events(timedelta(hours=2))
     >>> df2h.sort_index(level=["belief_time", "source"]).head(15)
                                                                                          event_value
-    event_start               belief_time               source   cumulative_probability             
+    event_start               belief_time               source   cumulative_probability
     2000-01-03 09:00:00+00:00 2000-01-01 00:00:00+00:00 Source A 0.158700                       90.0
                                                                  0.500000                      100.0
                                                                  1.000000                      110.0
@@ -311,6 +317,65 @@ Get the (number of) sources contributing to the BeliefsDataFrame:
     >>> df.lineage.number_of_sources
     2
 
+## Database storage
+
+All of the above can be done with `TimedBelief` objects in a `BeliefsDataFrame`. However, if you are dealing with a lot of data and need performance, you'll want to persist your belief data in a database. The timely-beliefs library supports this, as all relevant classes have a subclass which also derives from [sqlalchemy's declarative base](https://docs.sqlalchemy.org/en/13/orm/extensions/declarative/index.html?highlight=declarative).
+
+The timely-beliefs library comes with database-backed classes for the three main components of the data model - `DBTimedBelief`, `DBSensor` and `DBBeliefSource`. Objects from these classes can be used just like their super classes, so for instance `DBTimedBelief` objects can be used for creating a `BeliefDataFrame`.
+
+### Table creation and storage
+
+You can let sqlalchemy create the tables in your database session and start using the DB classes (or subclasses, see below) and program code without much work by yourself. The database session is under your control - where or how you get it, deoends on the context you're working in. Here is an example how to set up a session and also have sqlachemy create the tables:
+
+    from timely_beliefs.db_base import Base as TBBase
+    from sqlalchemy.orm import sessionmaker
+
+    SessionClass = sessionmaker()
+    session = None
+
+    def create_db_and_session():
+        engine = create_engine("your-db-connection-string")
+        SessionClass.configure(bind=engine)
+
+        TBBase.metadata.create_all(engine)
+
+        if session is None:
+            session = SessionClass()
+
+        # maybe add some inital sensors and sources to your session here ...
+
+        return session
+
+Note how we're using timely-belief's sqlalchemy base (we're calling it `TBBase`) to create them. This does not create other tables you might have in your data model.
+
+### Subclassing
+
+`DBTimedBelief`, `DBSensor` and `DBBeliefSource` also can be subclassed, if more attributes are needed. This should be most interesting for sensors and maybe belief sources.
+
+Below is an example, for the case of a db-backed case, where we wanted a sensor to have a location. We added three attributes, `latitude`, `longitude` and `location_name`:
+
+    from timely_beliefs import DBSensor
+    from sqlalchemy import Column, Float, String
+
+    class DBLocatedSensor(DBSensor):
+        """A sensor with a location lat/long and location name"""
+
+        latitude = Column(Float(), nullable=False)
+        longitude = Column(Float(), nullable=False)
+        location_name = Column(String(80), nullable=False)
+
+        def __init__(
+            self,
+            latitude: float = None,
+            longitude: float = None,
+            location_name: str = "",
+            **kwargs,
+        ):
+            self.latitude = latitude
+            self.longitude = longitude
+            self.location_name = location_name
+            DBSensor.__init__(self, **kwargs)
+
 ## Accuracy
 
 The accuracy of a belief is defined with respect to some reference.
@@ -320,7 +385,7 @@ but it is possible to set beliefs held by a specific source at a specific time t
 ### Accuracy and error metrics
 
 To our knowledge, there is no standard metric for accuracy.
-However, there are some standard metrics for what can be considered to be its opposite: error. 
+However, there are some standard metrics for what can be considered to be its opposite: error.
 By default, we give back the Mean Absolute Error (MAE),
 the Mean Absolute Percentage Error (MAPE)
 and the Weighted Absolute Percentage Error (WAPE).
@@ -341,7 +406,7 @@ The previous metrics (MAE, MAPE and WAPE) are technically not defined for probab
 However, there is a straightforward generalisation of MAE called the Continuous Ranked Probability Score (CRPS), which is used instead.
 The other metrics follow by dividing over the deterministic reference value.
 For simplicity in usage of the `timely-beliefs` package,
-the metrics names in the BeliefsDataFrame are the same regardless of whether the beliefs are deterministic or probabilistic.  
+the metrics names in the BeliefsDataFrame are the same regardless of whether the beliefs are deterministic or probabilistic.
 
 ### Probabilistic reference
 
@@ -358,15 +423,15 @@ for example, some days before each event ends.
 
     >>> df.rolling_viewpoint_accuracy(timedelta(days=2, hours=9), reference_source=df.lineage.sources[0])
                      mae      mape      wape
-    source                                  
+    source
     Source A    1.482075  0.014821  0.005928
     Source B  125.853250  0.503413  0.503413
 
-With a fixed viewpoint, you get the accuracy of beliefs held at a certain `belief_time`. 
+With a fixed viewpoint, you get the accuracy of beliefs held at a certain `belief_time`.
 
     >>> df.fixed_viewpoint_accuracy(datetime(2000, 1, 2, tzinfo=utc), reference_source=df.lineage.sources[0])
                     mae      mape      wape
-    source                                 
+    source
     Source A    0.00000  0.000000  0.000000
     Source B  125.85325  0.503413  0.503413
 
@@ -376,6 +441,8 @@ Create interactive charts using Altair and view them in your browser.
 
     >>> chart = df.plot(reference_source=df.lineage.sources[0], show_accuracy=True)
     >>> chart.serve()
+
+This will create the screenhsot at the top of this Readme.
 
 ...
 

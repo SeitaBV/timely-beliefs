@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from isodate import duration_isoformat
 from sqlalchemy import Column, Integer, Interval, JSON, String
 from sqlalchemy.ext.hybrid import hybrid_method
+from sqlalchemy.ext.declarative import declared_attr
 
 from timely_beliefs.db_base import Base
 from timely_beliefs.utils import enforce_utc
@@ -79,7 +80,12 @@ class DBSensor(Base, Sensor):
 
     __tablename__ = "sensor"
 
+    # two columns for db purposes: id is a row identifier
     id = Column(Integer, primary_key=True)
+    # type is useful so we can use polymorphic inheritance
+    # (https://docs.sqlalchemy.org/en/13/orm/inheritance.html#single-table-inheritance)
+    type = Column(String(50), nullable=False)
+
     name = Column(String(120), nullable=False, default="")
     unit = Column(String(80), nullable=False, default="")
     timezone = Column(String(80), nullable=False, default="UTC")
@@ -102,3 +108,13 @@ class DBSensor(Base, Sensor):
 
     def __repr__(self):
         return "<DBSensor: %s (%s)>" % (self.id, self.name)
+
+    @declared_attr
+    def __mapper_args__(cls):
+        if cls.__name__ == 'DBSensor':
+            return {
+                    "polymorphic_on":cls.type,
+                    "polymorphic_identity":"sensor"
+            }
+        else:
+            return {"polymorphic_identity":cls.__name__}
