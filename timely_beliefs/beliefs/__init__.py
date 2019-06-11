@@ -5,7 +5,7 @@
 Below, we register customer accessors.
 """
 
-from typing import List
+from typing import List, Tuple
 from datetime import datetime, timedelta
 
 from pandas.api.extensions import register_dataframe_accessor
@@ -159,3 +159,16 @@ class BeliefsAccessor(object):
           percentile = 99
         """
         return len(self._obj) / float(self.number_of_beliefs)
+
+    @property
+    def epoch(self) -> Tuple[datetime, datetime]:
+        """Return the time span in which all beliefs and events take place."""
+        df = self._obj
+        min_event_start = df.index.get_level_values(level="event_start").min()
+        max_event_start = df.index.get_level_values(level="event_start").max()
+        min_belief_time = df.index.get_level_values(level="belief_time").min()
+        max_belief_time = df.index.get_level_values(level="belief_time").max()
+        return (
+            min(min_event_start, min_belief_time),
+            max(max_event_start, max_belief_time),
+        )
