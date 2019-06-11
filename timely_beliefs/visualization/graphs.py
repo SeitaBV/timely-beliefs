@@ -57,6 +57,7 @@ def time_series_base_chart(
 
 def value_vs_time_chart(
     base: alt.Chart,
+    source: Union[pd.DataFrame, str],
     active_fixed_viewpoint_selector: bool,
     sensor_name: str,
     sensor_unit: str,
@@ -66,6 +67,13 @@ def value_vs_time_chart(
     ci: float,
     event_value_range: Tuple[float, float],
 ) -> alt.LayerChart:
+
+    # Configure a band annotation for the sensor value range
+    band = (
+        alt.Chart(source)
+        .mark_area(opacity=0.1, color="green")
+        .encode(x="datetime:T", y="value_range_min:Q", y2="value_range_max:Q")
+    )
 
     # Configure the stepwise line for the reference
     if interpolate is True:
@@ -161,9 +169,9 @@ def value_vs_time_chart(
         ],
     )
 
-    return (ts_line_reference_chart + ts_line_chart + confidence_interval).properties(
-        title="Model results"
-    )
+    return (
+        band + ts_line_reference_chart + ts_line_chart + confidence_interval
+    ).properties(title="Model results")
 
 
 def accuracy_vs_horizon_chart(

@@ -28,7 +28,7 @@ def plot(
     :param ci: The confidence interval to highlight in the time series graph
     :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
     :param interpolate: If True, the time series chart shows a user-friendly interpolated line rather than more accurate stripes indicating average values
-    :param plottable_df: Optionally, specify as plottable DataFrame directly together with a sensor name, a sensor unit and a y-axis value range for the event values (if None, we create it)
+    :param plottable_df: Optionally, specify as plottable DataFrame directly together with a sensor name, a sensor unit, a y-axis value range for the event values (if None, we create it) and an x-axis time range
     :return: Altair LayerChart
     """
 
@@ -52,6 +52,7 @@ def plot(
         )
         unique_belief_horizons = plottable_df["belief_horizon"].unique()
         event_value_range = (bdf.min()[0], bdf.max()[0])
+        time_range = bdf.lineage.epoch
         plottable_df = plottable_df.groupby(
             ["event_start", "source"], group_keys=False
         ).apply(
@@ -61,6 +62,7 @@ def plot(
         sensor_name = plottable_df[1]
         sensor_unit = plottable_df[2]
         event_value_range = plottable_df[3]
+        time_range = plottable_df[4]
         plottable_df = plottable_df[0]
         unique_belief_horizons = plottable_df["belief_horizon"].unique()
     max_absolute_error = plottable_df["mae"].max() if show_accuracy is True else None
@@ -93,9 +95,18 @@ def plot(
     else:
         filtered_base = base
 
+    value_range_df = pd.DataFrame(
+        data=[
+            [time_range[0], *plottable_df.sensor.value_range],
+            [time_range[1], *plottable_df.sensor.value_range],
+        ],
+        columns=["datetime", "value_range_min", "value_range_max"],
+    )
+
     # Construct charts
     ts_chart = graphs.value_vs_time_chart(
         filtered_base,
+        value_range_df,
         active_fixed_viewpoint_selector,
         sensor_name,
         sensor_unit,
