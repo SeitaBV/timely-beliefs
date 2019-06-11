@@ -2,7 +2,7 @@ from typing import Any, Callable, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
 from isodate import duration_isoformat
-from sqlalchemy import Column, Integer, Interval, JSON, String
+from sqlalchemy import Column, Float, Integer, Interval, JSON, String
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.ext.declarative import declared_attr
 
@@ -26,6 +26,7 @@ class Sensor(object):
     unit: str
     timezone: str
     event_resolution: timedelta
+    value_range: Tuple[float, float]
     knowledge_horizon_fnc: str
     knowledge_horizon_par: dict
 
@@ -35,6 +36,7 @@ class Sensor(object):
         unit: str = "",
         timezone: str = "UTC",
         event_resolution: Optional[timedelta] = None,
+        value_range: Tuple[Optional[float], Optional[float]] = (None, None),
         knowledge_horizon: Optional[
             Union[timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]]
         ] = None,
@@ -45,6 +47,7 @@ class Sensor(object):
         if event_resolution is None:
             event_resolution = timedelta(hours=0)
         self.event_resolution = event_resolution
+        self.value_range = value_range
         if knowledge_horizon is None:
             knowledge_horizon = -event_resolution
         if isinstance(knowledge_horizon, timedelta):
@@ -90,6 +93,8 @@ class DBSensor(Base, Sensor):
     unit = Column(String(80), nullable=False, default="")
     timezone = Column(String(80), nullable=False, default="UTC")
     event_resolution = Column(Interval(), nullable=False, default=timedelta(hours=0))
+    value_range_min = Column(Float(), nullable=True)
+    value_range_max = Column(Float(), nullable=True)
     knowledge_horizon_fnc = Column(String(80), nullable=False)
     knowledge_horizon_par = Column(JSON(), default={}, nullable=False)
 
@@ -99,11 +104,15 @@ class DBSensor(Base, Sensor):
         unit: str = "",
         timezone: str = "UTC",
         event_resolution: Optional[timedelta] = None,
+        value_range: Tuple[Optional[float], Optional[float]] = (None, None),
         knowledge_horizon: Optional[
             Union[timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]]
         ] = None,
     ):
-        Sensor.__init__(self, name, unit, timezone, event_resolution, knowledge_horizon)
+        self.value_range_min, self.value_range_max = value_range
+        Sensor.__init__(
+            self, name, unit, timezone, event_resolution, value_range, knowledge_horizon
+        )
         Base.__init__(self)
 
     def __repr__(self):

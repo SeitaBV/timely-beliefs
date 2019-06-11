@@ -16,7 +16,9 @@ def sixteen_probabilistic_beliefs() -> BeliefsDataFrame:
     n_sources = 2
     true_value = 100
 
-    example_sensor = Sensor(event_resolution=timedelta(minutes=15), name="Sensor 1")
+    example_sensor = Sensor(
+        event_resolution=timedelta(minutes=15), name="Sensor 1", value_range=(150, 350)
+    )
     example_source_a = BeliefSource(name="Source A")
     example_source_b = BeliefSource(name="Source B")
 

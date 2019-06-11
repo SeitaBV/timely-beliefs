@@ -7,6 +7,7 @@ from timely_beliefs import DBSensor
 
 def test_instantaneous_sensor(instantaneous_sensor: DBSensor):
     assert instantaneous_sensor.event_resolution == timedelta()
+    assert instantaneous_sensor.value_range == (None, None)
 
 
 def test_time_slot_sensor(time_slot_sensor: DBSensor):
@@ -19,3 +20,7 @@ def test_time_slot_sensor(time_slot_sensor: DBSensor):
 def test_ex_post_time_slot_sensor(ex_post_time_slot_sensor: DBSensor):
     event_start = datetime(2018, 1, 1, 15, tzinfo=utc)
     assert ex_post_time_slot_sensor.knowledge_time(event_start) < event_start
+
+
+def test_ranged_sensor(instantaneous_ranged_sensor: DBSensor):
+    assert instantaneous_ranged_sensor.value_range == (0, 20)

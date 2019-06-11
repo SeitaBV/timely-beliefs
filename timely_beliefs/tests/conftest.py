@@ -36,6 +36,15 @@ def instantaneous_sensor(db):
 
 
 @pytest.fixture(scope="function", autouse=True)
+def instantaneous_ranged_sensor(db):
+    """Define sensor for instantaneous events."""
+    sensor = DBSensor(name="InstantaneousRangedSensor", value_range=(0, 20))
+    session.add(sensor)
+    session.flush()
+    return sensor
+
+
+@pytest.fixture(scope="function", autouse=True)
 def time_slot_sensor(db):
     """Define sensor for time slot events."""
     sensor = DBSensor(
