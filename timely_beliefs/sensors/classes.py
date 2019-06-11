@@ -111,10 +111,7 @@ class DBSensor(Base, Sensor):
 
     @declared_attr
     def __mapper_args__(cls):
-        if cls.__name__ == 'DBSensor':
-            return {
-                    "polymorphic_on":cls.type,
-                    "polymorphic_identity":"sensor"
-            }
+        if cls.__name__ == "DBSensor":
+            return {"polymorphic_on": cls.type, "polymorphic_identity": "sensor"}
         else:
-            return {"polymorphic_identity":cls.__name__}
+            return {"polymorphic_identity": cls.__name__}

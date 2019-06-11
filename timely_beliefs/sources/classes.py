@@ -34,7 +34,7 @@ class DBBeliefSource(Base):
     # type is useful so we can use polymorphic inheritance
     # (https://docs.sqlalchemy.org/en/13/orm/inheritance.html#single-table-inheritance)
     type = Column(String(50), nullable=False)
-    
+
     name = Column(String(120), nullable=False, default="")
 
     def __init__(self, name: str):
@@ -52,12 +52,10 @@ class DBBeliefSource(Base):
 
     @declared_attr
     def __mapper_args__(cls):
-        if cls.__name__ == 'DBBeliefSource':
+        if cls.__name__ == "DBBeliefSource":
             return {
-                    "polymorphic_on":cls.type,
-                    "polymorphic_identity":"DBBeliefSource"
+                "polymorphic_on": cls.type,
+                "polymorphic_identity": "DBBeliefSource",
             }
         else:
-            return {"polymorphic_identity":cls.__name__}
-
-
+            return {"polymorphic_identity": cls.__name__}
