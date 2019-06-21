@@ -45,12 +45,19 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
       1. [A common misconception](#a-common-misconception)
       1. [Special cases](#special-cases)
    1. [Convenient slicing methods](#convenient-slicing-methods)
+      1. [Rolling viewpoint](#rolling-viewpoint)
+      1. [Fixed viewpoint](#fixed-viewpoint)
+      1. [Belief history](#belief-history)
    1. [Resampling](#resampling)
    1. [Lineage](#lineage)
-   1. [Database storage](#database-storage)
-      1. [Table creation and session](#table-creation-and-session)
-      1. [Subclassing](#subclassing)
+1. [Database storage](#database-storage)
+   1. [Table creation and session](#table-creation-and-session)
+   1. [Subclassing](#subclassing)
 1. [Accuracy](#accuracy)
+   1. [Accuracy and error metrics](#accuracy-and-error-metrics)
+   1. [Probabilistic forecasts](#probabilistic-forecasts)
+   1. [Probabilistic reference](#probabilistic-reference)
+   1. [Viewpoints](#viewpoints)
 1. [Visualisation](#visualisation)
 1. [More examples](#more-examples)
 
@@ -207,12 +214,20 @@ Our concept of `knowledge_time` supports to define sensors for agreements about 
 
 ### Convenient slicing methods
 
+Being an extension of the pandas DataFrame, all of pandas excellent slicing methods are available on the BeliefsDataFrame.
+For example, to select all beliefs about events from 11 AM onwards:
+
+    >>> from datetime import datetime, timedelta
+    >>> from pytz import utc
+    >>> df = timely_beliefs.examples.example_df
+    >>> df[df.index.get_level_values("event_start") >= datetime(2000, 1, 3, 11, tzinfo=utc)]
+
+Besides these, `timely-beliefs` provides custom methods to conveniently slice through time in different ways.
+
 #### Rolling viewpoint
 
 Select the latest forecasts from a rolling viewpoint (beliefs formed at least 2 days and 10 hours before the event could be known):
 
-    >>> from datetime import timedelta
-    >>> df = timely_beliefs.examples.example_df
     >>> df.rolling_viewpoint(timedelta(days=2, hours=10))
                                                                                event_value
     event_start               belief_horizon  source   cumulative_probability
@@ -233,8 +248,6 @@ Select the latest forecasts from a rolling viewpoint (beliefs formed at least 2 
 
 Select the latest forecasts from a fixed viewpoint (beliefs formed at least before 2 AM January 1st 2000:
 
-    >>> from datetime import datetime
-    >>> from pytz import utc
     >>> df.fixed_viewpoint(datetime(2000, 1, 1, 2, tzinfo=utc)).head(8)
                                                                                          event_value
     event_start               belief_time               source   cumulative_probability
@@ -246,6 +259,8 @@ Select the latest forecasts from a fixed viewpoint (beliefs formed at least befo
     2000-01-03 10:00:00+00:00 2000-01-01 01:00:00+00:00 Source A 0.1587                          198
                                                                  0.5000                          200
                                                                  0.8413                          202
+
+#### Belief history
 
 Select a history of beliefs about a single event:
 
@@ -442,7 +457,7 @@ Create interactive charts using Altair and view them in your browser.
     >>> chart = df.plot(reference_source=df.lineage.sources[0], show_accuracy=True)
     >>> chart.serve()
 
-This will create the screenhsot at the top of this Readme.
+This will create the screenshot at the top of this Readme.
 
 ...
 
