@@ -580,7 +580,8 @@ class BeliefsDataFrame(pd.DataFrame):
     def fixed_viewpoint(
         self,
         belief_time: datetime = None,
-        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (
+        belief_time_window: Tuple[Optional[datetime], datetime] = (None, None),
+        event_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
             None,
             None,
         ),
@@ -589,18 +590,24 @@ class BeliefsDataFrame(pd.DataFrame):
         NB: with a fixed viewpoint the horizon increases as you look further ahead.
         Alternatively, select the most recent belief formed within a certain time window. This allows setting a maximum
         freshness of the data.
+        Optionally, set an event horizon window to select a certain window of events into the future or the past.
 
         :Example:
 
-        >>> # Select the latest beliefs formed before June 6th 2018 about each event
-        >>> df.fixed_viewpoint(belief_time=datetime(2018, 6, 6))
+        >>> # Select the most recent beliefs formed before June 6th 2018 about each event
+        >>> df.fixed_viewpoint(belief_time=datetime(2018, 6, 6, tzinfo=utc))
         >>> # Or equivalently:
         >>> df.fixed_viewpoint(belief_time_window=(None, datetime(2018, 6, 6, tzinfo=utc)))
-        >>> # Select the latest beliefs formed from June 1st to June 6th (up to June 6th 0:00 AM)
+        >>> # Select the most recent beliefs formed from June 1st to June 6th (up to June 6th 0:00 AM)
         >>> df.fixed_viewpoint(belief_time_window=(datetime(2018, 6, 1, tzinfo=utc), datetime(2018, 6, 6, tzinfo=utc)))
+        >>> # Select the most recent beliefs formed before June 6th 2018 about past events
+        >>> df.fixed_viewpoint(belief_time=datetime(2018, 6, 6, tzinfo=utc), event_horizon_window=(None, timedelta(hours=0)))
+        >>> # Select the most recent beliefs formed before June 6th 2018 about future events up to 8 hours into the future
+        >>> df.fixed_viewpoint(belief_time=datetime(2018, 6, 6, tzinfo=utc), event_horizon_window=(timedelta(hours=0), timedelta(hours=8)))
 
         :param belief_time: datetime indicating the belief should be formed at least before this time
         :param belief_time_window: optional tuple specifying a time window within which beliefs should have been formed
+        :param event_horizon_window: optional tuple specifying a horizon window to select events before and/or after belief time
         """
         if belief_time is not None:
             if belief_time_window != (None, None):
@@ -608,7 +615,25 @@ class BeliefsDataFrame(pd.DataFrame):
                     "Cannot pass both a belief time and belief time window."
                 )
             belief_time_window = (None, belief_time)
+        elif belief_time_window[1] is None:
+            raise ValueError(
+                "No fixed viewpoint set. Pass a maximum belief time as part of the belief time window, or set a belief time."
+            )
         df = self
+        if event_horizon_window[0] is not None:
+            df = df[
+                df.index.get_level_values(
+                    "event_start"
+                )  # Event should start within horizon window
+                >= tb_utils.enforce_utc(belief_time_window[1]) + event_horizon_window[0]
+            ]
+        if event_horizon_window[1] is not None:
+            df = df[
+                df.index.get_level_values("event_start")
+                + df.event_resolution  # Event should end within horizon window
+                <= tb_utils.enforce_utc(belief_time_window[1]) + event_horizon_window[1]
+            ]
+
         if "belief_time" not in df.index.names:
             df = df.convert_index_from_belief_horizon_to_time()
         if belief_time_window[0] is not None:

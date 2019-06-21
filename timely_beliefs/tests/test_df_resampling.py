@@ -187,6 +187,25 @@ def test_rolling_horizon_probabilistic(df_4323):
     )  # 4 events, 1 belief, 2 sources and 3 probabilistic values
 
 
+def test_fixed_horizon_event_horizon(df_4323):
+    """Test the event horizon window functionality of the fixed horizon method."""
+    df = df_4323
+    df = df.fixed_viewpoint(
+        belief_time=datetime(2000, 1, 3, 10, tzinfo=utc),
+        event_horizon_window=(timedelta(hours=0), timedelta(hours=2)),
+    )
+    assert pd.Timestamp(df.lineage.events[0]) == pd.Timestamp(datetime(2000, 1, 3, 10))
+    assert pd.Timestamp(df.lineage.events[1]) == pd.Timestamp(datetime(2000, 1, 3, 11))
+
+    # Fail gracefully
+    df = df_4323
+    with pytest.raises(ValueError):
+        df.fixed_viewpoint(
+            belief_time_window=(datetime(2000, 1, 3, 10, tzinfo=utc), None),
+            event_horizon_window=(None, timedelta(hours=1)),
+        )
+
+
 def test_percentages_and_accuracy_of_probabilistic_model(df_4323: BeliefsDataFrame):
     df = df_4323
     assert df.lineage.number_of_probabilistic_beliefs == 24
