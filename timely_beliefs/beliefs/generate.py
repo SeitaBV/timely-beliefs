@@ -1,4 +1,3 @@
-import csv
 from os import remove
 import datetime
 import pytz
@@ -10,7 +9,6 @@ from timely_beliefs.beliefs.utils import load_time_series
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 
-### felix code block
 def read_beliefs_from_csv(sensor,csv_in, source, event_resolution: timedelta = None, tz_hour_difference: float = 0, n_events: int = None) -> list:
     beliefs = pd.read_csv(csv_in,
                           index_col=0, parse_dates=[0],
@@ -26,6 +24,10 @@ def read_beliefs_from_csv(sensor,csv_in, source, event_resolution: timedelta = N
 
 def csv_as_belief(csv_in,tz_hour_difference,n_events = None):
     sensor_descriptions = (
+        # ("Solar irradiation", "kW/m²"),
+        # ("Solar power", "kW"),
+        # ("Wind speed", "m/s"),
+        # ("Wind power", "MW"),
         ("Temperature", "°C"),
     )
 
@@ -37,29 +39,25 @@ def csv_as_belief(csv_in,tz_hour_difference,n_events = None):
     for sensor in sensors:
         blfs = read_beliefs_from_csv(sensor,csv_in, source=source_a, tz_hour_difference=tz_hour_difference, n_events=n_events)
         df = tb.BeliefsDataFrame(sensor=sensor, beliefs=blfs).sort_index()
-        #df['2015-05-16 09:14:01+00
     return df
 
-
-### felix code block
 
 def generator(df, beliefSeries, model):
     """
     Generates a new forecast at a given time using a model
 
-    @param csv_in : csv file containing all forecast data
+    @param df : BeliefsDataframe containing all necessary data
     @param current_time : datetime string
     @param model : model to use to generate new data
     """
 
-    #check if model is linear_regression
+    # check if model is linear_regression
     if isinstance(model, LinearRegression):
-        X = np.array([[1], [2], [3], [4]]) # placeholder
+        X = np.array([[1], [2], [3], [4]]) # placeholder, takes one point only
         model.fit(X,X)
         return model.predict(np.array([[beliefSeries[0]]]))[0][0]
-    #error message
-    print("This model functionality has not yet been implemented/ Did you pass the correct model?")
-    return observation
+    # error message
+    raise NotImplementedError("This model functionality has not yet been implemented/ Did you pass the correct model?")
 
 def get_beliefsSeries_from_event_start(df,datetime_object,current_time,value):
     return df.loc[datetime_object.strftime("%m/%d/%Y, %H:%M:%S"),value]
@@ -68,40 +66,42 @@ def get_beliefsSeries_from_event_start_str(datetime_str,current_time):
     return df.loc[(datetime_str,current_time),'event_value']
 
 
-def main(df,current_time,start_time,last_start_time = None,model=LinearRegression(), value = 'event_value',addtocsv = False):
+def main(df, current_time, start_time, last_start_time=None, model=LinearRegression()):
     """
-    This is the main function of the generator, it opens the data works with the timely_beliefs framework
-    and adds results to a timely_beliefs row and/or to the input csvfile
+    Accepts a Beliefs Dataframe df and returns forecasts from start_time to last_start_time in timely beliefs rows
 
-    @param csv_in: csv file containing forecast data
-    @param current_time : datetime string
-    @param start_time: datetime string
+    @param df: Beliefs Dataframe
+    @param current_time : datetime string, generate a forecast from this point
+    @param start_time: datetime string, 
     @param last_start_time: datetime string
     @param model : model to use to generate new data
-    @param addtocsv: boolean
     """
     if last_start_time == None:
         last_start_time = start_time
 
     first_date = df.iloc[0].name[0]
     last_date = df.iloc[-1].name[0]
-    #check if current time is in data frame
+    # check if current time is in data frame
     if current_time < first_date or current_time > last_date :
-        raise SystemExit('Error: your current_time is not in the dataframe')
+        raise ValueError('Your current_time is not in the dataframe \nstart:{}\nend  :{}'.format(first_date, last_date))
+    # check if current time is compatible with the event resolution
+    resolution_minutes = df.sensor.event_resolution.seconds / 60
+    if current_time.minute % (resolution_minutes) != 0:
+        raise ValueError('Your current_time is not compatible with the event resolution of {} minutes'.format(resolution_minutes))
 
-    #get beliefseries from all the times
-    current = get_beliefsSeries_from_event_start(df,current_time,current_time,value)
-    start = get_beliefsSeries_from_event_start(df,start_time,current_time,value)
-    last_start = get_beliefsSeries_from_event_start(df,last_start_time,current_time,value)
 
-    #create list of beliefSeries
+    # get beliefseries from all the times
+    current = get_beliefsSeries_from_event_start(df,current_time,current_time, 'event_value')
+    start = get_beliefsSeries_from_event_start(df,start_time,current_time, 'event_value')
+    last_start = get_beliefsSeries_from_event_start(df,last_start_time,current_time, 'event_value')
+
+    # create list of beliefSeries
     beliefSeries_list = [start.copy()]
     blfs_list = []
     temp_time = start_time
     i = 0
 
-
-    #loop over given time slot
+    # loop over given time slot
     while temp_time <= last_start_time:
         if temp_time > last_date:
             i += 1
@@ -115,35 +115,31 @@ def main(df,current_time,start_time,last_start_time = None,model=LinearRegressio
             )]
         else:
             beliefSeries_list += [get_beliefsSeries_from_event_start(temp_time,current_time).copy()]
-            print(temp_time)
-            print(current_time)
-            print(get_beliefsSeries_from_event_start(temp_time,current_time).copy())
+        
         temp_time += df.sensor.event_resolution
 
     print(beliefSeries_list)
     df_1 = tb.BeliefsDataFrame(sensor=df.sensor, beliefs=blfs_list)
-    #print(load_time_series(test_list[0],sensor=df.sensor,source='test',belief_horizon=timedelta(hours=0), cumulative_probability=0.5))
-    #loops over all time steps
+   
+    # loops over all time steps
     for beliefSeries in beliefSeries_list:
         if beliefSeries.empty == False:
             beliefSeries[0] = generator(df, current, model)
 
-    if addtocsv == True:
-        with open(csv_in, 'w') as csvfile:
-            writer = csv.writer(csvfile, delimiter=',')
-            writer.writerows(datacomp)
-
-    temp = beliefSeries_list[0].to_frame(name=value)
+    temp = beliefSeries_list[0].to_frame(name='event_value')
     for i in range(len(beliefSeries_list)-2):
-        temp = temp.append(beliefSeries_list[i+2].to_frame(name=value))
+        temp = temp.append(beliefSeries_list[i+2].to_frame(name='event_value'))
     df_1 = temp.append(df_1)
 
     return df_1
 
-csv_file = 'energy_data.csv'
+
+# testing
+csv_file = 'temperature-random_forest-0.5.csv'
 df = csv_as_belief(csv_file,-9,92)
-current_time = datetime.datetime(2015, 1, 1, 16,15, tzinfo=pytz.utc)
-start_time = datetime.datetime(2016, 1, 2, 6,15, tzinfo=pytz.utc)
-#last_start_time = datetime.datetime(2015, 3, 2, 8,30, tzinfo=pytz.utc)
-h = main(df,current_time,start_time,addtocsv=False)
-print(h)
+# print(df)
+current_time = datetime.datetime(2015, 3, 1, 15,30, tzinfo=pytz.utc)
+start_time = datetime.datetime(2018, 1, 2, 20,45, tzinfo=pytz.utc)
+last_start_time = datetime.datetime(2018, 1, 3, 16,16, tzinfo=pytz.utc)
+series = main(df,current_time,start_time, last_start_time)
+print(series)
