@@ -391,7 +391,7 @@ The timely-beliefs library comes with database-backed classes for the three main
 
 ### Table creation and storage
 
-You can let sqlalchemy create the tables in your database session and start using the DB classes (or subclasses, see below) and program code without much work by yourself. The database session is under your control - where or how you get it, deoends on the context you're working in. Here is an example how to set up a session and also have sqlachemy create the tables:
+You can let sqlalchemy create the tables in your database session and start using the DB classes (or subclasses, see below) and program code without much work by yourself. The database session is under your control - where or how you get it, depends on the context you're working in. Here is an example how to set up a session and also have sqlachemy create the tables:
 
     from timely_beliefs.db_base import Base as TBBase
     from sqlalchemy.orm import sessionmaker
