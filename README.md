@@ -13,11 +13,11 @@ The data model is an extended [pandas](https://pandas.pydata.org/) DataFrame tha
 - [What the data is about](#events-and-sensors)
 - Who (or what) created the data
 - [When the data was created](#beliefs-in-physics)
-- How certain they were
+- [How certain they were](#keeping-track-of-confidence)
 
 The package contains the following functionality:
 
-- [A model for time series data](#the-data-model), suitable for a notebook or a database-backed program (using [sqlalchemy](https://sqlalche.me))
+- [A model for time series data](#the-data-model), suitable for a notebook or a [database-backed](#database-storage) program (using [sqlalchemy](https://sqlalche.me))
 - [Selecting/querying beliefs](#convenient-slicing-methods), e.g. those held at a certain moment in time
 - [Computing accuracy](#accuracy), e.g. against after-the-fact knowledge, also works with probabilistic forecasts
 - [Resampling time series with uncertainty](#resampling) (experimental)
@@ -44,6 +44,7 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
       1. [Beliefs in economics](#beliefs-in-economics)
       1. [A common misconception](#a-common-misconception)
       1. [Special cases](#special-cases)
+   1. [Keeping track of confidence](#keeping-track-of-confidence)
    1. [Convenient slicing methods](#convenient-slicing-methods)
       1. [Rolling viewpoint](#rolling-viewpoint)
       1. [Fixed viewpoint](#fixed-viewpoint)
@@ -59,11 +60,26 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
    1. [Probabilistic reference](#probabilistic-reference)
    1. [Viewpoints](#viewpoints)
 1. [Visualisation](#visualisation)
+   1. [How to interact with the chart](#how-to-interact-with-the-chart)
+      1. [Select a time window](#select-a-time-window)
+      1. [Select a belief time](#select-a-belief-time)
+      1. [Select a horizon](#select-a-horizon)
+      1. [Switch viewpoints](#switch-viewpoints)
 1. [More examples](#more-examples)
 
 ## The data model
 
-The example BeliefsDataFrame in our examples module demonstrates the basic timely-beliefs data model:
+The BeliefsDataFrame is the basic data model that represents data as probabilistic beliefs about events.
+It is an extended pandas DataFrame with the following index levels:
+
+- `event_start`; keeping track of the time of whatever it is that the data point describes (an event)
+- `belief_time`; keeping track of the time at which the data point was created (a belief)
+- `source`; keeping track of who or what created the data point (a source)
+- `cumulative_probability`; keeping track of the confidence in the data point (a probability)
+
+Together these index levels describe data points as probabilistic beliefs.
+Because of the sparse representation of index levels (a clever default setting in pandas) we get clean-looking data,
+as we show here in a printout of the example BeliefsDataFrame in our examples module:
 
     >>> import timely_beliefs
     >>> df = timely_beliefs.examples.example_df
@@ -80,12 +96,24 @@ The example BeliefsDataFrame in our examples module demonstrates the basic timel
                                                                  0.8413                          101
 
 The first 8 entries of this BeliefsDataFrame show beliefs about a single event.
-Beliefs were formed by two distinct sources (1 and 2), with the first updating its beliefs at a later time.
+Beliefs were formed by two distinct sources (A and B), with the first updating its beliefs at a later time.
 Source A first thought the value of this event would be 100 ± 10 (the probabilities suggest a normal distribution),
 and then increased its accuracy by lowering the standard deviation to 1.
 Source B thought the value would be equally likely to be 0 or 100.
 
+More information about what actually constitutes an event is stored as metadata in the BeliefsDataFrame.
+The sensor property keeps track of invariable information such as the unit of the data and the resolution of events.
+
+    >>> df.sensor
+    <Sensor: Sensor 1>
+
+Currently a BeliefsDataFrame contains data about a single sensor only.
+_For a future release we are considering adding the sensor as another index level,
+to offer out-of-the-box support for aggregating over multiple sensors._
+
+
 - Read more about how the DataFrame is [keeping track of time](#keeping-track-of-time).
+- Read more about how the DataFrame is [keeping track of confidence](#keeping-track-of-confidence).
 - Discover [convenient slicing methods](#convenient-slicing-methods), e.g. to show a rolling horizon forecast.
 - Serve your data fast by [resampling](#resampling), while taking into account auto-correlation.
 - Track where your data comes from, by following its [lineage](#lineage).
@@ -212,6 +240,28 @@ Our concept of `knowledge_time` supports to define sensors for agreements about 
     -resolution < knowledge_horizon < 0  # for ongoing events
     knowledge_horizon < -resolution  # for past events
 
+### Keeping track of confidence
+
+To keep track of the confidence of a data point, timely-beliefs works with probability distributions.
+More specifically, the BeliefsDataFrame contains points of interest on the cumulative distribution function (CDF),
+and leaves it to the user to set an interpolation policy between those points.
+This allows you to describe both discrete possible event values (as a probability mass function) and continuous possible event values (as a probability density function).
+A point of interest on the CDF is described by the `cumulative_probability` index level (ranging between 0 and 1) and the `event_value` column (a possible value).
+
+The default interpolation policy is to interpret the CDF points as discrete possible event values,
+leading to a non-decreasing step function as the CDF.
+In case an event value with a cumulative probability of 1 is missing, the last step is extended to 1 (i.e. the chance of an event value that is greater than largest available event value is taken to be 0).
+
+A deterministic belief consists of a single row in the BeliefsDataFrame.
+Regardless of the cumulative probability actually listed (we take 0.5 by default),
+the default interpolation policy will interpret the single CDF point as an event value stated with 100% certainty. 
+The reason why we choose a default cumulative probability of 0.5 instead of 1 is that, in our experience, sources more commonly intend to report their expected value rather than an event value with absolute confidence.
+
+A probabilistic belief consists of multiple rows in the BeliefsDataFrame,
+with a shared `event_start`, `belief_time` and `source`, but different `cumulative_probability` values.
+_For a future release we are considering adding interpolation policies to interpret the CDF points as describing a normal distribution or a (piecewise) uniform distribution,
+to offer out-of-the-box support for resampling continuous probabilistic beliefs._
+
 ### Convenient slicing methods
 
 Being an extension of the pandas DataFrame, all of pandas excellent slicing methods are available on the BeliefsDataFrame.
@@ -328,7 +378,7 @@ Three possible outcomes for both events led to nine possible worlds, because dow
 Get the (number of) sources contributing to the BeliefsDataFrame:
 
     >>> df.lineage.sources
-    array([1, 2], dtype=int64)
+    array([<BeliefSource Source A>, <BeliefSource Source B>], dtype=object)
     >>> df.lineage.number_of_sources
     2
 
@@ -457,9 +507,33 @@ Create interactive charts using Altair and view them in your browser.
     >>> chart = df.plot(reference_source=df.lineage.sources[0], show_accuracy=True)
     >>> chart.serve()
 
-This will create the screenshot at the top of this Readme.
+This will create an interactive chart like the one in the screenshot at the top of this Readme.
+At this time, we chose to show the (possibly more intuitive) forecast horizon for visualisation,
+rather than our more precise definition of belief horizon. 
 
-...
+### How to interact with the chart
+
+#### Select a time window
+
+Click and drag in `Select time window` to zoom in on a subset of your data.
+You can then drag your selected time window to move through time.
+Reset with a double click.
+
+#### Select a belief time
+
+Travel through time as you select a belief time by clicking in `Model results`.
+Reset with a double click.
+
+#### Select a horizon
+
+Look only at what was believed some duration before each event by clicking in `Select forecasting horizon`.
+Double click to select all horizons.
+
+#### Switch viewpoints
+
+The chart allows you to switch between a fixed and rolling viewpoint as follows:
+- **Fixed viewpoint**: first select all horizons by double clicking in `Select forecasting horizon`, then click anywhere in `Model results` to travel through time.
+- **Rolling viewpoint**: first click somewhere on the far right in `Model results` to look back at the full range of your data, then select a specific horizon by clicking in `Select forecasting horizon`.
 
 ## More examples
 
