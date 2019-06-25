@@ -13,11 +13,11 @@ The data model is an extended [pandas](https://pandas.pydata.org/) DataFrame tha
 - [What the data is about](#events-and-sensors)
 - Who (or what) created the data
 - [When the data was created](#beliefs-in-physics)
-- How certain they were
+- [How certain they were](#keeping-track-of-confidence)
 
 The package contains the following functionality:
 
-- [A model for time series data](#the-data-model), suitable for a notebook or a database-backed program (using [sqlalchemy](https://sqlalche.me))
+- [A model for time series data](#the-data-model), suitable for a notebook or a [database-backed](#database-storage) program (using [sqlalchemy](https://sqlalche.me))
 - [Selecting/querying beliefs](#convenient-slicing-methods), e.g. those held at a certain moment in time
 - [Computing accuracy](#accuracy), e.g. against after-the-fact knowledge, also works with probabilistic forecasts
 - [Resampling time series with uncertainty](#resampling) (experimental)
