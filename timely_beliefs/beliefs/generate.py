@@ -14,7 +14,7 @@ from bokeh.models import ColumnDataSource, FixedTicker, FuncTickFormatter, Linea
 from bokeh.plotting import figure
 import  scipy.stats as stats
 
-#makes a list for ther ich line fucntion as input
+#makes a list for the rich line function as input
 def ridge(category, data, scale=100):
     return list(zip([category] * len(data), scale * data))
 
