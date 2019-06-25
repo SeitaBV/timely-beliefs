@@ -60,6 +60,11 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
    1. [Probabilistic reference](#probabilistic-reference)
    1. [Viewpoints](#viewpoints)
 1. [Visualisation](#visualisation)
+   1. [How to interact with the chart](#how-to-interact-with-the-chart)
+      1. [Select a time window](#select-a-time-window)
+      1. [Select a belief time](#select-a-belief-time)
+      1. [Select a horizon](#select-a-horizon)
+      1. [Switch viewpoints](#switch-viewpoints)
 1. [More examples](#more-examples)
 
 ## The data model
@@ -502,9 +507,33 @@ Create interactive charts using Altair and view them in your browser.
     >>> chart = df.plot(reference_source=df.lineage.sources[0], show_accuracy=True)
     >>> chart.serve()
 
-This will create the screenshot at the top of this Readme.
+This will create an interactive chart like the one in the screenshot at the top of this Readme.
+At this time, we chose to show the (possibly more intuitive) forecast horizon for visualisation,
+rather than our more precise definition of belief horizon. 
 
-...
+### How to interact with the chart
+
+#### Select a time window
+
+Click and drag in `Select time window` to zoom in on a subset of your data.
+You can then drag your selected time window to move through time.
+Reset with a double click.
+
+#### Select a belief time
+
+Travel through time as you select a belief time by clicking in `Model results`.
+Reset with a double click.
+
+#### Select a horizon
+
+Look only at what was believed some duration before each event by clicking in `Select forecasting horizon`.
+Double click to select all horizons.
+
+#### Switch viewpoints
+
+The chart allows you to switch between a fixed and rolling viewpoint as follows:
+- **Fixed viewpoint**: first select all horizons by double clicking in `Select forecasting horizon`, then click anywhere in `Model results` to travel through time.
+- **Rolling viewpoint**: first click somewhere on the far right in `Model results` to look back at the full range of your data, then select a specific horizon by clicking in `Select forecasting horizon`.
 
 ## More examples
 
