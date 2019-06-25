@@ -66,6 +66,7 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
       1. [Select a horizon](#select-a-horizon)
       1. [Switch viewpoints](#switch-viewpoints)
 1. [More examples](#more-examples)
+1. [References](#references)
 
 ## The data model
 
@@ -476,7 +477,7 @@ the metrics names in the BeliefsDataFrame are the same regardless of whether the
 ### Probabilistic reference
 
 It is possible that the reference itself is a probabilistic belief rather than a deterministic belief.
-Our implementation of CRPS handles this case, too, by calculating the distance between the cumulative distribution functions of each forecast and reference [(Hans Hersbach, 2000)](https://journals.ametsoc.org/doi/pdf/10.1175/1520-0434%282000%29015%3C0559%3ADOTCRP%3E2.0.CO%3B2).
+Our implementation of CRPS handles this case, too, by calculating the distance between the cumulative distribution functions of each forecast and reference [(Hans Hersbach, 2000)](#references).
 As the denominator for calculating MAPE and WAPE, we use the expected value of the probabilistic reference.
 
 ### Viewpoints
@@ -502,14 +503,14 @@ With a fixed viewpoint, you get the accuracy of beliefs held at a certain `belie
 
 ## Visualisation
 
-Create interactive charts using Altair and view them in your browser.
+Create interactive charts using [Altair](http://altair-viz.github.io) and view them in your browser.
 
     >>> chart = df.plot(reference_source=df.lineage.sources[0], show_accuracy=True)
     >>> chart.serve()
 
-This will create an interactive chart like the one in the screenshot at the top of this Readme.
+This will create an interactive Vega-Lite chart [(Satyanarayan et al., 2016)](#references) like the one in the screenshot at the top of this Readme.
 At this time, we chose to show the (possibly more intuitive) forecast horizon for visualisation,
-rather than our more precise definition of belief horizon. 
+rather than our more precise definition of belief horizon.
 
 ### How to interact with the chart
 
@@ -538,3 +539,8 @@ The chart allows you to switch between a fixed and rolling viewpoint as follows:
 ## More examples
 
 ...
+
+## References
+
+- Hans Hersbach. [Decomposition of the Continuous Ranked Probability Score for Ensemble Prediction Systems](https://journals.ametsoc.org/doi/pdf/10.1175/1520-0434%282000%29015%3C0559%3ADOTCRP%3E2.0.CO%3B2) in Weather and Forecasting, Volume 15, No. 5, pages 559-570, 2000.
+- Arvind Satyanarayan, Dominik Moritz, Kanit Wongsuphasawat, and Jeffrey Heer. [Vega-Lite: A Grammar of Interactive Graphics](https://idl.cs.washington.edu/files/2017-VegaLite-InfoVis.pdf) in IEEE transactions on visualization and computer graphics, Volume 23, No. 1, pages 341-350, 2016.
