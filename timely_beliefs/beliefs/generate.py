@@ -7,18 +7,18 @@ from timely_beliefs.beliefs.utils import load_time_series
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 
-#for plotting
+# ridgeline function imports
 from bokeh.palettes import viridis
 from bokeh.io import show
 from bokeh.models import ColumnDataSource, FixedTicker, FuncTickFormatter, LinearAxis
 from bokeh.plotting import figure
 import  scipy.stats as stats
 
-#makes a list for the rich line function as input
+# makes a list for the ridgeline function as input
 def ridge(category, data, scale=100):
     return list(zip([category] * len(data), scale * data))
 
-#reading csv as dataframe code:
+### reading csv as dataframe code:
 def read_beliefs_from_csv(sensor,csv_in, source, event_resolution: timedelta = None, tz_hour_difference: float = 0, n_events: int = None) -> list:
     beliefs = pd.read_csv(csv_in,
                           index_col=0, parse_dates=[0],
@@ -33,7 +33,12 @@ def read_beliefs_from_csv(sensor,csv_in, source, event_resolution: timedelta = N
     return blfs
 
 def csv_as_belief(csv_in,tz_hour_difference,n_events = None):
+    # Uncomment desired forecasting data one at a time
     sensor_descriptions = (
+        # ("Solar irradiation", "kW/m²"),
+        # ("Solar power", "kW"),
+        # ("Wind speed", "m/s"),
+        # ("Wind power", "MW"),
         ("Temperature", "°C"),
     )
     # Create source and sensors
@@ -44,7 +49,7 @@ def csv_as_belief(csv_in,tz_hour_difference,n_events = None):
         blfs = read_beliefs_from_csv(sensor,csv_in, source=source_a, tz_hour_difference=tz_hour_difference, n_events=n_events)
         df = tb.BeliefsDataFrame(sensor=sensor, beliefs=blfs).sort_index()
     return df
-#end of reading csv as dataframe code:
+### End of reading csv as dataframe code
 
 def generator(df, beliefSeries, model):
     """
@@ -61,13 +66,13 @@ def generator(df, beliefSeries, model):
     # error message
     raise NotImplementedError("This model functionality has not yet been implemented/ Did you pass the correct model?")
 
-#gets a beliefSeries from a certain BeliefsDataFrames at a certain time.
-#using a datetime object
+# gets a beliefSeries from a certain BeliefsDataFrames at a certain time.
+# using a datetime object
 def get_beliefsSeries_from_event_start(df,datetime_object,current_time,value):
     return df.loc[datetime_object.strftime("%m/%d/%Y, %H:%M:%S"),value]
 
-#gets a beliefSeries from a certain BeliefsDataFrames at a certain time.
-#using a datetime str
+# gets a beliefSeries from a certain BeliefsDataFrames at a certain time.
+# using a datetime str
 def get_beliefsSeries_from_event_start_str(datetime_str,current_time):
     return df.loc[(datetime_str,current_time),'event_value']
 
@@ -80,13 +85,21 @@ def main(df, current_time, start_time, last_start_time=None, model=LinearRegress
     @param last_start_time: datetime object
     @param model : model to use to generate new data
     """
+
     if last_start_time == None:
         last_start_time = start_time
+    # check if times are in chronological order
+    elif start_time > last_start_time:
+        raise ValueError("last_start_time must be set after start_time")
     first_date = df.iloc[0].name[0]
     last_date = df.iloc[-1].name[0]
     # check if current time is in data frame
     if current_time < first_date or current_time > last_date :
-        raise ValueError('Your current_time is not in the dataframe')
+        raise ValueError('Your current_time is not in the dataframe \nstart:{}\nend  :{}'.format(first_date, last_date))
+    # check if current time is compatible with the event resolution
+    resolution_minutes = df.sensor.event_resolution.seconds / 60
+    if current_time.minute % (resolution_minutes) != 0:
+        raise ValueError('Your current_time is not compatible with the event resolution of {} minutes'.format(resolution_minutes))
     # get beliefseries from all the times
     current = get_beliefsSeries_from_event_start(df,current_time,current_time, 'event_value')
     start = get_beliefsSeries_from_event_start(df,start_time,current_time, 'event_value')
@@ -98,7 +111,7 @@ def main(df, current_time, start_time, last_start_time=None, model=LinearRegress
     i = 0
     # loop over given time slot
     while temp_time <= last_start_time:
-        if temp_time > last_date:
+        if temp_time > last_date or temp_time < first_date:
             i += 1
             blfs_list +=  [tb.TimedBelief(
                 source= tb.BeliefSource(name='test'+ str(i)),
@@ -134,11 +147,15 @@ def mean_std_generator(dfnew,df,start,last_start,current_time):
     @param last_start: datetime_object
     @param current_time: datetime_object
     """
+    if start > last_start:
+        raise ValueError("last_start time must be set after start time")
+    if current_time > start:
+        raise ValueError("Forecasts cannot be made for times before current_time")
     temp_time = start
     last_date = df.iloc[-1].name[0]
     diff_list = []
     mean_list = []
-    #loop through range given and calc difference and means
+    # loop through range given and calc difference and means
     while temp_time <= last_start:
         if temp_time < last_date:
             diff_list += [abs(get_beliefsSeries_from_event_start(df,temp_time,current_time,'event_value').copy()[0] -
@@ -147,11 +164,10 @@ def mean_std_generator(dfnew,df,start,last_start,current_time):
         temp_time += df.sensor.event_resolution
     return diff_list,mean_list
 
-#this is from the ridgeline file, so can also be imported etc.
+# this is from the ridgeline file, so can also be imported etc.
 def show_plot(mean, std, start, end, fixedviewpoint=False):
     """
     Creates and shows ridgeline plot
-
     @param mean: list of mean values
     @param std: list of standard deviation values
     @param start: start hours before event-time
@@ -210,6 +226,7 @@ df = csv_as_belief(csv_file,-9,None)
 current_time = datetime.datetime(2015, 1, 1, 16,15, tzinfo=pytz.utc)
 start_time = datetime.datetime(2015, 1, 2, 20,45, tzinfo=pytz.utc)
 last_start_time = datetime.datetime(2015, 1, 5, 0,0, tzinfo=pytz.utc)
-h = main(df,current_time,start_time, last_start_time)
-diff_list,mean_list = mean_std_generator(h,df,start_time,last_start_time,current_time)
+series = main(df,current_time,start_time, last_start_time)
+print(series)
+diff_list,mean_list = mean_std_generator(series,df,start_time,last_start_time,current_time)
 show_plot(mean_list,diff_list,0,len(mean_list))
