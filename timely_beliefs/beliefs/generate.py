@@ -76,7 +76,7 @@ def get_beliefsSeries_from_event_start(df,datetime_object,current_time,value):
 def get_beliefsSeries_from_event_start_str(datetime_str,current_time):
     return df.loc[(datetime_str,current_time),'event_value']
 
-def main(df, current_time, start_time, last_start_time=None, model=LinearRegression()):
+def main(df, current_time, start_time, last_start_time=None, model=LinearRegression(), source=None):
     """
     Accepts a Beliefs Dataframe df and returns forecasts from start_time to last_start_time in timely beliefs rows
     @param df: Beliefs Dataframe
@@ -152,7 +152,11 @@ def mean_std_generator(dfnew,df,start,last_start,current_time):
     if current_time > start:
         raise ValueError("Forecasts cannot be made for times before current_time")
     temp_time = start
+    first_date = df.iloc[0].name[0] 
     last_date = df.iloc[-1].name[0]
+
+    if start < first_date or last_start > last_date:
+        raise ValueError("Current implementation cannot operate with dates outside of data")
     diff_list = []
     mean_list = []
     # loop through range given and calc difference and means
