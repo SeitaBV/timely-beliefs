@@ -14,7 +14,7 @@ import timely_beliefs as tb
 import numpy as np
 import scipy.stats as stats
 
-#code to read in the csv file:
+# code to read in the csv file:
 def read_beliefs_from_csv(sensor, source, cp, event_resolution: timedelta, tz_hour_difference: float = 0) -> list:
     """
     Returns a timely_beliefs DataFrame read from a csv file
@@ -25,13 +25,13 @@ def read_beliefs_from_csv(sensor, source, cp, event_resolution: timedelta, tz_ho
     @param event_resolution : timedelta object, event resolution
     @param tz_hour_difference : float,time difference
     """
-    sensor_descriptions = (("Temperature", "C"),)
+    sensor_descriptions = (("Temperature", "°C"),)
 
     cols = [0, 1]  # Columns with datetime index and observed values
     horizons = list(range(0, 169, 1))
     cols.extend([h + 2 for h in horizons])
     n_horizons = 169
-    n_events = 500
+    n_events = None
     beliefs = pd.read_csv("%s-%s-%s.csv" % (sensor.name.replace(' ', '_').lower(), source.name.replace(' ', '_').lower(), cp),
                           index_col=0, parse_dates=[0], date_parser=lambda col: pd.to_datetime(col, utc=True) - timedelta(hours=tz_hour_difference),
                           nrows=n_events, usecols=cols)
@@ -60,7 +60,7 @@ def make_df(n_events = 100, n_horizons = 169, tz_hour_difference=-9, event_resol
     @param tz_hour_difference: float,time difference
     @param event_resolution: timedelta object,event resolution
     """
-    sensor_descriptions = (("Temperature", "C"),)
+    sensor_descriptions = (("Temperature", "°C"),)
     source = tb.BeliefSource(name="Random forest")
     sensors = (tb.Sensor(name=descr[0], unit=descr[1], event_resolution=event_resolution) for descr in sensor_descriptions)
     blfs=[]
@@ -70,7 +70,7 @@ def make_df(n_events = 100, n_horizons = 169, tz_hour_difference=-9, event_resol
         blfs += read_beliefs_from_csv(sensor, source=source, cp=0.95, event_resolution=event_resolution, tz_hour_difference=tz_hour_difference)
         bdf = tb.BeliefsDataFrame(sensor=sensor, beliefs=blfs).sort_index()
     return bdf
-#end of code to read in csv file
+    # end of code to read in csv file
 
 
 def create_cp_data(df, start, end, start_time, fixedviewpoint):
@@ -89,7 +89,7 @@ def create_cp_data(df, start, end, start_time, fixedviewpoint):
     # check if current time is in data frame
     if start_time < first_date or start_time > last_date :
         raise ValueError('Your start time is not in the dataframe')
-    #get cp for fixed viewpoint or not
+    # get cp for fixed viewpoint or not
     if fixedviewpoint == True:
         df = df[df.index.get_level_values("event_start") >= start_time]
         bdf = df.fixed_viewpoint(start_time)
@@ -102,12 +102,12 @@ def create_cp_data(df, start, end, start_time, fixedviewpoint):
         cp0 = bdf.iloc[0].name[2]
         cp1 = bdf.iloc[1].name[2]
         cp2 = bdf.iloc[2].name[2]
-    #list of cps
+    # list of cps
     cp_list = [cp0, cp1, cp2]
     list_0 = []
     list_1 = []
     list_2 = []
-    #make list for each cp has to include 0.5
+    # make list for each cumulative probability; has to include 0.5
     if 0.5 in cp_list:
         i = 0
         index = cp_list.index(0.5)
@@ -137,10 +137,10 @@ def ridgeline_plot(start_time, df, start=0, end=168, fixedviewpoint = False):
     @param end : end of hours before event time
     @param fixedviewpoint : if true create fixed viewpoint plot
     """
-    #set params
+    # set parameters
     if fixedviewpoint == True:
         start = 0
-    #out of bounds checks
+    # out of bounds checks
     if end < 0 or end > 168:
         raise ValueError("End of the forecast horizon must be between 0 and 168 hours.")
     if start < 0 or start > end:
@@ -149,7 +149,7 @@ def ridgeline_plot(start_time, df, start=0, end=168, fixedviewpoint = False):
     end += 1
     #get cps
     cp_list, pred_temp_05, pred_temp_0, pred_temp_2 = create_cp_data(df,start,end,start_time,fixedviewpoint)
-    #make means and std
+    # make means and standard deviation
     mean = np.array([float(i) for i in pred_temp_05])
     std1 = np.array([(float(pred_temp_0[i])-float(pred_temp_05[i]))/(np.sqrt(2)*erfinv((2*cp_list[0])-1)) for i in range(len(pred_temp_05))])
     std2 = np.array([(float(pred_temp_2[i])-float(pred_temp_05[i]))/(np.sqrt(2)*erfinv((2*cp_list[1])-1)) for i in range(len(pred_temp_05))])
@@ -167,40 +167,40 @@ def show_plot(mean, std, start, end, fixedviewpoint=False):
     @param end: int,end hours before event-time
     @param fixedviewpoint : BOOLEAN, if true create fixed viewpoint plot
     """
-    #amount of lines to draw
+    # amount of lines to draw
     nr_lines = len(mean)
     x = np.linspace(-10, 30, 500)
     frame = pd.DataFrame()
-    #generate points for each line
+    # generate points for each line
     for i in range(nr_lines):
         frame["{}".format(i)] = stats.norm.pdf(x, mean[i], std[i])
     #set color pallete to viridis
     pallete = viridis(nr_lines)
-    #set list reversed or not depending on viewpoint
+    # set list reversed or not depending on viewpoint
     if fixedviewpoint:
         cats = list(frame.keys())
     else:
         cats = list(reversed(frame.keys()))
     source = ColumnDataSource(data=dict(x=x))
-    #creat figure
+    # create figure
     p = figure(y_range=cats, plot_width=900, x_range=(-5, 30), toolbar_location=None)
-    #make a ridge line in the figure
+    # create a ridgeline in the figure
     for i, cat in enumerate(reversed(cats)):
         y = ridge(cat, frame[cat], 50)
         source.add(y, cat)
         p.patch('x', cat, alpha=0.6, color=pallete[i], line_color="black", source=source)
-    #added y axis with the right ticks etc depending on fixedviewpoint
+    # added y axis with the right ticks and lables depending on fixedviewpoint
     if fixedviewpoint:
-        p.yaxis.axis_label = 'Number of hours after event_start'
-        y_ticks = list(np.arange(0, nr_lines, 5))
+        p.yaxis.axis_label = 'Upcoming hours'
+        y_ticks = list(np.arange(0, nr_lines, 6))
         yaxis = LinearAxis(ticker=y_ticks)
-        y_labels = list((np.arange(0, nr_lines, 5)))
+        y_labels = list((np.arange(0, nr_lines, 6)))
     else:
-        p.yaxis.axis_label = 'Number of hours before event_start'
-        y_ticks = list(np.arange(end, 0, -5))
+        p.yaxis.axis_label = 'Previous hours'
+        y_ticks = list(np.arange(0, end, 6))[::-1]
         yaxis = LinearAxis(ticker=y_ticks)
-        y_labels = list(np.arange(start, end, 5))
-    #map ticks on to a dict
+        y_labels = list(np.arange(start, end, 6))
+    # map ticks on to a dict
     mapping_dict = {y_ticks[i]: str(y_labels[i]) for i in range(len(y_labels))}
     for i in range(nr_lines):
         if i not in mapping_dict:
@@ -212,7 +212,7 @@ def show_plot(mean, std, start, end, fixedviewpoint=False):
     p.outline_line_color = None
     p.background_fill_color = "#ffffff"
     p.xaxis.ticker = FixedTicker(ticks=list(range(-20, 101, 10)))
-    p.xaxis.axis_label = 'Temperature (Celcius)'
+    p.xaxis.axis_label = 'Temperature (°C)'
     p.ygrid.grid_line_color = None
     p.xgrid.grid_line_color = "#000000"
     p.xgrid.ticker = p.xaxis[0].ticker
@@ -223,11 +223,11 @@ def show_plot(mean, std, start, end, fixedviewpoint=False):
     p.y_range.range_padding = 0.2 / (nr_lines / 168)
     show(p)
     
-#makes a list for the rich line fucntion as input
+# creates a list for the ridgeline function as input
 def ridge(category, data, scale=100):
     return list(zip([category] * len(data), scale * data))
 
-#tests
+# tests
 df = make_df()
 ridgeline_plot(datetime.datetime(2015, 3, 1, 9, 0, tzinfo=pytz.utc), df, end=150, fixedviewpoint=False)
 ridgeline_plot(datetime.datetime(2015, 3, 1, 9, 0, tzinfo=pytz.utc), df, fixedviewpoint=True)
