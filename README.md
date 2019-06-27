@@ -464,8 +464,8 @@ The function takes a `belief_time`, an `event_start` and an optional `event_end`
       >>> belief_time = datetime.datetime(2015, 1, 1, 16,15, tzinfo=pytz.utc)
       >>> event_start = datetime.datetime(2019, 6, 30, 13,0, tzinfo=pytz.utc)
       >>> event_end = datetime.datetime(2019, 6, 30, 15,15, tzinfo=pytz.utc)
-      >>> series = main(df, belief_time, event_start, event_end)
-      >>> print(series)
+      >>> new_df = main(df, belief_time, event_start, event_end)
+      >>> print(new_df)
                                                                                           event_value
       event_start               belief_time               source cumulative_probability             
       2019-06-30 13:00:00+00:00 2015-01-01 16:15:00+00:00 test1  0.5                          12.975
