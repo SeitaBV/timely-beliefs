@@ -1,5 +1,6 @@
 from typing import List, Optional
 from datetime import datetime, timedelta
+import warnings
 
 import pandas as pd
 import numpy as np
@@ -432,3 +433,28 @@ def set_reference(
         if return_expected_value is True
         else ["belief_horizon", "source", "cumulative_probability"],
     )
+
+
+def read_csv(
+    path: str,
+    sensor: "classes.Sensor",
+    source: "classes.BeliefSource" = None,
+    look_up_sources: List["classes.BeliefSource"] = None,
+) -> "classes.BeliefsDataFrame":
+    df = pd.read_csv(path)
+    if source is not None:
+        df["source"] = source
+    elif "source" in df.columns:
+        if look_up_sources is not None:
+            source_names = df["source"].unique()
+            look_up_source_names = [source.name for source in look_up_sources]
+            for source_name in source_names:
+                source = look_up_sources[look_up_source_names.index(source_name)]
+                df["source"].replace(source_name, source, inplace=True)
+        else:
+            warnings.warn(
+                "Sources are stored in csv file by their name or id. Please specify a list of BeliefSources for looking them up."
+            )
+    else:
+        raise Exception("No source specified in csv, please set a source.")
+    return classes.BeliefsDataFrame(df, sensor=sensor)

@@ -39,6 +39,8 @@ class Sensor(object):
             Union[timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]]
         ] = None,
     ):
+        if name == "":
+            raise Exception("Please give this sensor a name to be identifiable.")
         self.name = name
         self.unit = unit
         self.timezone = timezone

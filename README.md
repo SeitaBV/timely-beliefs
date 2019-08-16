@@ -465,15 +465,14 @@ This will create the screenshot at the top of this Readme.
 Create ridgeline plot showing how the confidence of fluctuating temperature forecasts deteriorates as we look further into the future, or as we look at the beliefs approaching an event.
 An example of the former can be seen below, this can be created by;
 
-    >>> df = make_df()
-    >>> ridgeline_plot(datetime.datetime(2015, 3, 1, 9, 0, tzinfo=pytz.utc), df, fixedviewpoint=True)
+    >>> df = timely_beliefs.examples.temperature_df
+    >>> ridgeline_plot(datetime.datetime(2015, 3, 1, 9, 0, tzinfo=pytz.utc), df, fixed_viewpoint=True)
     
 ![Ridgeline fixed viewpoint](timely_beliefs/docs/fixed_viewpoint_ridgeline.png "Fixed viewpoint")
 
 The latter can be created using;
 
-    >>> df = make_df()
-    >>> ridgeline_plot(datetime.datetime(2015, 3, 1, 9, 0, tzinfo=pytz.utc), df, end=150, fixedviewpoint=False)
+    >>> ridgeline_plot(datetime.datetime(2015, 3, 1, 9, 0, tzinfo=pytz.utc), df, end=150, fixed_viewpoint=False)
     
 ![Ridgeline belief history](timely_beliefs/docs/belief_history_ridgeline.png "Belief history")
 

@@ -1,6 +1,7 @@
 from typing import Any, Callable, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 import math
+import warnings
 
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
@@ -322,17 +323,45 @@ class BeliefsDataFrame(pd.DataFrame):
 
         # Obtain parameters that are specific to our DataFrame subclass
         sensor: Sensor = kwargs.pop("sensor", None)
+        source: BeliefSource = kwargs.pop("source", None)
+        event_start: datetime = kwargs.pop("event_start", None)
+        belief_time: datetime = kwargs.pop("belief_time", None)
+        cumulative_probability: float = kwargs.pop("cumulative_probability", None)
         beliefs: List[TimedBelief] = kwargs.pop("beliefs", None)
-
-        # Use our constructor if initialising from a previous DataFrame (e.g. when slicing), copying the Sensor metadata
-        # TODO: how is the metadata copied here?
-        if beliefs is None:
-            super().__init__(*args, **kwargs)
-            return
 
         # Define our columns and indices
         columns = ["event_value"]
         indices = ["event_start", "belief_time", "source", "cumulative_probability"]
+
+        # Use our constructor if initialising from a previous (Beliefs)DataFrame (e.g. when slicing), copying the Sensor metadata
+        # TODO: how is the metadata copied here?
+        if beliefs is None:
+            super().__init__(*args, **kwargs)
+            if isinstance(args[0], pd.DataFrame):
+
+                # Set (possibly overwrite) each index level to a unique value if set explicitly
+                if source is not None:
+                    self["source"] = source
+                if event_start is not None:
+                    self["event_start"] = tb_utils.enforce_utc(event_start)
+                if belief_time is not None:
+                    self["belief_time"] = tb_utils.enforce_utc(belief_time)
+                if cumulative_probability is not None:
+                    self["cumulative_probability"] = cumulative_probability
+
+                # Check for correct types and convert if possible
+                self["event_start"] = pd.to_datetime(self["event_start"], utc=True)
+                self["belief_time"] = pd.to_datetime(self["belief_time"], utc=True)
+                if any(c != BeliefSource for c in self["source"].map(type)):
+                    warnings.warn(
+                        "DataFrame contains sources of type other than BeliefSource."
+                    )
+
+                # Set index levels and metadata
+                self.set_index(indices, inplace=True)
+                self.sensor = sensor
+                self.event_resolution = sensor.event_resolution
+            return
 
         # Call the pandas DataFrame constructor with the right input
         kwargs["columns"] = columns
