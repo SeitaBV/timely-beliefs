@@ -311,10 +311,11 @@ def ridgeline_plot(
     """
     Creates ridgeline plot
 
-    @param bdf: BeliefsDataFrame
-    @param fixed_viewpoint: boolean, if true create fixed viewpoint plot
-    @param distribution: string, distribution name to use (discrete, normal or uniform)
-    @param event_value_window: optional tuple specifying an event value window for the x-axis (e.g. plot temperatures between -1 and 21 degrees Celsius)
+    :param bdf: BeliefsDataFrame
+    :param fixed_viewpoint: boolean, if true create fixed viewpoint plot
+    :param distribution: string, distribution name to use (discrete, normal or uniform)
+    :param event_value_window: optional tuple specifying an event value window for the x-axis
+           (e.g. plot temperatures between -1 and 21 degrees Celsius)
     """
     df = interpret_and_sample_distribution_long_form(
         bdf, distribution=distribution, event_value_window=event_value_window
