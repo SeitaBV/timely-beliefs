@@ -1009,14 +1009,13 @@ class BeliefsDataFrame(pd.DataFrame):
         distribution: str = "uniform",
         event_value_window: Tuple[float, float] = None,
     ) -> alt.FacetChart:
-        """
-        Creates a ridgeline plot of the latest beliefs held a certain reference time
+        """Create a ridgeline plot of the latest beliefs held at a certain reference time.
 
-        @param reference_time: datetime, reference to determine belief horizons
-        @param df: BeliefsDataFrame
-        @param future_only: if True mask the past
-        @param distribution: string, distribution name to use (discrete, normal or uniform)
-        @param event_value_window: optional tuple specifying an event value window for the x-axis
+        :param reference_time: datetime, reference to determine belief horizons
+        :param df: BeliefsDataFrame
+        :param future_only: if True mask the past
+        :param distribution: string, distribution name to use (discrete, normal or uniform)
+        :param event_value_window: optional tuple specifying an event value window for the x-axis
                (e.g. plot temperatures between -1 and 21 degrees Celsius)
         """
         if df.lineage.number_of_sources > 1:
@@ -1042,14 +1041,13 @@ class BeliefsDataFrame(pd.DataFrame):
         distribution: str = "uniform",
         event_value_window: Tuple[float, float] = None,
     ) -> alt.FacetChart:
-        """
-        Creates a ridgeline plot of the belief history about a specific event
+        """Create a ridgeline plot of the belief history about a specific event.
 
-        @param reference_time: datetime, reference to determine belief horizons
-        @param df: BeliefsDataFrame
-        @param past_only: if True mask the future (i.e. mask any updates of beliefs after knowledge time)
-        @param distribution: string, distribution name to use (discrete, normal or uniform)
-        @param event_value_window: optional tuple specifying an event value window for the x-axis
+        :param event_start: datetime, indicating the start time of the event for which to plot the belief history
+        :param df: BeliefsDataFrame
+        :param past_only: if True mask the future (i.e. mask any updates of beliefs after knowledge time)
+        :param distribution: string, distribution name to use (discrete, normal or uniform)
+        :param event_value_window: optional tuple specifying an event value window for the x-axis
                (e.g. plot temperatures between -1 and 21 degrees Celsius)
         """
         if df.lineage.number_of_sources > 1:
