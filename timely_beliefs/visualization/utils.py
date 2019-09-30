@@ -336,7 +336,12 @@ def ridgeline_plot(
         sensor_unit=bdf.sensor.unit,
     )
     ridgeline_chart = (
-        alt.layer(deterministic_chart, probabilistic_chart, data=df)
+        alt.layer(
+            probabilistic_chart,
+            deterministic_chart,
+            selectors.ridgeline_selector(probability_scale_range, belief_horizon_unit),
+            data=df,
+        )
         .properties(height=step)
         .facet(
             row=alt.Row(

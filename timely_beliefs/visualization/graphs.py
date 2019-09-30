@@ -327,9 +327,7 @@ def probabilistic_chart(
 ):
     return (
         alt.Chart()
-        .mark_area(
-            interpolate="monotone", fillOpacity=0.6, stroke="lightgray", strokeWidth=0.5
-        )
+        .mark_area(interpolate="monotone")
         .encode(
             x=alt.X(
                 "event_value:Q",
@@ -347,6 +345,17 @@ def probabilistic_chart(
                 sort="ascending",
                 legend=None,
                 scale=alt.Scale(scheme="viridis"),
+            ),
+            fillOpacity=alt.condition(
+                selectors.ridgeline_hover_brush, alt.value(1), alt.value(0.6)
+            ),
+            stroke=alt.condition(
+                selectors.ridgeline_hover_brush,
+                alt.value("black"),
+                alt.value("lightgray"),
+            ),
+            strokeWidth=alt.condition(
+                selectors.ridgeline_hover_brush, alt.value(1), alt.value(0.5)
             ),
             tooltip=[
                 alt.Tooltip("event_value:Q", title="Value", format=".2f"),
