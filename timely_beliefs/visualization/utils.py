@@ -353,6 +353,7 @@ def ridgeline_plot(
                     labelAngle=0, labelAlign="right", format="%B"
                 ),  # todo: set conditional labels once labelExpr finds its way from vega-lite to altair,
                 #      so then we can choose to print e.g. 0, 6, 12, 18, 24 hours instead of all of 0 to 24 hours.
+                #      See https://github.com/vega/vega-lite/issues/5310
             )
         )
         .properties(bounds="flush")
