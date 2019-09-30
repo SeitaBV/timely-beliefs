@@ -294,7 +294,8 @@ def resample_event_start(
 
     # Resample to make sure the df slice contains events with the same frequency as the input_resolution
     # (make nan rows if you have to)
-    # Todo: this is only necessary when the resampling policy for the event value needs to take into account nan values within the slice, so move it closer to the join_beliefs() method
+    # Todo: this is only necessary when the resampling policy for the event value needs to take into account nan values within the slice,
+    #  so move it closer to the join_beliefs() method
     # df = df.groupby(
     #     [pd.Grouper(freq=to_offset(output_resolution).freqstr, level="event_start"), "belief_time", "source"]
     # ).pipe(respect_event_resolution, input_resolution)
@@ -318,7 +319,7 @@ def load_time_series(
 ) -> List["classes.TimedBelief"]:
     """Turn series entries into TimedBelief objects."""
     beliefs = []
-    for time, value in event_value_series.iteritems():
+    for time, value in event_value_series.items():
         beliefs.append(
             classes.TimedBelief(
                 sensor=sensor,

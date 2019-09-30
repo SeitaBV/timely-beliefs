@@ -298,3 +298,52 @@ def source_vs_hour_chart(
     return hd_chart.properties(
         title=alt.TitleParams("Model performance given a time of day", anchor="middle")
     )
+
+
+def deterministic_chart(probability_scale_range: Tuple[float, float],):
+    return (
+        alt.Chart()
+        .mark_circle(color="red")
+        .transform_calculate(zero=alt.datum.probability * 0)
+        .encode(
+            x=alt.X(
+                "event_value:Q",
+                aggregate={"argmax": "probability"},
+                bin="binned",
+                scale=alt.Scale(padding=0),
+            ),
+            y=alt.Y(
+                "zero:Q", scale=alt.Scale(range=probability_scale_range), axis=None
+            ),
+        )
+    )
+
+
+def probabilistic_chart(
+    probability_scale_range: Tuple[float, float], sensor_name: str, sensor_unit: str
+):
+    return (
+        alt.Chart()
+        .mark_area(
+            interpolate="monotone", fillOpacity=0.6, stroke="lightgray", strokeWidth=0.5
+        )
+        .encode(
+            x=alt.X(
+                "event_value:Q",
+                bin="binned",
+                scale=alt.Scale(padding=0),
+                title=sensor_name + " (" + sensor_unit + ")",
+            ),
+            y=alt.Y(
+                "probability:Q",
+                scale=alt.Scale(range=probability_scale_range),
+                axis=None,
+            ),
+            fill=alt.Fill(
+                "belief_horizon:N",
+                sort="ascending",
+                legend=None,
+                scale=alt.Scale(scheme="viridis"),
+            ),
+        )
+    )

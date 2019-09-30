@@ -22,11 +22,11 @@ def all_of_type(l: Sequence, element_type) -> bool:
 
 
 def replace_multi_index_level(
-    df: "classes.BeliefsDataFrame",
+    df: "classes.BeliefsDataFrame",  # noqa: F821
     level: str,
     index: pd.Index,
     intersection: bool = False,
-) -> "classes.BeliefsDataFrame":
+) -> "classes.BeliefsDataFrame":  # noqa: F821
     """Replace one of the index levels of the multi-indexed DataFrame. Returns a new DataFrame object.
     :param df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
     :param level: the name of the index level to replace.
