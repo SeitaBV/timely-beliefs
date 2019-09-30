@@ -331,6 +331,7 @@ def ridgeline_plot(
     deterministic_chart = graphs.deterministic_chart(probability_scale_range)
     probabilistic_chart = graphs.probabilistic_chart(
         probability_scale_range,
+        belief_horizon_unit=belief_horizon_unit,
         sensor_name=bdf.sensor.name,
         sensor_unit=bdf.sensor.unit,
     )

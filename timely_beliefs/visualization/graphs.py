@@ -320,7 +320,10 @@ def deterministic_chart(probability_scale_range: Tuple[float, float],):
 
 
 def probabilistic_chart(
-    probability_scale_range: Tuple[float, float], sensor_name: str, sensor_unit: str
+    probability_scale_range: Tuple[float, float],
+    belief_horizon_unit: str,
+    sensor_name: str,
+    sensor_unit: str,
 ):
     return (
         alt.Chart()
@@ -345,5 +348,13 @@ def probabilistic_chart(
                 legend=None,
                 scale=alt.Scale(scheme="viridis"),
             ),
+            tooltip=[
+                alt.Tooltip("event_value:Q", title="Value", format=".2f"),
+                alt.Tooltip("probability:Q", title="Probability", format=".2f"),
+                alt.Tooltip(
+                    "belief_horizon:Q",
+                    title="%s (%s)" % ("Belief horizon", belief_horizon_unit),
+                ),
+            ],
         )
     )
