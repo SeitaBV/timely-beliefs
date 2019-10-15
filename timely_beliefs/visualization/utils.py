@@ -141,7 +141,7 @@ def plot(
 
 def timedelta_to_human_range(s: pd.Series) -> Tuple[pd.Series, str]:
     """Convert a pandas Series of timedeltas to a pandas Series of floats,
-    and extract a time unit that gives a nice human readable range of floats.
+    and derive a time unit (a string such as "years" or "minutes") that gives a nice human readable range of floats.
     For example:
 
     >>> import timely_beliefs as tb
