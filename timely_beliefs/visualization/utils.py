@@ -389,8 +389,10 @@ def interpret_and_sample_distribution_long_form(
     distribution: str = "uniform",
     event_value_window: Tuple[float, float] = None,
 ) -> pd.DataFrame:
-    """Interpret probabilistic beliefs as a continuous or discrete distribution of possible outcomes.
-    Return a DataFrame with a column for each belief containing probabilities of a given outcome (i.e. the index).
+    """Interpret each probabilistic belief as a continuous or discrete distribution of possible outcomes (an openturns distribution),
+    collect a sample of points that is adequate to draw its PDF (using the drawPDF attribute on openturns distributions),
+    and concatenate those points for each belief to return a pandas DataFrame (long form) with the following columns:
+    "event_value", "probability" and "belief_horizon".
     """
     frame = pd.DataFrame()
     for _group_index, df in df.for_each_belief():
