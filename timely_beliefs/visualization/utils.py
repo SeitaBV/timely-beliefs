@@ -21,7 +21,6 @@ def plot(
     ci: float = 0.9,
     intuitive_forecast_horizon: bool = True,
     interpolate: bool = True,
-    plottable_df: Tuple[pd.DataFrame, str, str, Tuple[float, float]] = None,
 ) -> alt.LayerChart:
     """Plot the BeliefsDataFrame with the Altair visualization library.
 
@@ -32,8 +31,6 @@ def plot(
     :param ci: The confidence interval to highlight in the time series graph
     :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
     :param interpolate: If True, the time series chart shows a user-friendly interpolated line rather than more accurate stripes indicating average values
-    :param plottable_df: Optionally, specify as plottable DataFrame directly together with a sensor name,
-                         a sensor unit and a y-axis value range for the event values (if None, we create it)
     :return: Altair LayerChart
     """
 
@@ -42,32 +39,23 @@ def plot(
         raise ValueError("Must set reference source.")
 
     # Set up data source
-    if plottable_df is None:
-        bdf = bdf.copy()
-        sensor_name = bdf.sensor.name
-        sensor_unit = (
-            bdf.sensor.unit if bdf.sensor.unit != "" else "a.u."
-        )  # arbitrary unit
-        plottable_df, belief_horizon_unit = prepare_df_for_plotting(
-            bdf,
-            ci=ci,
-            show_accuracy=show_accuracy,
-            reference_source=reference_source,
-            intuitive_forecast_horizon=intuitive_forecast_horizon,
-        )
-        unique_belief_horizons = plottable_df["belief_horizon"].unique()
-        event_value_range = (bdf.min()[0], bdf.max()[0])
-        plottable_df = plottable_df.groupby(
-            ["event_start", "source"], group_keys=False
-        ).apply(
-            lambda x: align_belief_horizons(x, unique_belief_horizons)
-        )  # Propagate beliefs so that each event has the same set of unique belief horizons
-    else:
-        sensor_name = plottable_df[1]
-        sensor_unit = plottable_df[2]
-        event_value_range = plottable_df[3]
-        plottable_df = plottable_df[0]
-        unique_belief_horizons = plottable_df["belief_horizon"].unique()
+    bdf = bdf.copy()
+    sensor_name = bdf.sensor.name
+    sensor_unit = bdf.sensor.unit if bdf.sensor.unit != "" else "a.u."  # arbitrary unit
+    plottable_df, belief_horizon_unit = prepare_df_for_plotting(
+        bdf,
+        ci=ci,
+        show_accuracy=show_accuracy,
+        reference_source=reference_source,
+        intuitive_forecast_horizon=intuitive_forecast_horizon,
+    )
+    unique_belief_horizons = plottable_df["belief_horizon"].unique()
+    event_value_range = (bdf.min()[0], bdf.max()[0])
+    plottable_df = plottable_df.groupby(
+        ["event_start", "source"], group_keys=False
+    ).apply(
+        lambda x: align_belief_horizons(x, unique_belief_horizons)
+    )  # Propagate beliefs so that each event has the same set of unique belief horizons
     max_absolute_error = plottable_df["mae"].max() if show_accuracy is True else None
 
     # Construct base chart
