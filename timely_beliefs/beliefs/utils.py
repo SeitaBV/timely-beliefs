@@ -442,6 +442,17 @@ def read_csv(
     source: "classes.BeliefSource" = None,
     look_up_sources: List["classes.BeliefSource"] = None,
 ) -> "classes.BeliefsDataFrame":
+    """Utility function to load a BeliefsDataFrame from a csv file (see example/temperature.csv).
+
+    You still need to set the sensor and the source for the BeliefsDataFrame; the csv file only contains their names.
+    In case the csv file contains multiple source names, you can pass a list of sources.
+    Each source name will be replaced by the actual source.
+
+    To write a BeliefsDataFrame to a csv file, just use the pandas way:
+
+    >>> df.to_csv()
+
+    """
     df = pd.read_csv(path)
     if source is not None:
         df["source"] = source
