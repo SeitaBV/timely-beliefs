@@ -393,8 +393,7 @@ def interpret_and_sample_distribution_long_form(
     Return a DataFrame with a column for each belief containing probabilities of a given outcome (i.e. the index).
     """
     frame = pd.DataFrame()
-    gr = df.for_each_belief()
-    for _group_index, df in gr:
+    for _group_index, df in df.for_each_belief():
 
         # Interpret CDF
         dist = interpret_complete_cdf(
