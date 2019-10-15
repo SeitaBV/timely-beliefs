@@ -142,6 +142,37 @@ def plot(
 def timedelta_to_human_range(s: pd.Series) -> Tuple[pd.Series, str]:
     """Convert a pandas Series of timedeltas to a pandas Series of floats,
     and extract a time unit that gives a nice human readable range of floats.
+    For example:
+
+    >>> import timely_beliefs as tb
+    >>> horizons = tb.examples.temperature_df.convert_index_from_belief_time_to_horizon().reset_index()["belief_horizon"].drop_duplicates()
+    >>> horizons  # This is going to look awkward as tick labels
+    <<< 0     0 days 00:00:00
+        1     0 days 01:00:00
+        4     0 days 02:00:00
+        7     0 days 03:00:00
+        10    0 days 04:00:00
+                    ...
+        205   2 days 21:00:00
+        208   2 days 22:00:00
+        211   2 days 23:00:00
+        214   3 days 00:00:00
+        217   3 days 01:00:00
+        Length: 74, dtype: timedelta64[ns]
+    >>> from timely_beliefs.visualization.utils import timedelta_to_human_range
+    >>> timedelta_to_human_range(horizons)  # This is human readable range, though
+    <<< (0       0.0
+        1       1.0
+        4       2.0
+        7       3.0
+        10      4.0
+               ...
+        205    69.0
+        208    70.0
+        211    71.0
+        214    72.0
+        217    73.0
+        Length: 74, dtype: float64, 'hours')
     """
     timedelta_span = max(s) - min(s)
     if timedelta_span >= timedelta(days=4 * 365.2425):
