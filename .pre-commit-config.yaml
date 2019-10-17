@@ -4,8 +4,8 @@ repos:
     hooks:
     - id: flake8
       args: [timely_beliefs]
--   repo: https://github.com/ambv/black
+-   repo: https://github.com/psf/black
     rev: stable
     hooks:
     - id: black
-      language_version: python3.6
+      language_version: python3.7

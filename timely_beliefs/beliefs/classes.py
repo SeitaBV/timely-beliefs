@@ -1,6 +1,7 @@
 from typing import Any, Callable, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 import math
+import warnings
 
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
@@ -156,11 +157,14 @@ class DBTimedBelief(Base, TimedBelief):
     )
 
     @declared_attr
-    def __mapper_args__(cls):
-        if cls.__name__ == "DBTimedBelief":
-            return {"polymorphic_on": cls.type, "polymorphic_identity": "DBTimedBelief"}
+    def __mapper_args__(self):
+        if self.__name__ == "DBTimedBelief":
+            return {
+                "polymorphic_on": self.type,
+                "polymorphic_identity": "DBTimedBelief",
+            }
         else:
-            return {"polymorphic_identity": cls.__name__}
+            return {"polymorphic_identity": self.__name__}
 
     def __init__(
         self, sensor: DBSensor, source: DBBeliefSource, value: float, **kwargs
@@ -322,17 +326,45 @@ class BeliefsDataFrame(pd.DataFrame):
 
         # Obtain parameters that are specific to our DataFrame subclass
         sensor: Sensor = kwargs.pop("sensor", None)
+        source: BeliefSource = kwargs.pop("source", None)
+        event_start: datetime = kwargs.pop("event_start", None)
+        belief_time: datetime = kwargs.pop("belief_time", None)
+        cumulative_probability: float = kwargs.pop("cumulative_probability", None)
         beliefs: List[TimedBelief] = kwargs.pop("beliefs", None)
-
-        # Use our constructor if initialising from a previous DataFrame (e.g. when slicing), copying the Sensor metadata
-        # TODO: how is the metadata copied here?
-        if beliefs is None:
-            super().__init__(*args, **kwargs)
-            return
 
         # Define our columns and indices
         columns = ["event_value"]
         indices = ["event_start", "belief_time", "source", "cumulative_probability"]
+
+        # Use our constructor if initialising from a previous (Beliefs)DataFrame (e.g. when slicing), copying the Sensor metadata
+        # TODO: how is the metadata copied here?
+        if beliefs is None:
+            super().__init__(*args, **kwargs)
+            if isinstance(args[0], pd.DataFrame):
+
+                # Set (possibly overwrite) each index level to a unique value if set explicitly
+                if source is not None:
+                    self["source"] = source
+                if event_start is not None:
+                    self["event_start"] = tb_utils.enforce_utc(event_start)
+                if belief_time is not None:
+                    self["belief_time"] = tb_utils.enforce_utc(belief_time)
+                if cumulative_probability is not None:
+                    self["cumulative_probability"] = cumulative_probability
+
+                # Check for correct types and convert if possible
+                self["event_start"] = pd.to_datetime(self["event_start"], utc=True)
+                self["belief_time"] = pd.to_datetime(self["belief_time"], utc=True)
+                if any(c != BeliefSource for c in self["source"].map(type)):
+                    warnings.warn(
+                        "DataFrame contains sources of type other than BeliefSource."
+                    )
+
+                # Set index levels and metadata
+                self.set_index(indices, inplace=True)
+                self.sensor = sensor
+                self.event_resolution = sensor.event_resolution
+            return
 
         # Call the pandas DataFrame constructor with the right input
         kwargs["columns"] = columns
@@ -530,6 +562,7 @@ class BeliefsDataFrame(pd.DataFrame):
             None,
             None,
         ),
+        keep_event_start: bool = False,
     ) -> "BeliefsDataFrame":
         """Select all beliefs about a single event, identified by the event's start time.
         Optionally select a history of beliefs formed within a certain time window.
@@ -547,7 +580,8 @@ class BeliefsDataFrame(pd.DataFrame):
 
         :param event_start: start time of the event
         :param belief_time_window: optional tuple specifying a time window within which beliefs should have been formed
-        :param belief_horizon_window: optional tuple specifying a horizon window (e.g. between 1 and 2 hours before the event value could have been known)
+        :param belief_horizon_window: optional tuple specifying a horizon window
+               (e.g. between 1 and 2 hours before the event value could have been known)
         """
         df = self.xs(
             tb_utils.enforce_utc(event_start), level="event_start", drop_level=False
@@ -573,7 +607,8 @@ class BeliefsDataFrame(pd.DataFrame):
                     <= belief_horizon_window[1]
                 ]
             df = df.convert_index_from_belief_horizon_to_time()
-        df = df.droplevel("event_start")
+        if not keep_event_start:
+            df = df.droplevel("event_start")
         return df
 
     @hybrid_method
@@ -584,6 +619,7 @@ class BeliefsDataFrame(pd.DataFrame):
             None,
             None,
         ),
+        update_belief_times: bool = False,
     ) -> "BeliefsDataFrame":
         """Select the most recent belief about each event at a given belief time.
         NB: with a fixed viewpoint the horizon increases as you look further ahead.
@@ -601,6 +637,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
         :param belief_time: datetime indicating the belief should be formed at least before this time
         :param belief_time_window: optional tuple specifying a time window within which beliefs should have been formed
+        :param update_belief_times: if True, update the belief time of each belief with the given fixed viewpoint
         """
         if belief_time is not None:
             if belief_time_window != (None, None):
@@ -621,7 +658,15 @@ class BeliefsDataFrame(pd.DataFrame):
                 df.index.get_level_values("belief_time")
                 <= tb_utils.enforce_utc(belief_time_window[1])
             ]
-        return belief_utils.select_most_recent_belief(df)
+        df = belief_utils.select_most_recent_belief(df)
+        if update_belief_times is True:
+            return tb_utils.replace_multi_index_level(
+                df,
+                "belief_time",
+                pd.DatetimeIndex(data=[belief_time_window[1]] * len(df.index)),
+            )
+        else:
+            return df
 
     @hybrid_method
     def rolling_viewpoint(
@@ -650,7 +695,8 @@ class BeliefsDataFrame(pd.DataFrame):
         >>> df.rolling_viewpoint(belief_horizon_window=(timedelta(days=1), timedelta(days=2)))
 
         :param belief_horizon: timedelta indicating the belief should be formed at least this duration before knowledge time
-        :param belief_horizon_window: optional tuple specifying a horizon window (e.g. between 1 and 2 days before the event value could have been known)
+        :param belief_horizon_window: optional tuple specifying a horizon window
+               (e.g. between 1 and 2 days before the event value could have been known)
         """
         if belief_horizon is not None:
             if belief_horizon_window != (None, None):
@@ -730,8 +776,10 @@ class BeliefsDataFrame(pd.DataFrame):
         For more options, use df.fixed_viewpoint_accuracy() or df.rolling_viewpoint_accuracy() instead.
 
         :param t: optional datetime or timedelta for a fixed or rolling viewpoint, respectively
-        :param reference_belief_horizon: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
-        :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
+        :param reference_belief_horizon: optional timedelta to indicate that
+               the accuracy should be determined with respect to the latest belief at this duration past knowledge time
+        :param reference_source: optional BeliefSource to indicate that
+               the accuracy should be determined with respect to the beliefs held by the given source
         :param lite_metrics: if True, skip calculation of MAPE and WAPE
         """
 
@@ -818,10 +866,14 @@ class BeliefsDataFrame(pd.DataFrame):
         <BeliefSource Source B>  125.85325  0.503413  0.503413
 
         :param belief_time: datetime indicating the belief should be formed at this time at the latest
-        :param belief_time_window: optional tuple specifying a time window in which the belief should have been formed (e.g. between June 1st and 2nd)
-        :param reference_belief_time: optional datetime to indicate that the accuracy should be determined with respect to the latest belief held at this time
-        :param reference_belief_horizon: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
-        :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
+        :param belief_time_window: optional tuple specifying a time window in which the belief should have been formed
+               (e.g. between June 1st and 2nd)
+        :param reference_belief_time: optional datetime to indicate that
+               the accuracy should be determined with respect to the latest belief held at this time
+        :param reference_belief_horizon: optional timedelta to indicate that
+               the accuracy should be determined with respect to the latest belief at this duration past knowledge time
+        :param reference_source: optional BeliefSource to indicate that
+               the accuracy should be determined with respect to the beliefs held by the given source
         :param lite_metrics: if True, skip calculation of MAPE and WAPE
         :returns: BeliefsDataFrame with columns for mae, mape and wape (and optionally, the reference values), indexed by source only
         """
@@ -886,9 +938,12 @@ class BeliefsDataFrame(pd.DataFrame):
         >>> df.rolling_viewpoint_accuracy(belief_horizon=timedelta(days=10), reference_source=df.lineage.sources[0])
 
         :param belief_horizon: timedelta indicating the belief should be formed at least this duration before knowledge time
-        :param belief_horizon_window: optional tuple specifying a horizon window (e.g. between 1 and 2 days before the event value could have been known)
-        :param reference_belief_horizon: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
-        :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
+        :param belief_horizon_window: optional tuple specifying a horizon window
+               (e.g. between 1 and 2 days before the event value could have been known)
+        :param reference_belief_horizon: optional timedelta to indicate that
+               the accuracy should be determined with respect to the latest belief at this duration past knowledge time
+        :param reference_source: optional BeliefSource to indicate that
+               the accuracy should be determined with respect to the beliefs held by the given source
         :param lite_metrics: if True, skip calculation of MAPE and WAPE
         """
         df = self
@@ -921,9 +976,11 @@ class BeliefsDataFrame(pd.DataFrame):
 
         :param show_accuracy: Set to False to plot time series data only
         :param active_fixed_viewpoint_selector: If true, fixed viewpoint beliefs can be selected
-        :param reference_source: BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
+        :param reference_source: BeliefSource to indicate that
+               the accuracy should be determined with respect to the beliefs held by the given source
         :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
-        :param interpolate: If True, the time series chart shows a user-friendly interpolated line rather than more accurate stripes indicating average values
+        :param interpolate: If True, the time series chart shows a user-friendly interpolated line
+               rather than more accurate stripes indicating average values
         :returns: Altair chart object with a vega-lite representation (for more information, see reference below).
 
         >>> chart = df.plot(df.lineage.sources[0])
@@ -944,6 +1001,70 @@ class BeliefsDataFrame(pd.DataFrame):
             interpolate=interpolate,
         )
 
+    @staticmethod
+    def plot_ridgeline_fixed_viewpoint(
+        reference_time: datetime,
+        df: "BeliefsDataFrame",
+        future_only: bool = False,
+        distribution: str = "uniform",
+        event_value_window: Tuple[float, float] = None,
+    ) -> alt.FacetChart:
+        """Create a ridgeline plot of the latest beliefs held at a certain reference time.
+
+        :param reference_time: datetime, reference to determine belief horizons
+        :param df: BeliefsDataFrame
+        :param future_only: if True mask the past
+        :param distribution: string, distribution name to use (discrete, normal or uniform)
+        :param event_value_window: optional tuple specifying an event value window for the x-axis
+               (e.g. plot temperatures between -1 and 21 degrees Celsius)
+        """
+        if df.lineage.number_of_sources > 1:
+            raise ValueError(
+                "Cannot create plot beliefs from multiple sources. BeliefsDataFrame must contain beliefs from a single source."
+            )
+
+        if future_only is True:
+            df = df[df.index.get_level_values("event_start") >= reference_time]
+        df = df.fixed_viewpoint(
+            reference_time, update_belief_times=True
+        ).convert_index_from_belief_time_to_horizon()
+
+        return visualization_utils.ridgeline_plot(
+            df, True, distribution, event_value_window
+        )
+
+    @staticmethod
+    def plot_ridgeline_belief_history(
+        event_start: datetime,
+        df: "BeliefsDataFrame",
+        past_only: bool = False,
+        distribution: str = "uniform",
+        event_value_window: Tuple[float, float] = None,
+    ) -> alt.FacetChart:
+        """Create a ridgeline plot of the belief history about a specific event.
+
+        :param event_start: datetime, indicating the start time of the event for which to plot the belief history
+        :param df: BeliefsDataFrame
+        :param past_only: if True mask the future (i.e. mask any updates of beliefs after knowledge time)
+        :param distribution: string, distribution name to use (discrete, normal or uniform)
+        :param event_value_window: optional tuple specifying an event value window for the x-axis
+               (e.g. plot temperatures between -1 and 21 degrees Celsius)
+        """
+        if df.lineage.number_of_sources > 1:
+            raise ValueError(
+                "Cannot create plot beliefs from multiple sources. BeliefsDataFrame must contain beliefs from a single source."
+            )
+
+        df = df.belief_history(
+            event_start=event_start,
+            belief_horizon_window=(timedelta(hours=0) if past_only else None, None),
+            keep_event_start=True,
+        ).convert_index_from_belief_time_to_horizon()
+
+        return visualization_utils.ridgeline_plot(
+            df, False, distribution, event_value_window
+        )
+
     def set_reference_values(
         self,
         reference_belief_time: datetime = None,
@@ -958,9 +1079,12 @@ class BeliefsDataFrame(pd.DataFrame):
         These options allow to define what is considered to be true at a certain time after an event.
         Todo: Option to set probabilistic reference values
 
-        :param reference_belief_time: optional datetime to indicate that the accuracy should be determined with respect to the latest belief held at this time
-        :param reference_belief_horizon: optional timedelta to indicate that the accuracy should be determined with respect to the latest belief at this duration past knowledge time
-        :param reference_source: optional BeliefSource to indicate that the accuracy should be determined with respect to the beliefs held by the given source
+        :param reference_belief_time: optional datetime to indicate that
+               the accuracy should be determined with respect to the latest belief held at this time
+        :param reference_belief_horizon: optional timedelta to indicate that
+               the accuracy should be determined with respect to the latest belief at this duration past knowledge time
+        :param reference_source: optional BeliefSource to indicate that
+               the accuracy should be determined with respect to the beliefs held by the given source
         :param return_expected_value: if True, set a deterministic reference by picking the expected value
         """
 

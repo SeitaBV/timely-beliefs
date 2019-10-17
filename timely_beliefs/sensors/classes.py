@@ -39,6 +39,8 @@ class Sensor(object):
             Union[timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]]
         ] = None,
     ):
+        if name == "":
+            raise Exception("Please give this sensor a name to be identifiable.")
         self.name = name
         self.unit = unit
         self.timezone = timezone
@@ -110,8 +112,8 @@ class DBSensor(Base, Sensor):
         return "<DBSensor: %s (%s)>" % (self.id, self.name)
 
     @declared_attr
-    def __mapper_args__(cls):
-        if cls.__name__ == "DBSensor":
-            return {"polymorphic_on": cls.type, "polymorphic_identity": "sensor"}
+    def __mapper_args__(self):
+        if self.__name__ == "DBSensor":
+            return {"polymorphic_on": self.type, "polymorphic_identity": "sensor"}
         else:
-            return {"polymorphic_identity": cls.__name__}
+            return {"polymorphic_identity": self.__name__}

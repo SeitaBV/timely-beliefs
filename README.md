@@ -3,6 +3,7 @@
 [![Build Status](https://travis-ci.com/SeitaBV/timely-beliefs.svg?branch=master)](https://travis-ci.com/SeitaBV/timely-beliefs)
 [![Python Version](https://img.shields.io/pypi/pyversions/timely-beliefs.svg)](https://pypi.python.org/pypi/timely-beliefs)
 [![Pypi Version](https://img.shields.io/pypi/v/timely-beliefs.svg)](https://pypi.python.org/pypi/timely-beliefs)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 _Model data as beliefs (at a certain time) about events (at a certain time)._
 
@@ -535,6 +536,43 @@ Double click to select all horizons.
 The chart allows you to switch between a fixed and rolling viewpoint as follows:
 - **Fixed viewpoint**: first select all horizons by double clicking in `Select forecasting horizon`, then click anywhere in `Model results` to travel through time.
 - **Rolling viewpoint**: first click somewhere on the far right in `Model results` to look back at the full range of your data, then select a specific horizon by clicking in `Select forecasting horizon`.
+
+### Ridgeline plots
+
+Create ridgeline plots showing how the confidence of beliefs improves as we approach an event (by plotting a belief history),
+or deteriorates as we look further into the future (by taking a fixed viewpoint).
+
+#### Belief history
+
+A ridgeline plot of a belief history (e.g. of temperature forecasts) can be created as follows:
+
+    >>> df = timely_beliefs.examples.temperature_df
+    >>> chart = df.plot_ridgeline_belief_history(
+            datetime(2015, 3, 1, 13, 0, tzinfo=pytz.utc),
+            df,
+            past_only=True,
+            distribution="normal",
+            event_value_window=(0, 22),
+        )
+    >>> chart.serve()
+
+![Ridgeline fixed viewpoint](timely_beliefs/docs/fixed_viewpoint_ridgeline.png "Fixed viewpoint")
+
+#### Fixed viewpoint
+
+A ridgeline plot of beliefs (e.g. temperature forecasts) with a fixed viewpoint can be created as follows:
+
+    >>> df = timely_beliefs.examples.temperature_df
+    >>> chart = df.plot_ridgeline_fixed_viewpoint(
+            datetime(2015, 3, 1, 13, 0, tzinfo=pytz.utc),
+            df,
+            future_only=True,
+            distribution="normal",
+            event_value_window=(-1, 16),
+        )
+    >>> chart.serve()
+    
+![Ridgeline belief history](timely_beliefs/docs/belief_history_ridgeline.png "Belief history")
 
 ## More examples
 

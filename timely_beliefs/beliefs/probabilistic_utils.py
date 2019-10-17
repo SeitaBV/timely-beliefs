@@ -28,7 +28,7 @@ def interpret_complete_cdf(
     Supported openturns distributions are the following:
     - discrete: all residual probability is attributed to the highest given value
     - normal or gaussian: derived from the first two point only
-    - uniform: derived from the first and last points and extended to range from cp=0 to cp=1
+    - uniform: interpolates linearly between points, with residual probability attributed to the min and max values
     """
     # Todo: refactor, currently too many possible types of output
 
@@ -40,30 +40,38 @@ def interpret_complete_cdf(
     if distribution == "discrete":
         for cdf_p, cdf_v in zip(cdfs_p, cdfs_v):
             cdf_p[-1] = 1  # Last value is the highest
-            cdfs.append(ot.UserDefined([[v] for v in cdf_v], cdf_p))
+            cdfs.append(ot.UserDefined([[v] for v in cdf_v], cp_to_p(cdf_p)))
     elif distribution in ["normal", "gaussian"]:
         for cdf_p, cdf_v in zip(cdfs_p, cdfs_v):
-            x1 = cdf_v[0]
-            x2 = cdf_v[1]
-            y1 = cdf_p[0]
-            y2 = cdf_p[1]
-            mu = (x1 * pyerf.erfinv(1 - 2 * y2) - x2 * pyerf.erfinv(1 - 2 * y1)) / (
-                pyerf.erfinv(1 - 2 * y2) - pyerf.erfinv(1 - 2 * y1)
-            )
-            sigma = (2 ** 0.5 * x1 - 2 ** 0.5 * x2) / (
-                2 * pyerf.erfinv(1 - 2 * y2) - 2 * pyerf.erfinv(1 - 2 * y1)
-            )
-            cdfs.append(ot.Normal(mu, sigma))
-    elif distribution is "uniform":
+            if len(cdf_v) > 1:
+                x1 = cdf_v[0]
+                x2 = cdf_v[1]
+                y1 = cdf_p[0]
+                y2 = cdf_p[1]
+                mu = (x1 * pyerf.erfinv(1 - 2 * y2) - x2 * pyerf.erfinv(1 - 2 * y1)) / (
+                    pyerf.erfinv(1 - 2 * y2) - pyerf.erfinv(1 - 2 * y1)
+                )
+                sigma = (2 ** 0.5 * x1 - 2 ** 0.5 * x2) / (
+                    2 * pyerf.erfinv(1 - 2 * y2) - 2 * pyerf.erfinv(1 - 2 * y1)
+                )
+                cdfs.append(ot.Normal(mu, sigma))
+            else:
+                cdfs.append(ot.UserDefined([[v] for v in cdf_v], cdf_p))
+    elif distribution == "uniform":
         for cdf_p, cdf_v in zip(cdfs_p, cdfs_v):
-            x1 = cdf_v[0]
-            x2 = cdf_v[-1]
-            y1 = cdf_p[0]
-            y2 = cdf_p[-1]
-            dydx = (y2 - y1) / (x2 - x1)
-            a = x1 - y1 / dydx
-            b = x2 + (1 - y2) / dydx
-            cdfs.append(ot.Uniform(a, b))
+            if len(cdf_v) == 1:
+                cdfs.append(ot.UserDefined([cdf_v]))
+            elif len(cdf_v) > 1:
+                coll = (
+                    [ot.UserDefined([[cdf_v[0]]])]
+                    + [
+                        ot.Uniform(float(cdf_v[i]), float(cdf_v[i + 1]))
+                        for i in range(len(cdf_v) - 1)
+                    ]
+                    + [ot.UserDefined([[cdf_v[-1]]])]
+                )
+                weights = np.append(cp_to_p(cdf_p), 1 - cdf_p[-1])
+                cdfs.append(ot.Mixture(coll, weights))
     else:
         return NotImplementedError
     return cdfs
@@ -87,7 +95,7 @@ def probabilistic_nan_mean(
     event_starts = df.groupby(["event_start"]).groups.keys()
     cdf_v = []
     cdf_p = []
-    for e, event_start in enumerate(event_starts):
+    for event_start in event_starts:
         vp = df.xs(event_start, level="event_start")  # value probability pair
         cdf_v.append(vp.values.flatten())
         cdf_p.append(vp.index.get_level_values("cumulative_probability").values)
@@ -202,9 +210,7 @@ def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
                     ot.UserDefined([[v] for v in values_for_cdf], marginal_pdf)
                 )
             else:
-                marginal_pdf = np.clip(
-                    np.concatenate(([marginal_cdf[0]], np.diff(marginal_cdf))), 0, 1
-                )
+                marginal_pdf = np.clip(cp_to_p(marginal_cdf), 0, 1)
                 marginals.append(
                     ot.UserDefined([[v] for v in values_for_cdf], marginal_pdf)
                 )
@@ -311,13 +317,13 @@ def joint_cdf_to_pdf(cdf: np.ndarray) -> np.ndarray:
     if len(cdf.shape) > 1:
         pdf = cdf.copy()
         for i, cdf_i in enumerate(cdf):
-            if i is not 0:
+            if i != 0:
                 pdf[i] = joint_cdf_to_pdf(cdf_i) - joint_cdf_to_pdf(cdf[i - 1])
             else:
                 pdf[i] = joint_cdf_to_pdf(cdf_i)
         return pdf
     else:
-        return np.concatenate(([cdf[0]], np.diff(cdf)))
+        return cp_to_p(cdf)
 
 
 def fill_zeros_with_last(arr):
@@ -437,9 +443,7 @@ def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame"
 
         # Loop over steps in cumulative probability (in case of a deterministic observation, this is a single step)
         previous_cp_observation = 0
-        for p_observation, cp_observation, v_observation in zip(
-            pdf_p_observation, cdf_p_observation, pdf_v_observation
-        ):
+        for cp_observation, v_observation in zip(cdf_p_observation, pdf_v_observation):
 
             # Obtain the normalized pdf for this step
             cdf_p_forecast_i, cdf_v_forecast_i = partial_cdf(
@@ -507,10 +511,13 @@ def get_pdfs_from_beliefsdataframe(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """From a BeliefsDataFrame with a single belief, get the probability distribution functions."""
     cdf_p, pdf_v = get_cdfs_from_beliefsdataframe(df)
-    pdf_p = (
-        np.concatenate(([cdf_p[0]], np.diff(cdf_p))) if cdf_p.size != 0 else np.empty(0)
-    )
+    pdf_p = cp_to_p(cdf_p)
     return pdf_p, pdf_v
+
+
+def cp_to_p(cp: Union[List[float], np.ndarray]) -> np.ndarray:
+    """Convert numpy array of cumulative probabilities to probabilities. If list, cast to numpy array."""
+    return np.concatenate(([cp[0]], np.diff(cp))) if len(cp) != 0 else np.empty(0)
 
 
 def get_belief_at_cumulative_probability(

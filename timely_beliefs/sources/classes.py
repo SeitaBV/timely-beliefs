@@ -51,11 +51,11 @@ class DBBeliefSource(Base):
         return self.name < other.name
 
     @declared_attr
-    def __mapper_args__(cls):
-        if cls.__name__ == "DBBeliefSource":
+    def __mapper_args__(self):
+        if self.__name__ == "DBBeliefSource":
             return {
-                "polymorphic_on": cls.type,
+                "polymorphic_on": self.type,
                 "polymorphic_identity": "DBBeliefSource",
             }
         else:
-            return {"polymorphic_identity": cls.__name__}
+            return {"polymorphic_identity": self.__name__}

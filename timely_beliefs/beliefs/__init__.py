@@ -49,7 +49,7 @@ class BeliefsAccessor(object):
     def events(self) -> List[int]:
         """Return the unique events described in this BeliefsDataFrame."""
         event_start = self._obj.index.get_level_values(level="event_start")
-        return event_start.unique().values
+        return event_start.unique().to_numpy(dtype="object")
 
     @property
     def number_of_events(self):
@@ -110,7 +110,7 @@ class BeliefsAccessor(object):
     def sources(self) -> List[int]:
         """Return the unique sources for this BeliefsDataFrame."""
         source = self._obj.index.get_level_values(level="source")
-        return source.unique().values
+        return source.unique().to_numpy(dtype="object")
 
     @property
     def number_of_sources(self):

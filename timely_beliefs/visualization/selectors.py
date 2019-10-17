@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Tuple, Optional
 
 import altair as alt
 
@@ -10,6 +10,13 @@ horizon_hover_brush = alt.selection_single(
     on="mouseover", nearest=True, encodings=["x"], empty="all"
 )
 source_selection_brush = alt.selection_multi(fields=["source"], name="source_select")
+ridgeline_hover_brush = alt.selection_single(
+    on="mouseover",
+    nearest=True,
+    fields=["belief_horizon"],
+    empty="none",
+    name="ridgeline_hover",
+)
 
 # Create selection brushes that choose the nearest point & selects based on x-value
 nearest_x_hover_brush = alt.selection_single(
@@ -196,3 +203,39 @@ def source_selector(source) -> alt.Chart:
         .add_selection(source_selection_brush)
         .properties(title=alt.TitleParams("Select model", anchor="start"))
     )
+
+
+def ridgeline_selector(
+    probability_scale_range: Tuple[float, float], belief_horizon_unit: str
+) -> alt.Chart:
+    """Transparent selectors across the chart.
+    This is what tells us the belief horizon for a given y-value of the cursor.
+    """
+    selector = (
+        alt.Chart()
+        .mark_rule(opacity=0)
+        .transform_calculate(zero=alt.datum.probability * 0)
+        .encode(
+            y=alt.Y(
+                "zero:Q", scale=alt.Scale(range=probability_scale_range), axis=None
+            ),
+            color=alt.Color(
+                "belief_horizon:Q", scale=alt.Scale(domain=(0.9999, 1)), legend=None
+            ),
+            tooltip=[
+                alt.Tooltip(
+                    "event_value:Q",
+                    aggregate={"argmax": "probability"},
+                    bin="binned",
+                    title="Expected value",
+                    format=".2f",
+                ),
+                alt.Tooltip("max(probability):Q", title="Probability", format=".2f"),
+                alt.Tooltip(
+                    "belief_horizon:Q",
+                    title="%s (%s)" % ("Belief horizon", belief_horizon_unit),
+                ),
+            ],
+        )
+    )
+    return selector.add_selection(ridgeline_hover_brush)

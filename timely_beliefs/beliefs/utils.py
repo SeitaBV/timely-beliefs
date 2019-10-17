@@ -1,5 +1,6 @@
 from typing import List, Optional
 from datetime import datetime, timedelta
+import warnings
 
 import pandas as pd
 import numpy as np
@@ -293,7 +294,8 @@ def resample_event_start(
 
     # Resample to make sure the df slice contains events with the same frequency as the input_resolution
     # (make nan rows if you have to)
-    # Todo: this is only necessary when the resampling policy for the event value needs to take into account nan values within the slice, so move it closer to the join_beliefs() method
+    # Todo: this is only necessary when the resampling policy for the event value needs to take into account nan values within the slice,
+    #  so move it closer to the join_beliefs() method
     # df = df.groupby(
     #     [pd.Grouper(freq=to_offset(output_resolution).freqstr, level="event_start"), "belief_time", "source"]
     # ).pipe(respect_event_resolution, input_resolution)
@@ -317,7 +319,7 @@ def load_time_series(
 ) -> List["classes.TimedBelief"]:
     """Turn series entries into TimedBelief objects."""
     beliefs = []
-    for time, value in event_value_series.iteritems():
+    for time, value in event_value_series.items():
         beliefs.append(
             classes.TimedBelief(
                 sensor=sensor,
@@ -432,3 +434,39 @@ def set_reference(
         if return_expected_value is True
         else ["belief_horizon", "source", "cumulative_probability"],
     )
+
+
+def read_csv(
+    path: str,
+    sensor: "classes.Sensor",
+    source: "classes.BeliefSource" = None,
+    look_up_sources: List["classes.BeliefSource"] = None,
+) -> "classes.BeliefsDataFrame":
+    """Utility function to load a BeliefsDataFrame from a csv file (see example/temperature.csv).
+
+    You still need to set the sensor and the source for the BeliefsDataFrame; the csv file only contains their names.
+    In case the csv file contains multiple source names, you can pass a list of sources.
+    Each source name will be replaced by the actual source.
+
+    To write a BeliefsDataFrame to a csv file, just use the pandas way:
+
+    >>> df.to_csv()
+
+    """
+    df = pd.read_csv(path)
+    if source is not None:
+        df["source"] = source
+    elif "source" in df.columns:
+        if look_up_sources is not None:
+            source_names = df["source"].unique()
+            look_up_source_names = [source.name for source in look_up_sources]
+            for source_name in source_names:
+                source = look_up_sources[look_up_source_names.index(source_name)]
+                df["source"].replace(source_name, source, inplace=True)
+        else:
+            warnings.warn(
+                "Sources are stored in csv file by their name or id. Please specify a list of BeliefSources for looking them up."
+            )
+    else:
+        raise Exception("No source specified in csv, please set a source.")
+    return classes.BeliefsDataFrame(df, sensor=sensor)

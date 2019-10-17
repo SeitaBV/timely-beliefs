@@ -298,3 +298,66 @@ def source_vs_hour_chart(
     return hd_chart.properties(
         title=alt.TitleParams("Model performance given a time of day", anchor="middle")
     )
+
+
+def deterministic_chart(probability_scale_range: Tuple[float, float],):
+    return (
+        alt.Chart()
+        .mark_circle(color="red")
+        .transform_calculate(zero=alt.datum.probability * 0)
+        .encode(
+            x=alt.X(
+                "event_value:Q",
+                aggregate={"argmax": "probability"},
+                bin="binned",
+                scale=alt.Scale(padding=0),
+            ),
+            y=alt.Y(
+                "zero:Q", scale=alt.Scale(range=probability_scale_range), axis=None
+            ),
+        )
+    )
+
+
+def probabilistic_chart(
+    probability_scale_range: Tuple[float, float],
+    belief_horizon_unit: str,
+    sensor_name: str,
+    sensor_unit: str,
+):
+    base_chart = alt.Chart().encode(
+        x=alt.X(
+            "event_value:Q",
+            bin="binned",
+            scale=alt.Scale(padding=0),
+            title=sensor_name + " (" + sensor_unit + ")",
+        ),
+        y=alt.Y(
+            "probability:Q", scale=alt.Scale(range=probability_scale_range), axis=None
+        ),
+    )
+    line_chart = base_chart.mark_line(interpolate="monotone").encode(
+        stroke=alt.condition(
+            selectors.ridgeline_hover_brush, alt.value("black"), alt.value("lightgray")
+        ),
+        strokeWidth=alt.condition(
+            selectors.ridgeline_hover_brush, alt.value(2.5), alt.value(0.5)
+        ),
+    )
+    area_chart = base_chart.mark_area(interpolate="monotone", fillOpacity=0.6).encode(
+        fill=alt.Fill(
+            "belief_horizon:N",
+            sort="ascending",
+            legend=None,
+            scale=alt.Scale(scheme="viridis"),
+        ),
+        tooltip=[
+            alt.Tooltip("event_value:Q", title="Value", format=".2f"),
+            alt.Tooltip("probability:Q", title="Probability", format=".2f"),
+            alt.Tooltip(
+                "belief_horizon:Q",
+                title="%s (%s)" % ("Belief horizon", belief_horizon_unit),
+            ),
+        ],
+    )
+    return alt.layer(area_chart, line_chart)

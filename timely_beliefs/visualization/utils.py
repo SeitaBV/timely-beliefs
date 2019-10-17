@@ -2,10 +2,14 @@ from datetime import timedelta
 from typing import List, Tuple
 
 import altair as alt
+import numpy as np
 import pandas as pd
 
 from timely_beliefs.beliefs import classes  # noqa: F401
-from timely_beliefs.beliefs.probabilistic_utils import get_nth_percentile_belief
+from timely_beliefs.beliefs.probabilistic_utils import (
+    interpret_complete_cdf,
+    get_nth_percentile_belief,
+)
 from timely_beliefs.visualization import graphs, selectors
 
 
@@ -17,7 +21,6 @@ def plot(
     ci: float = 0.9,
     intuitive_forecast_horizon: bool = True,
     interpolate: bool = True,
-    plottable_df: Tuple[pd.DataFrame, str, str, Tuple[float, float]] = None,
 ) -> alt.LayerChart:
     """Plot the BeliefsDataFrame with the Altair visualization library.
 
@@ -28,7 +31,6 @@ def plot(
     :param ci: The confidence interval to highlight in the time series graph
     :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
     :param interpolate: If True, the time series chart shows a user-friendly interpolated line rather than more accurate stripes indicating average values
-    :param plottable_df: Optionally, specify as plottable DataFrame directly together with a sensor name, a sensor unit and a y-axis value range for the event values (if None, we create it)
     :return: Altair LayerChart
     """
 
@@ -37,32 +39,23 @@ def plot(
         raise ValueError("Must set reference source.")
 
     # Set up data source
-    if plottable_df is None:
-        bdf = bdf.copy()
-        sensor_name = bdf.sensor.name
-        sensor_unit = (
-            bdf.sensor.unit if bdf.sensor.unit != "" else "a.u."
-        )  # arbitrary unit
-        plottable_df, belief_horizon_unit = prepare_df_for_plotting(
-            bdf,
-            ci=ci,
-            show_accuracy=show_accuracy,
-            reference_source=reference_source,
-            intuitive_forecast_horizon=intuitive_forecast_horizon,
-        )
-        unique_belief_horizons = plottable_df["belief_horizon"].unique()
-        event_value_range = (bdf.min()[0], bdf.max()[0])
-        plottable_df = plottable_df.groupby(
-            ["event_start", "source"], group_keys=False
-        ).apply(
-            lambda x: align_belief_horizons(x, unique_belief_horizons)
-        )  # Propagate beliefs so that each event has the same set of unique belief horizons
-    else:
-        sensor_name = plottable_df[1]
-        sensor_unit = plottable_df[2]
-        event_value_range = plottable_df[3]
-        plottable_df = plottable_df[0]
-        unique_belief_horizons = plottable_df["belief_horizon"].unique()
+    bdf = bdf.copy()
+    sensor_name = bdf.sensor.name
+    sensor_unit = bdf.sensor.unit if bdf.sensor.unit != "" else "a.u."  # arbitrary unit
+    plottable_df, belief_horizon_unit = prepare_df_for_plotting(
+        bdf,
+        ci=ci,
+        show_accuracy=show_accuracy,
+        reference_source=reference_source,
+        intuitive_forecast_horizon=intuitive_forecast_horizon,
+    )
+    unique_belief_horizons = plottable_df["belief_horizon"].unique()
+    event_value_range = (bdf.min()[0], bdf.max()[0])
+    plottable_df = plottable_df.groupby(
+        ["event_start", "source"], group_keys=False
+    ).apply(
+        lambda x: align_belief_horizons(x, unique_belief_horizons)
+    )  # Propagate beliefs so that each event has the same set of unique belief horizons
     max_absolute_error = plottable_df["mae"].max() if show_accuracy is True else None
 
     # Construct base chart
@@ -146,42 +139,72 @@ def plot(
         )
 
 
-def timedelta_to_human_range(
-    df: "classes.BeliefsDataFrame"
-) -> Tuple["classes.BeliefsDataFrame", str]:
-    timedelta_span = max(df["belief_horizon"]) - min(df["belief_horizon"])
+def timedelta_to_human_range(s: pd.Series) -> Tuple[pd.Series, str]:
+    """Convert a pandas Series of timedeltas to a pandas Series of floats,
+    and derive a time unit (a string such as "years" or "minutes") that gives a nice human readable range of floats.
+    For example:
+
+    >>> import timely_beliefs as tb
+    >>> horizons = tb.examples.temperature_df.convert_index_from_belief_time_to_horizon().reset_index()["belief_horizon"].drop_duplicates()
+    >>> horizons  # This is going to look awkward as tick labels
+    <<< 0     0 days 00:00:00
+        1     0 days 01:00:00
+        4     0 days 02:00:00
+        7     0 days 03:00:00
+        10    0 days 04:00:00
+                    ...
+        205   2 days 21:00:00
+        208   2 days 22:00:00
+        211   2 days 23:00:00
+        214   3 days 00:00:00
+        217   3 days 01:00:00
+        Length: 74, dtype: timedelta64[ns]
+    >>> from timely_beliefs.visualization.utils import timedelta_to_human_range
+    >>> timedelta_to_human_range(horizons)  # This is human readable range, though
+    <<< (0       0.0
+        1       1.0
+        4       2.0
+        7       3.0
+        10      4.0
+               ...
+        205    69.0
+        208    70.0
+        211    71.0
+        214    72.0
+        217    73.0
+        Length: 74, dtype: float64, 'hours')
+    """
+    timedelta_span = max(s) - min(s)
     if timedelta_span >= timedelta(days=4 * 365.2425):
-        df["belief_horizon"] = df["belief_horizon"].apply(
+        s = s.apply(
             lambda x: x.days / 365.2425
             + (x.seconds + x.microseconds / 10 ** 6) / (365.2425 * 24 * 60 * 60)
         )
         time_unit = "years"
     elif timedelta_span >= timedelta(days=4):
-        df["belief_horizon"] = df["belief_horizon"].apply(
+        s = s.apply(
             lambda x: x.days + (x.seconds + x.microseconds / 10 ** 6) / (24 * 60 * 60)
         )
         time_unit = "days"
     elif timedelta_span >= timedelta(hours=4):
-        df["belief_horizon"] = df["belief_horizon"].apply(
+        s = s.apply(
             lambda x: x.days * 24 + (x.seconds + x.microseconds / 10 ** 6) / (60 * 60)
         )
         time_unit = "hours"
     elif timedelta_span >= timedelta(minutes=4):
-        df["belief_horizon"] = df["belief_horizon"].apply(
+        s = s.apply(
             lambda x: x.days * 24 * 60 + (x.seconds + x.microseconds / 10 ** 6) / 60
         )
         time_unit = "minutes"
     elif timedelta_span >= timedelta(seconds=4):
-        df["belief_horizon"] = df["belief_horizon"].apply(
+        s = s.apply(
             lambda x: x.days * 24 * 60 * 60 + x.seconds + x.microseconds / 10 ** 6
         )
         time_unit = "seconds"
     else:
-        df["belief_horizon"] = df["belief_horizon"].apply(
-            lambda x: x.days * 24 * 60 * 60 * 10 ** 6 + x.microseconds
-        )
+        s = s.apply(lambda x: x.days * 24 * 60 * 60 * 10 ** 6 + x.microseconds)
         time_unit = "microseconds"
-    return df, time_unit
+    return s, time_unit
 
 
 def prepare_df_for_plotting(
@@ -253,7 +276,9 @@ def prepare_df_for_plotting(
     )
     if intuitive_forecast_horizon is True:
         df["belief_horizon"] = df["event_start"] - df["belief_time"]
-    df, belief_horizon_unit = timedelta_to_human_range(df)
+    df["belief_horizon"], belief_horizon_unit = timedelta_to_human_range(
+        df["belief_horizon"]
+    )
 
     df["event_end"] = df["event_start"] + event_resolution
     df["source"] = df["source"].apply(lambda x: x.name)
@@ -294,3 +319,104 @@ def align_belief_horizons(
     df2 = df.copy().iloc[0:0]
     df2 = df2.append(pd.DataFrame(data, columns=df2.columns))
     return df2
+
+
+def ridgeline_plot(
+    bdf,
+    fixed_viewpoint: bool = False,
+    distribution: str = "uniform",
+    event_value_window: Tuple[float, float] = None,
+) -> alt.FacetChart:
+    """
+    Creates ridgeline plot
+
+    :param bdf: BeliefsDataFrame
+    :param fixed_viewpoint: boolean, if true create fixed viewpoint plot
+    :param distribution: string, distribution name to use (discrete, normal or uniform)
+    :param event_value_window: optional tuple specifying an event value window for the x-axis
+           (e.g. plot temperatures between -1 and 21 degrees Celsius)
+    """
+    df = interpret_and_sample_distribution_long_form(
+        bdf, distribution=distribution, event_value_window=event_value_window
+    ).reset_index()
+    df["belief_horizon"], belief_horizon_unit = timedelta_to_human_range(
+        df["belief_horizon"]
+    )
+
+    step = 10
+    overlap = 50
+    probability_scale_range = (step, -step * overlap)
+
+    deterministic_chart = graphs.deterministic_chart(probability_scale_range)
+    probabilistic_chart = graphs.probabilistic_chart(
+        probability_scale_range,
+        belief_horizon_unit=belief_horizon_unit,
+        sensor_name=bdf.sensor.name,
+        sensor_unit=bdf.sensor.unit,
+    )
+    ridgeline_chart = (
+        alt.layer(
+            probabilistic_chart,
+            deterministic_chart,
+            selectors.ridgeline_selector(probability_scale_range, belief_horizon_unit),
+            data=df,
+        )
+        .properties(height=step)
+        .facet(
+            row=alt.Row(
+                "belief_horizon:N",
+                sort="descending",
+                title=("Upcoming " if fixed_viewpoint else "Previous ")
+                + belief_horizon_unit,
+                header=alt.Header(
+                    labelAngle=0, labelAlign="right", format="%B"
+                ),  # todo: set conditional labels once labelExpr finds its way from vega-lite to altair,
+                #      so then we can choose to print e.g. 0, 6, 12, 18, 24 hours instead of all of 0 to 24 hours.
+                #      See https://github.com/vega/vega-lite/issues/5310
+            )
+        )
+        .properties(bounds="flush")
+        .configure_facet(spacing=0)
+        .configure_view(stroke=None)
+        .configure_title(anchor="end")
+    )
+
+    return ridgeline_chart
+
+
+def interpret_and_sample_distribution_long_form(
+    df: "classes.BeliefsDataFrame",
+    distribution: str = "uniform",
+    event_value_window: Tuple[float, float] = None,
+) -> pd.DataFrame:
+    """Interpret each probabilistic belief as a continuous or discrete distribution of possible outcomes (an openturns distribution),
+    collect a sample of points that is adequate to draw its PDF (using the drawPDF attribute on openturns distributions),
+    and concatenate those points for each belief to return a pandas DataFrame (long form) with the following columns:
+    "event_value", "probability" and "belief_horizon".
+    """
+    frame = pd.DataFrame()
+    for _group_index, df in df.for_each_belief():
+
+        # Interpret CDF
+        dist = interpret_complete_cdf(
+            cdfs_p=[df.index.get_level_values("cumulative_probability").values],
+            cdfs_v=[df["event_value"].values],
+            distribution=distribution,
+        )
+
+        # Draw PDF
+        graph = (
+            dist[0].drawPDF(event_value_window[0], event_value_window[1])
+            if event_value_window is not None
+            else dist[0].drawPDF()
+        )
+        new_frame = pd.DataFrame(
+            np.array(graph.getDrawable(0).getData()),
+            columns=["event_value", "probability"],
+        ).set_index("event_value")
+
+        new_frame["belief_horizon"] = df.lineage.belief_horizons[0]
+
+        frame = pd.concat([frame, new_frame]) if not frame.empty else new_frame
+
+    return frame
