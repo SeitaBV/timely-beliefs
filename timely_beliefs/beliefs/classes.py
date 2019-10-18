@@ -428,6 +428,21 @@ class BeliefsDataFrame(pd.DataFrame):
 
     def __finalize__(self, other, method=None, **kwargs):
         """Propagate metadata from other to self."""
+
+        # Check if sources have unique names
+        if hasattr(other, "objs"):
+            sources = []
+            for df in other.objs:
+                if "source" in df.index:
+                    sources.extend(df.index.get_level_values(level="source").unique().to_numpy(dtype="object"))
+            sources = set(sources)
+            source_names = set(source.name for source in sources)
+            if len(source_names) != len(sources):
+                raise ValueError(
+                    "Source names must be unique. Cannot initialise BeliefsDataFrame given the following unique sources:\n%s"
+                    % sources
+                )
+
         # merge operation: using metadata of the left object
         if method == "merge":
             for name in self._metadata:
