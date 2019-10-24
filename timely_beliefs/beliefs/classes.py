@@ -1016,10 +1016,9 @@ class BeliefsDataFrame(pd.DataFrame):
             interpolate=interpolate,
         )
 
-    @staticmethod
     def plot_ridgeline_fixed_viewpoint(
+        self,
         reference_time: datetime,
-        df: "BeliefsDataFrame",
         future_only: bool = False,
         distribution: str = "uniform",
         event_value_window: Tuple[float, float] = None,
@@ -1027,12 +1026,12 @@ class BeliefsDataFrame(pd.DataFrame):
         """Create a ridgeline plot of the latest beliefs held at a certain reference time.
 
         :param reference_time: datetime, reference to determine belief horizons
-        :param df: BeliefsDataFrame
         :param future_only: if True mask the past
         :param distribution: string, distribution name to use (discrete, normal or uniform)
         :param event_value_window: optional tuple specifying an event value window for the x-axis
                (e.g. plot temperatures between -1 and 21 degrees Celsius)
         """
+        df = self
         if df.lineage.number_of_sources > 1:
             raise ValueError(
                 "Cannot create plot beliefs from multiple sources. BeliefsDataFrame must contain beliefs from a single source."
@@ -1048,10 +1047,9 @@ class BeliefsDataFrame(pd.DataFrame):
             df, True, distribution, event_value_window
         )
 
-    @staticmethod
     def plot_ridgeline_belief_history(
+        self,
         event_start: datetime,
-        df: "BeliefsDataFrame",
         past_only: bool = False,
         distribution: str = "uniform",
         event_value_window: Tuple[float, float] = None,
@@ -1059,12 +1057,12 @@ class BeliefsDataFrame(pd.DataFrame):
         """Create a ridgeline plot of the belief history about a specific event.
 
         :param event_start: datetime, indicating the start time of the event for which to plot the belief history
-        :param df: BeliefsDataFrame
         :param past_only: if True mask the future (i.e. mask any updates of beliefs after knowledge time)
         :param distribution: string, distribution name to use (discrete, normal or uniform)
         :param event_value_window: optional tuple specifying an event value window for the x-axis
                (e.g. plot temperatures between -1 and 21 degrees Celsius)
         """
+        df = self
         if df.lineage.number_of_sources > 1:
             raise ValueError(
                 "Cannot create plot beliefs from multiple sources. BeliefsDataFrame must contain beliefs from a single source."
