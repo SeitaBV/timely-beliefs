@@ -23,7 +23,14 @@ def test_ridgeline_example():
     assert chart
 
 
-def test_ridgeline_temperature():
+@pytest.mark.parametrize(
+    "distribution, distribution_params",
+    [
+        pytest.param("normal", {}),
+        pytest.param("gmm", {"standard_deviation": 0.1}),
+    ]
+)
+def test_ridgeline_temperature(distribution, distribution_params):
     df = temperature_df
     df = df[
         df.index.get_level_values("event_start")
@@ -32,8 +39,9 @@ def test_ridgeline_temperature():
     chart = df.plot_ridgeline_fixed_viewpoint(
         datetime(2015, 3, 1, 13, 0, tzinfo=pytz.utc),
         future_only=True,
-        distribution="normal",
-        event_value_window=(-1, 16),
+        distribution=distribution,
+        distribution_params=distribution_params,
+        event_value_window=(-1, 20),
     )
     # chart.serve()
     assert chart

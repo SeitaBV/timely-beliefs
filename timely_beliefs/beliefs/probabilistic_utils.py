@@ -28,6 +28,7 @@ def interpret_complete_cdf(
     If a distribution name is specified, the CDF is returned as an openturns distribution object.
     Supported openturns distributions are the following:
     - discrete: all residual probability is attributed to the highest given value
+    - gmm: Gaussian Mixture Model, which draws a normal distribution around each point (must set a standard deviation)
     - normal or gaussian: derived from the first two point only
     - uniform: interpolates linearly between points, with residual probability attributed to the min and max values
     """
@@ -42,6 +43,17 @@ def interpret_complete_cdf(
         for cdf_p, cdf_v in zip(cdfs_p, cdfs_v):
             cdf_p[-1] = 1  # Last value is the highest
             cdfs.append(ot.UserDefined([[v] for v in cdf_v], cp_to_p(cdf_p)))
+    elif distribution == "gmm":
+        if distribution_params is None:
+            distribution_params = {}
+        if "standard_deviation" not in distribution_params:
+            raise ValueError("Please set a standard deviation for the Gaussian Mixture Model, using distribution_params['standard_deviation'] = <some number>.")
+        for cdf_p, cdf_v in zip(cdfs_p, cdfs_v):
+            cdf_p[-1] = 1  # Last value is the highest
+            if len(cdf_v) > 1:
+                coll = [ot.Normal(float(cdf_v[i]), distribution_params["standard_deviation"]) for i in range(len(cdf_v))]
+                weights = cp_to_p(cdf_p)
+                cdfs.append(ot.Mixture(coll, weights))
     elif distribution in ["normal", "gaussian"]:
         for cdf_p, cdf_v in zip(cdfs_p, cdfs_v):
             if len(cdf_v) > 1:
