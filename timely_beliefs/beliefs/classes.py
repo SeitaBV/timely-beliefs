@@ -1021,13 +1021,15 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_time: datetime,
         future_only: bool = False,
         distribution: str = "uniform",
-        event_value_window: Tuple[float, float] = None,
+        distribution_params: Optional[dict] = None,
+        event_value_window: Optional[Tuple[float, float]] = None,
     ) -> alt.FacetChart:
         """Create a ridgeline plot of the latest beliefs held at a certain reference time.
 
         :param reference_time: datetime, reference to determine belief horizons
         :param future_only: if True mask the past
-        :param distribution: string, distribution name to use (discrete, normal or uniform)
+        :param distribution: string, distribution name to use (discrete, gmm, normal or uniform)
+        :param distribution_params: dict, optional additional parameters for the distribution
         :param event_value_window: optional tuple specifying an event value window for the x-axis
                (e.g. plot temperatures between -1 and 21 degrees Celsius)
         """
@@ -1044,7 +1046,7 @@ class BeliefsDataFrame(pd.DataFrame):
         ).convert_index_from_belief_time_to_horizon()
 
         return visualization_utils.ridgeline_plot(
-            df, True, distribution, event_value_window
+            df, True, distribution, distribution_params, event_value_window
         )
 
     def plot_ridgeline_belief_history(
@@ -1052,13 +1054,15 @@ class BeliefsDataFrame(pd.DataFrame):
         event_start: datetime,
         past_only: bool = False,
         distribution: str = "uniform",
-        event_value_window: Tuple[float, float] = None,
+        distribution_params: Optional[dict] = None,
+        event_value_window: Optional[Tuple[float, float]] = None,
     ) -> alt.FacetChart:
         """Create a ridgeline plot of the belief history about a specific event.
 
         :param event_start: datetime, indicating the start time of the event for which to plot the belief history
         :param past_only: if True mask the future (i.e. mask any updates of beliefs after knowledge time)
-        :param distribution: string, distribution name to use (discrete, normal or uniform)
+        :param distribution: string, distribution name to use (discrete, gmm, normal or uniform)
+        :param distribution_params: dict, optional additional parameters for the distribution
         :param event_value_window: optional tuple specifying an event value window for the x-axis
                (e.g. plot temperatures between -1 and 21 degrees Celsius)
         """
@@ -1075,7 +1079,7 @@ class BeliefsDataFrame(pd.DataFrame):
         ).convert_index_from_belief_time_to_horizon()
 
         return visualization_utils.ridgeline_plot(
-            df, False, distribution, event_value_window
+            df, False, distribution, distribution_params, event_value_window
         )
 
     def set_reference_values(

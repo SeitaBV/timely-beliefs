@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import altair as alt
 import numpy as np
@@ -9,6 +9,8 @@ from timely_beliefs.beliefs import classes  # noqa: F401
 from timely_beliefs.beliefs.probabilistic_utils import (
     interpret_complete_cdf,
     get_nth_percentile_belief,
+    get_mean_belief,
+    get_median_belief,
 )
 from timely_beliefs.visualization import graphs, selectors
 
@@ -325,26 +327,45 @@ def ridgeline_plot(
     bdf,
     fixed_viewpoint: bool = False,
     distribution: str = "uniform",
-    event_value_window: Tuple[float, float] = None,
+    distribution_params: Optional[dict] = None,
+    event_value_window: Optional[Tuple[float, float]] = None,
+    step: int = 10,
+    overlap: Optional[int] = None,
 ) -> alt.FacetChart:
     """
     Creates ridgeline plot
 
     :param bdf: BeliefsDataFrame
     :param fixed_viewpoint: boolean, if true create fixed viewpoint plot
-    :param distribution: string, distribution name to use (discrete, normal or uniform)
+    :param distribution: string, distribution name to use (discrete, gmm, normal or uniform)
+    :param distribution_params: dict, optional additional parameters for the distribution
     :param event_value_window: optional tuple specifying an event value window for the x-axis
            (e.g. plot temperatures between -1 and 21 degrees Celsius)
     """
     df = interpret_and_sample_distribution_long_form(
-        bdf, distribution=distribution, event_value_window=event_value_window
+        bdf, distribution=distribution, event_value_window=event_value_window, distribution_params=distribution_params,
     ).reset_index()
     df["belief_horizon"], belief_horizon_unit = timedelta_to_human_range(
         df["belief_horizon"]
     )
 
-    step = 10
-    overlap = 50
+    # Set median and expected value for each belief horizon
+    def calculate_averages(df):
+        df["probability"] = df["probability"] / df["probability"].sum()  # Normalize
+        df["cumulative_probability"] = df["probability"].cumsum()
+        df["mean"] = get_mean_belief(df.set_index("cumulative_probability"))["event_value"].values[0]
+        df["median"] = get_median_belief(df.set_index("cumulative_probability"))["event_value"].values[0]
+        return df
+    df = df.groupby("belief_horizon").apply(lambda x: calculate_averages(x))
+
+    # Set default overlap based on the height of the top-most ridgeline.
+    if overlap is None:
+        top_overlap = 3
+        highest_p = df["probability"].max()
+        top_highest_p = df[df["belief_horizon"].values == df.tail(1)["belief_horizon"].values[0]]["probability"].max()
+        ratio = top_highest_p / highest_p
+        overlap = top_overlap / ratio
+
     probability_scale_range = (step, -step * overlap)
 
     deterministic_chart = graphs.deterministic_chart(probability_scale_range)
@@ -380,14 +401,14 @@ def ridgeline_plot(
         .configure_view(stroke=None)
         .configure_title(anchor="end")
     )
-
     return ridgeline_chart
 
 
 def interpret_and_sample_distribution_long_form(
     df: "classes.BeliefsDataFrame",
     distribution: str = "uniform",
-    event_value_window: Tuple[float, float] = None,
+    distribution_params: Optional[dict] = None,
+    event_value_window: Optional[Tuple[float, float]] = None,
 ) -> pd.DataFrame:
     """Interpret each probabilistic belief as a continuous or discrete distribution of possible outcomes (an openturns distribution),
     collect a sample of points that is adequate to draw its PDF (using the drawPDF attribute on openturns distributions),
@@ -402,6 +423,7 @@ def interpret_and_sample_distribution_long_form(
             cdfs_p=[df.index.get_level_values("cumulative_probability").values],
             cdfs_v=[df["event_value"].values],
             distribution=distribution,
+            distribution_params = distribution_params,
         )
 
         # Draw PDF

@@ -16,7 +16,8 @@ from timely_beliefs import utils as tb_utils
 def interpret_complete_cdf(
     cdfs_p: List[Union[list, np.ndarray]],
     cdfs_v: List[Union[list, np.ndarray]],
-    distribution: str = None,
+    distribution: Optional[str] = None,
+    distribution_params: Optional[dict] = None,
 ) -> Union[
     List[Union[list, np.ndarray]],
     Tuple[List[Union[list, np.ndarray]], List[Union[list, np.ndarray]]],
@@ -65,7 +66,7 @@ def interpret_complete_cdf(
                 coll = (
                     [ot.UserDefined([[cdf_v[0]]])]
                     + [
-                        ot.Uniform(float(cdf_v[i]), float(cdf_v[i + 1]))
+                        ot.Uniform(float(cdf_v[i]), float(cdf_v[i + 1])) if float(cdf_v[i]) < float(cdf_v[i + 1]) else ot.UserDefined([[cdf_v[i]]])
                         for i in range(len(cdf_v) - 1)
                     ]
                     + [ot.UserDefined([[cdf_v[-1]]])]
@@ -82,6 +83,7 @@ def probabilistic_nan_mean(
     output_resolution,
     input_resolution,
     distribution: Optional[str] = None,
+    distribution_params: Optional[dict] = None,
 ) -> "classes.BeliefsDataFrame":
     """Calculate the mean value while ignoring nan values."""
 
@@ -107,7 +109,7 @@ def probabilistic_nan_mean(
             cdf_p, cdf_v, agg_function=np.nanmean
         )
     else:
-        cdfs = interpret_complete_cdf(cdf_p, cdf_v, distribution=distribution)
+        cdfs = interpret_complete_cdf(cdf_p, cdf_v, distribution=distribution, distribution_params=distribution_params)
         # Todo: allow passing a copula to this function
         cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(
             cdfs, agg_function=np.nanmean
@@ -540,14 +542,20 @@ def get_belief_at_cumulative_probability(
 
 def get_mean_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
     """Convenience function to select the expected value."""
-    return get_belief_at_cumulative_probability(df, 0.5) if len(df) > 1 else df
+    # Todo: this actually gives the median rather than the arithmetic mean (i.e. the expected value)
+    return get_belief_at_cumulative_probability(df, 0.5)
+
+
+def get_median_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
+    """Convenience function to select the median value."""
+    return get_belief_at_cumulative_probability(df, 0.5)
 
 
 def get_nth_percentile_belief(
     df: "classes.BeliefsDataFrame", n: float
 ) -> "classes.BeliefsDataFrame":
     """Convenience function to select the value at the nth percentile."""
-    return get_belief_at_cumulative_probability(df, n / 100) if len(df) > 1 else df
+    return get_belief_at_cumulative_probability(df, n / 100)
 
 
 get_expected_belief = get_mean_belief  # Define alias
