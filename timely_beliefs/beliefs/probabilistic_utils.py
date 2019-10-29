@@ -8,9 +8,168 @@ import openturns as ot
 import properscoring as ps
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
+from scipy import interpolate
 
 from timely_beliefs.beliefs import classes  # noqa: F401
 from timely_beliefs import utils as tb_utils
+
+
+def interpolate_cdf(
+    x: Union[List[float], np.ndarray],
+    cp: Union[List[float], np.ndarray],
+    v: Union[List[float], np.ndarray],
+    method: Union[str, Callable] = "pchip",
+    extrapolate: Union[bool, str] = True,
+    check_valid_cdf: bool = True,
+) -> Union[List[float], np.ndarray]:
+    """Interpolate the cumulative distribution function described by cp(v) as y(v) and return values y(x).
+
+    Parameters
+    ----------
+    :param x: list or numpy array
+        array with values at which cumulative probabilities are needed
+    :param cp: list or numpy array
+        array with cumulative probabilities at known values v
+    :param v: list or numpy array
+        array with values (at least 2, otherwise a step function is returned with one step at x=v)
+    :param method: method or str
+        Custom interpolation method f(v, cp) or one of the following shorthands for specific methods:
+        - "step": interpolated value is equal to previous value, which results in a discrete distribution
+        - "discrete": alias for step
+        - "linear": interpolated values follow the line between previous and next value,
+                    which results in a (piecewise) uniform distribution
+        - "uniform": alias for linear
+        - "pchip": interpolated values follow a monotonic spline
+                   (Piecewise Cubic Hermite Interpolating Polynomial)
+    :param extrapolate: bool or str
+        One of the following shorthands for specific extrapolation methods:
+        - "exponential": exponentially decaying tails
+        - "exp": alias for "exponential
+        - "linear": linearly decaying tails, which results in a uniform tail distribution
+        - "uniform": alias for "linear"
+        - "discrete": no tails, which result in a discrete jump at v[0] to cp = 0 and at v[-1] to cp = 1
+        - False: defaults to "discrete"
+        - None: defaults to "discrete"
+    :param check_valid_cdf: bool
+        If True, results are checked on whether they are:
+        - an array with equal length to that of input array x
+        - sorted
+        - normalised
+        Can be set to False for speed enhancement (avoid computation deemed unnecessary).
+    :return: list or numpy array
+        Array with cumulative probabilities at values x
+    """
+
+    # Convert lists to numpy arrays
+    if isinstance(x, list):
+        x = np.array(x)
+    if isinstance(cp, list):
+        cp = np.array(cp)
+    if isinstance(v, list):
+        v = np.array(v)
+
+    # Handle empty CDF
+    if len(v) == 0:
+        raise ValueError("Cannot interpolate empty CDF.")
+
+    # Return simple step function if interpolation is not possible
+    if len(v) == 1 or v[-1] == v[0]:
+        y = np.zeros(len(x))
+        y[x >= v[0]] = 1
+        return y
+
+    if callable(method):
+        f = method(v, cp)
+    elif method in ("step", "discrete"):
+        f = interpolate.interp1d(v, cp, kind='previous', bounds_error=False, fill_value=np.nan, assume_sorted=True)
+    elif method in ("linear", "uniform"):
+        f = interpolate.interp1d(v, cp, kind='linear', bounds_error=False, fill_value=np.nan, assume_sorted=True)
+    elif method == "pchip":
+
+        # Handle possible duplicate values v (pchip is not suitable for jumps in the cdf)
+        v, indices = np.unique(v, return_inverse=True)
+        if indices[-1] + 1 != len(cp):
+            print("Warning: CDF describes discrete jumps in probability. PCHIP interpolation assumes the upper cumulative probability at these jumps.")
+        cp = np.array(list(cp[np.max(np.where(indices == i))] for i in range(indices[-1] + 1)))
+
+        # We add some logic to force nice starting and final slopes of f(x)
+        if cp[0] != 0 and cp[-1] != cp[0]:
+            # add another point just to the bottom left at cp=0 to enforce positive starting derivative in cp[0]
+            # use the slope between the first and last point to determine x-coordinate of the new point
+            a = (cp[-1] - cp[0]) / (v[-1] - v[0])
+            b = cp[0] - a * v[0]
+            v0 = - b / a
+        else:
+            # add another point just to the left at cp=0: we'll have a flat starting derivative in cp[0]
+            v0 = v[0] - 1
+
+        if cp[-1] != 1 and cp[-1] != cp[0]:
+            # add another point just to the top right at cp=1 to enforce positive final derivative in cp[-1]
+            # use the slope between the first and last point to determine x-coordinate of the new point
+            a = (cp[-1] - cp[0]) / (v[-1] - v[0])
+            b = cp[0] - a * v[0]
+            vn = (1 - b) / a
+        else:
+            # add another point just to the right at cp=1: we'll have a flat final derivative in cp[-1]
+            vn = v[-1] + 1
+
+        f = interpolate.PchipInterpolator(
+            np.concatenate([[v0], v, [vn]]),
+            np.concatenate([[0], cp, [1]]),
+            extrapolate=False
+        )
+    else:
+        raise NotImplementedError
+    y = np.empty(len(x))  # Start with empty array having the length of x
+    x_mask = (v[0] <= x) * (x <= v[-1])  # Part of the x values that come from interpolating the cdf
+    y[x_mask] = f(x[x_mask])
+
+    if cp[0] != 0 or cp[-1] != 1:
+        # Set defaults if needed
+        if extrapolate is True and method == "pchip":
+            extrapolate = "exponential"
+        elif extrapolate is True and method in ("linear", "uniform"):
+            extrapolate = "linear"
+        else:
+            extrapolate = "discrete"
+        if extrapolate is "discrete":
+            y[(x < v[0])] = 0
+            y[x > v[-1]] = 1
+        else:
+            # Derive derivatives of f at the first and last points
+            if hasattr(f, "derivative"):
+                if method == "pchip":
+                    d0 = f.derivative(1)(v[1])  # We ignore v[0] because we added that ourselves to influence the slope
+                    dn = f.derivative(1)(v[-2])  # Similarly, we ignore v[-1]
+                else:
+                    d0 = f.derivative(1)(v[0])
+                    dn = f.derivative(1)(v[-1])
+            else:
+                d0 = (cp[1] - cp[0]) / (v[1] - v[0])
+                dn = (cp[-1] - cp[-2]) / (v[-1] - v[-2])
+            if d0 == 0 and cp[-1] != cp[0]:
+                d0 = (cp[-1] - cp[0]) / (v[1] - v[0])
+            else:
+                d0 = 1
+            if dn == 0 and cp[-1] != cp[0]:
+                dn = (cp[-1] - cp[0])
+            else:
+                dn = 1
+            if extrapolate in ("linear", "uniform"):
+                y[x < v[0]] = np.clip(cp[0] - d0 * (v[0] - x[x < v[0]]), 0, None)
+                y[x > v[-1]] = np.clip(cp[-1] + dn * (x[x > v[-1]] - v[-1]), None, 1)
+            elif extrapolate in ("exp", "exponential"):
+                y[x < v[0]] = cp[0] * np.exp(-(v[0] - x[x < v[0]]) * d0 / cp[0])
+                y[x > v[-1]] = 1 - (1 - cp[-1]) * np.exp(-(x[x > v[-1]] - v[-1]) * dn / cp[-1])
+            else:
+                raise NotImplementedError
+    if check_valid_cdf is True:
+        assert len(y) == len(x)
+        assert all(np.diff(x) >= 0)  # CDF x values should be sorted
+        assert all(np.diff(y) >= 0)  # CDF y values should be sorted
+        assert all(0 <= y) and all(y <= 1)  # normalised CDF should lie in the range [0, 1]
+        # assert y[(y >= 0).all(axis=0) & (y <= 1).all(axis=0)]  # normalised CDF should lie in the range [0, 1]
+    return y
 
 
 def interpret_complete_cdf(
