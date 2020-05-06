@@ -5,10 +5,10 @@ from pytz import utc
 import pandas as pd
 
 
-def enforce_utc(dt: datetime) -> pd.Timestamp:
+def enforce_utc(dt: datetime, name: str) -> pd.Timestamp:
     if dt.tzinfo is None:
-        raise Exception(
-            "The timely-beliefs package does not work with timezone-naive datetimes. Please localize your datetime."
+        raise TypeError(
+            f"The timely-beliefs package does not work with timezone-naive datetimes. Please localize your datetime for {name}."
         )
     return pd.Timestamp(dt.astimezone(utc))
 

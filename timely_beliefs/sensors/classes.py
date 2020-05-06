@@ -62,14 +62,14 @@ class Sensor(object):
 
     @hybrid_method
     def knowledge_horizon(self, event_start: datetime = None) -> timedelta:
-        event_start = enforce_utc(event_start)
+        event_start = enforce_utc(event_start, "event_start")
         return eval_verified_knowledge_horizon_fnc(
             self.knowledge_horizon_fnc, self.knowledge_horizon_par, event_start
         )
 
     @hybrid_method
     def knowledge_time(self, event_start: datetime) -> datetime:
-        event_start = enforce_utc(event_start)
+        event_start = enforce_utc(event_start, "event_start")
         return event_start - self.knowledge_horizon(event_start)
 
     def __repr__(self):
