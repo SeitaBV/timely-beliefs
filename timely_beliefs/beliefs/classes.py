@@ -331,6 +331,14 @@ class BeliefsDataFrame(pd.DataFrame):
         belief_time: datetime = kwargs.pop("belief_time", None)
         cumulative_probability: float = kwargs.pop("cumulative_probability", None)
         beliefs: List[TimedBelief] = kwargs.pop("beliefs", None)
+        if beliefs is None:  # check if args contains a list of beliefs
+            for i, arg in enumerate(args):
+                if isinstance(arg, list):
+                    if all(isinstance(b, TimedBelief) for b in arg):
+                        args = list(args)
+                        beliefs = args.pop(i)  # arg contains beliefs, and we simultaneously remove it from args
+                        args = tuple(args)
+                        break
 
         # Define our columns and indices
         columns = ["event_value"]
