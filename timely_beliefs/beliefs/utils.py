@@ -15,6 +15,7 @@ from timely_beliefs.beliefs.probabilistic_utils import (
 )
 from timely_beliefs import BeliefSource, Sensor
 from timely_beliefs import utils as tb_utils
+from timely_beliefs.sources import utils as source_utils
 
 
 def select_most_recent_belief(
@@ -466,7 +467,7 @@ def read_csv(
     """
     df = pd.read_csv(path)
     if source is not None:
-        df["source"] = source
+        df["source"] = source_utils.ensure_source(source)
     elif "source" in df.columns:
         if look_up_sources is not None:
             source_names = df["source"].unique()

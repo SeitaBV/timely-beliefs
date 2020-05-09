@@ -1,3 +1,5 @@
+from typing import Union
+
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.ext.declarative import declared_attr
 
@@ -8,9 +10,13 @@ class BeliefSource(object):
 
     name: str
 
-    def __init__(self, name: str = ""):
-        if name == "":
-            raise Exception("Please give this source a name to be identifiable.")
+    def __init__(self, name: Union[str, int]):
+        """Initialize with a name (string or integer identifier)."""
+        if not isinstance(name, str):
+            if isinstance(name, int):
+                name = str(name)
+            else:
+                raise TypeError("Please give this source a name to be identifiable.")
         self.name = name
 
     def __repr__(self):

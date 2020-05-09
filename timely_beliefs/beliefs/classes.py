@@ -19,6 +19,7 @@ from timely_beliefs.sensors.classes import Sensor, DBSensor
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.beliefs import utils as belief_utils
+from timely_beliefs.sources import utils as source_utils
 from timely_beliefs.beliefs import probabilistic_utils
 from timely_beliefs.visualization import utils as visualization_utils
 
@@ -46,9 +47,15 @@ class TimedBelief(object):
     source: BeliefSource
     cumulative_probability: float
 
-    def __init__(self, sensor: Sensor, source: BeliefSource, value: float, **kwargs):
+    def __init__(
+        self,
+        sensor: Sensor,
+        source: Union[BeliefSource, str, int],
+        value: float,
+        **kwargs
+    ):
         self.sensor = sensor
-        self.source = source
+        self.source = source_utils.ensure_source(source)
         self.event_value = value
 
         if "cumulative_probability" in kwargs:
@@ -335,9 +342,11 @@ class BeliefsDataFrame(pd.DataFrame):
 
         # Obtain parameters that are specific to our DataFrame subclass
         sensor: Sensor = kwargs.pop("sensor", None)
-        source: BeliefSource = kwargs.pop("source", None)
+        source: Union[BeliefSource, str, int] = kwargs.pop("source", None)
+        source = source_utils.ensure_source(source, allow_none=True)
         event_start: datetime = kwargs.pop("event_start", None)
         belief_time: datetime = kwargs.pop("belief_time", None)
+        belief_horizon: datetime = kwargs.pop("belief_horizon", None)
         cumulative_probability: float = kwargs.pop("cumulative_probability", None)
         beliefs: List[TimedBelief] = kwargs.pop("beliefs", None)
         if beliefs is None:  # check if args contains a list of beliefs
@@ -363,27 +372,69 @@ class BeliefsDataFrame(pd.DataFrame):
 
                 # Set (possibly overwrite) each index level to a unique value if set explicitly
                 if source is not None:
-                    self["source"] = source
+                    self["source"] = source_utils.ensure_source(source)
+                elif "source" not in self:
+                    raise KeyError("DataFrame should contain column named 'source'.")
+                elif not isinstance(self["source"].dtype, BeliefSource):
+                    self["source"] = self["source"].apply(source_utils.ensure_source)
                 if event_start is not None:
                     self["event_start"] = tb_utils.enforce_utc(
                         event_start, "event_start"
+                    )
+                elif "event_start" not in self and "event_end" not in self:
+                    raise KeyError(
+                        "DataFrame should contain column named 'event_start' or 'event_end'."
+                    )
+                else:
+                    self["event_start"] = self["event_start"].apply(
+                        lambda x: tb_utils.enforce_utc(pd.to_datetime(x), "event_start")
                     )
                 if belief_time is not None:
                     self["belief_time"] = tb_utils.enforce_utc(
                         belief_time, "belief_time"
                     )
+                elif belief_horizon is not None:
+                    self["belief_horizon"] = belief_horizon
+                elif "belief_time" not in self and "belief_horizon" not in self:
+                    raise KeyError(
+                        "DataFrame should contain column named 'belief_time' or 'belief_horizon'."
+                    )
+                elif "belief_time" in self:
+                    self["belief_time"] = self["belief_time"].apply(
+                        lambda x: tb_utils.enforce_utc(pd.to_datetime(x), "belief_time")
+                    )
+                elif not pd.api.types.is_timedelta64_dtype(
+                    self["belief_horizon"]
+                ) and self["belief_horizon"].dtype not in (timedelta, pd.Timedelta):
+                    raise TypeError(
+                        "belief_horizon should be of type datetime.timedelta."
+                    )
                 if cumulative_probability is not None:
                     self["cumulative_probability"] = cumulative_probability
+                elif "cumulative_probability" not in self:
+                    self["cumulative_probability"] = 0.5
+                if "event_value" not in self:
+                    raise KeyError(
+                        "DataFrame should contain column named 'event_value'."
+                    )
 
                 # Check for correct types and convert if possible
                 self["event_start"] = pd.to_datetime(self["event_start"], utc=True)
-                self["belief_time"] = pd.to_datetime(self["belief_time"], utc=True)
-                if any(c != BeliefSource for c in self["source"].map(type)):
-                    warnings.warn(
-                        "DataFrame contains sources of type other than BeliefSource."
-                    )
+                if "belief_time" in self:
+                    self["belief_time"] = pd.to_datetime(self["belief_time"], utc=True)
+                self["source"] = self["source"].apply(source_utils.ensure_source)
 
                 # Set index levels and metadata
+                if "belief_horizon" in self and not "belief_time" in self:
+                    indices = [
+                        "belief_horizon" if index == "belief_time" else index
+                        for index in indices
+                    ]
+                if "event_end" in self and not "event_start" in self:
+                    indices = [
+                        "event_end" if index == "event_start" else index
+                        for index in indices
+                    ]
                 self.set_index(indices, inplace=True)
                 self.sensor = sensor
                 self.event_resolution = sensor.event_resolution
