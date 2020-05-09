@@ -18,7 +18,7 @@ from timely_beliefs import utils as tb_utils
 
 
 def select_most_recent_belief(
-    df: "classes.BeliefsDataFrame"
+    df: "classes.BeliefsDataFrame",
 ) -> "classes.BeliefsDataFrame":
     """Drop all but most recent belief."""
     if "belief_horizon" in df.index.names:
@@ -175,9 +175,7 @@ def align_belief_times(
                 ps = previous_slice_with_existing_belief_time.reset_index()
                 ps[
                     "belief_time"
-                ] = (
-                    ubt
-                )  # Update belief time to reflect propagation of beliefs over time
+                ] = ubt  # Update belief time to reflect propagation of beliefs over time
                 data.extend(ps.values.tolist())
             else:
                 data.append([event_start, ubt, source, np.nan, np.nan])
@@ -327,7 +325,12 @@ def load_time_series(
         source_series = pd.Series(BeliefSource)
     else:
         source_series = source
-    for time, value, h, s in zip(pd.to_datetime(event_value_series.index), event_value_series.values, belief_horizon_series.values, source_series.values):
+    for time, value, h, s in zip(
+        pd.to_datetime(event_value_series.index),
+        event_value_series.values,
+        belief_horizon_series.values,
+        source_series.values,
+    ):
         beliefs.append(
             classes.TimedBelief(
                 sensor=sensor,

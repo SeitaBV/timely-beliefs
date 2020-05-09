@@ -49,7 +49,7 @@ def day_ahead_belief_about_ex_post_time_slot_event(
 
 
 def test_day_ahead_instantaneous_event_belief(
-    day_ahead_belief_about_instantaneous_event: TimedBelief
+    day_ahead_belief_about_instantaneous_event: TimedBelief,
 ):
     assert (
         day_ahead_belief_about_instantaneous_event.event_start
@@ -61,7 +61,7 @@ def test_day_ahead_instantaneous_event_belief(
 
 
 def test_day_ahead_belief_about_time_slot_event(
-    day_ahead_belief_about_time_slot_event: TimedBelief
+    day_ahead_belief_about_time_slot_event: TimedBelief,
 ):
     assert (
         day_ahead_belief_about_time_slot_event.event_start
@@ -74,7 +74,7 @@ def test_day_ahead_belief_about_time_slot_event(
 
 
 def test_day_ahead_belief_about_ex_post_time_slot_event(
-    day_ahead_belief_about_ex_post_time_slot_event: TimedBelief
+    day_ahead_belief_about_ex_post_time_slot_event: TimedBelief,
 ):
     assert day_ahead_belief_about_ex_post_time_slot_event.knowledge_time == datetime(
         2018, 1, 1, 11, tzinfo=utc

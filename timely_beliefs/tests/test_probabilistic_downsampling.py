@@ -220,7 +220,7 @@ def test_multivariate_aggregation_with_unmatched_bins(multivariate_test_cdfs):
 
 
 def test_multivariate_aggregation_with_unmatched_bins_and_dependence(
-    multivariate_test_cdfs
+    multivariate_test_cdfs,
 ):
     """Check multivariate aggregation where the outcomes of each variable are completely different,
     and the variables are correlated."""

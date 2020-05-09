@@ -62,7 +62,9 @@ class TimedBelief(object):
         else:
             self.cumulative_probability = 0.5
         if "event_start" in kwargs:
-            self.event_start = tb_utils.enforce_utc(kwargs["event_start"], "event_start")
+            self.event_start = tb_utils.enforce_utc(
+                kwargs["event_start"], "event_start"
+            )
         elif "event_time" in kwargs:
             if self.sensor.event_resolution != timedelta():
                 raise KeyError(
@@ -200,11 +202,15 @@ class DBTimedBelief(Base, TimedBelief):
         if event_before is not None:
             event_before = tb_utils.enforce_utc(event_before, "event_before")
         if event_not_before is not None:
-            event_not_before = tb_utils.enforce_utc(event_not_before, "event_not_before")
+            event_not_before = tb_utils.enforce_utc(
+                event_not_before, "event_not_before"
+            )
         if belief_before is not None:
             belief_before = tb_utils.enforce_utc(belief_before, "belief_before")
         if belief_not_before is not None:
-            belief_not_before = tb_utils.enforce_utc(belief_not_before, "belief_not_before")
+            belief_not_before = tb_utils.enforce_utc(
+                belief_not_before, "belief_not_before"
+            )
 
         # Query sensor for relevant timing properties
         event_resolution, knowledge_horizon_fnc, knowledge_horizon_par = (
@@ -218,7 +224,10 @@ class DBTimedBelief(Base, TimedBelief):
         )
 
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
-        knowledge_horizon_min, knowledge_horizon_max = sensor_utils.eval_verified_knowledge_horizon_fnc(
+        (
+            knowledge_horizon_min,
+            knowledge_horizon_max,
+        ) = sensor_utils.eval_verified_knowledge_horizon_fnc(
             knowledge_horizon_fnc, knowledge_horizon_par, None
         )
 
@@ -336,7 +345,9 @@ class BeliefsDataFrame(pd.DataFrame):
                 if isinstance(arg, list):
                     if all(isinstance(b, TimedBelief) for b in arg):
                         args = list(args)
-                        beliefs = args.pop(i)  # arg contains beliefs, and we simultaneously remove it from args
+                        beliefs = args.pop(
+                            i
+                        )  # arg contains beliefs, and we simultaneously remove it from args
                         args = tuple(args)
                         break
 
@@ -354,9 +365,13 @@ class BeliefsDataFrame(pd.DataFrame):
                 if source is not None:
                     self["source"] = source
                 if event_start is not None:
-                    self["event_start"] = tb_utils.enforce_utc(event_start, "event_start")
+                    self["event_start"] = tb_utils.enforce_utc(
+                        event_start, "event_start"
+                    )
                 if belief_time is not None:
-                    self["belief_time"] = tb_utils.enforce_utc(belief_time, "belief_time")
+                    self["belief_time"] = tb_utils.enforce_utc(
+                        belief_time, "belief_time"
+                    )
                 if cumulative_probability is not None:
                     self["cumulative_probability"] = cumulative_probability
 
@@ -592,7 +607,9 @@ class BeliefsDataFrame(pd.DataFrame):
                (e.g. between 1 and 2 hours before the event value could have been known)
         """
         df = self.xs(
-            tb_utils.enforce_utc(event_start, "event_start"), level="event_start", drop_level=False
+            tb_utils.enforce_utc(event_start, "event_start"),
+            level="event_start",
+            drop_level=False,
         ).sort_index()
         if belief_time_window[0] is not None:
             df = df[df.index.get_level_values("belief_time") >= belief_time_window[0]]
