@@ -1,7 +1,6 @@
 from typing import Any, Callable, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 import math
-import warnings
 
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
@@ -349,7 +348,9 @@ class BeliefsDataFrame(pd.DataFrame):
     def _constructor(self):
         return BeliefsDataFrame
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self, *args, **kwargs
+    ):  # noqa: C901 todo: refactor, e.g. by detecting initialization method
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
 
         # Obtain parameters that are specific to our DataFrame subclass
@@ -398,12 +399,12 @@ class BeliefsDataFrame(pd.DataFrame):
             # Set up empty frame with columns, indices and attributes
             if len(args) == 0:
                 self.reset_index(inplace=True)
-                if "belief_horizon" in self and not "belief_time" in self:
+                if "belief_horizon" in self and "belief_time" not in self:
                     indices = [
                         "belief_horizon" if index == "belief_time" else index
                         for index in indices
                     ]
-                if "event_end" in self and not "event_start" in self:
+                if "event_end" in self and "event_start" not in self:
                     indices = [
                         "event_end" if index == "event_start" else index
                         for index in indices
@@ -482,12 +483,12 @@ class BeliefsDataFrame(pd.DataFrame):
                 self["source"] = self["source"].apply(source_utils.ensure_source)
 
                 # Set index levels and metadata
-                if "belief_horizon" in self and not "belief_time" in self:
+                if "belief_horizon" in self and "belief_time" not in self:
                     indices = [
                         "belief_horizon" if index == "belief_time" else index
                         for index in indices
                     ]
-                if "event_end" in self and not "event_start" in self:
+                if "event_end" in self and "event_start" not in self:
                     indices = [
                         "event_end" if index == "event_start" else index
                         for index in indices
