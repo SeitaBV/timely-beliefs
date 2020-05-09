@@ -1,7 +1,8 @@
 import pytest
 import os
 import pandas as pd
-from datetime import datetime
+import pytz
+from datetime import datetime, timedelta
 
 from timely_beliefs.examples import example_df
 import timely_beliefs as tb
@@ -27,16 +28,18 @@ def test_load_beliefs(csv_file):
 
     # Load beliefs with tb.read_csv
     df = pd.read_csv("test.csv")
-    with pytest.warns(UserWarning, match="type other than BeliefSource"):
+    with pytest.warns(UserWarning, match="created"):
         df = tb.BeliefsDataFrame(df, sensor=tb.Sensor("Sensor Y"))
     assert df.sensor.name == "Sensor Y"
 
     # No lookup should issue warning
-    with pytest.warns(UserWarning, match="type other than BeliefSource"):
+    with pytest.warns(UserWarning, match="looking them up"):
         df = tb.read_csv("test.csv", sensor=tb.Sensor("Sensor Y"))
-    assert all(
-        c != tb.BeliefSource for c in df.index.get_level_values("source").map(type)
-    )
+    for s in df.index.get_level_values("source"):
+        assert isinstance(
+            s, tb.BeliefSource
+        )  # Source names automatically get converted to sources
+    assert all(c == tb.BeliefSource for c in df.sources.map(type))
 
     # This lookup should fail
     with pytest.raises(ValueError, match="not in list"):
@@ -56,3 +59,277 @@ def test_load_beliefs(csv_file):
     assert source_b in df.index.get_level_values("source")
     assert isinstance(df.index.get_level_values("event_start")[0], datetime)
     assert isinstance(df.index.get_level_values("belief_time")[0], datetime)
+
+
+@pytest.mark.parametrize(
+    "args, kwargs",
+    [
+        ([], {}),
+        ([pd.DataFrame()], {}),
+        ([pd.Series()], {}),
+        ([], {"sensor": tb.Sensor("test")}),
+    ],
+)
+def test_empty_beliefs(args, kwargs):
+    """Test construction of empty BeliefsDataFrame."""
+
+    bdf = tb.BeliefsDataFrame(*args, **kwargs)
+    assert bdf.empty
+    if bdf.sensor:
+        assert bdf.sensor.name == "test"
+    else:
+        assert bdf.event_resolution is None
+    assert "event_value" in bdf
+    for name in ["event_start", "belief_time", "source", "cumulative_probability"]:
+        assert name in bdf.index.names
+
+
+@pytest.mark.parametrize(
+    "missing_column_name, data, present_column_names",
+    [
+        (
+            "event_start",
+            [
+                [1, datetime(2000, 1, 1, tzinfo=pytz.utc), 3, 4],
+                [5, datetime(2000, 1, 1, tzinfo=pytz.utc), 7, 8],
+            ],
+            ["source", "belief_time", "cumulative_probability", "event_value"],
+        ),
+        (
+            "belief_time",
+            [
+                [datetime(2000, 1, 1, tzinfo=pytz.utc), 2, 3, 4],
+                [datetime(2000, 1, 1, tzinfo=pytz.utc), 6, 7, 8],
+            ],
+            ["event_start", "source", "cumulative_probability", "event_value"],
+        ),
+        (
+            "source",
+            [
+                [
+                    datetime(2000, 1, 1, tzinfo=pytz.utc),
+                    datetime(2000, 1, 1, tzinfo=pytz.utc),
+                    3,
+                    4,
+                ],
+                [
+                    datetime(2000, 1, 1, tzinfo=pytz.utc),
+                    datetime(2000, 1, 1, tzinfo=pytz.utc),
+                    7,
+                    8,
+                ],
+            ],
+            ["event_start", "belief_time", "cumulative_probability", "event_value"],
+        ),
+        (
+            "event_value",
+            [
+                [
+                    datetime(2000, 1, 1, tzinfo=pytz.utc),
+                    datetime(2000, 1, 1, tzinfo=pytz.utc),
+                    3,
+                    4,
+                ],
+                [
+                    datetime(2000, 1, 1, tzinfo=pytz.utc),
+                    datetime(2000, 1, 1, tzinfo=pytz.utc),
+                    7,
+                    8,
+                ],
+            ],
+            ["event_start", "belief_time", "cumulative_probability", "source"],
+        ),
+    ],
+)
+def test_incomplete_beliefs(missing_column_name, data, present_column_names):
+    """Test exceptions are thrown when input data is missing required column headers.
+    Only cumulative_probability can be missed, since it is has a default value."""
+    df = pd.DataFrame(data, columns=present_column_names)
+
+    with pytest.raises(KeyError, match=missing_column_name):
+        with pytest.warns(UserWarning, match="created"):
+            tb.BeliefsDataFrame(df)
+
+
+@pytest.mark.parametrize(
+    "invalid_column, data, column_names",
+    [
+        (
+            "event_start",
+            [[1, timedelta(), 3, 4]],
+            ["event_start", "belief_horizon", "event_value", "source"],
+        ),  # event_start is not a datetime
+        (
+            "event_start",
+            [[datetime(2000, 1, 1), timedelta(), 3, 4]],
+            ["event_start", "belief_horizon", "event_value", "source"],
+        ),  # event_start is missing timezone
+        (
+            "belief_horizon",
+            [[datetime(2000, 1, 1, tzinfo=pytz.utc), 2, 3, 4]],
+            ["event_start", "belief_horizon", "event_value", "source"],
+        ),  # belief_horizon is not a timedelta
+        (
+            "belief_time",
+            [[datetime(2000, 1, 1, tzinfo=pytz.utc), 2, 3, 4]],
+            ["event_start", "belief_time", "event_value", "source"],
+        ),  # belief_time is not a datetime
+        (
+            "source",
+            [[datetime(2000, 1, 1, tzinfo=pytz.utc), timedelta(), 3, None]],
+            ["event_start", "belief_horizon", "event_value", "source"],
+        ),  # source is None
+    ],
+)
+def test_invalid_beliefs(invalid_column, data, column_names):
+    """Test exceptions are thrown when input data is of the wrong type."""
+    df = pd.DataFrame(data, columns=column_names)
+    with pytest.raises(TypeError, match=invalid_column):
+        with pytest.warns(UserWarning, match="created"):
+            tb.BeliefsDataFrame(df)
+
+
+@pytest.mark.parametrize(
+    "args, kwargs",
+    [
+        (
+            [
+                pd.DataFrame(
+                    [[datetime(2000, 1, 1, tzinfo=pytz.utc), timedelta(), 3, 4]],
+                    columns=["event_start", "belief_horizon", "source", "event_value"],
+                )
+            ],
+            {"sensor": tb.Sensor(name="temp", event_resolution=timedelta(hours=1))},
+        ),
+        (
+            [
+                pd.DataFrame(
+                    [
+                        [
+                            datetime(2000, 1, 1, tzinfo=pytz.utc),
+                            datetime(2000, 1, 1, hour=1, tzinfo=pytz.utc),
+                            3,
+                            4,
+                        ]
+                    ],
+                    columns=["event_start", "belief_time", "source", "event_value"],
+                )
+            ],
+            {"sensor": tb.Sensor(name="temp", event_resolution=timedelta(hours=1))},
+        ),
+        (
+            [
+                pd.DataFrame(
+                    [[datetime(2000, 1, 1, tzinfo=pytz.utc), timedelta(), 4]],
+                    columns=["event_start", "belief_horizon", "event_value"],
+                )
+            ],
+            {
+                "sensor": tb.Sensor(name="temp", event_resolution=timedelta(hours=1)),
+                "source": 3,
+            },
+        ),  # move source to keyword argument
+        (
+            [
+                pd.DataFrame(
+                    [[datetime(2000, 1, 1, tzinfo=pytz.utc), 4]],
+                    columns=["event_start", "event_value"],
+                )
+            ],
+            {
+                "sensor": tb.Sensor(name="temp", event_resolution=timedelta(hours=1)),
+                "source": 3,
+                "belief_horizon": timedelta(),
+            },
+        ),  # move source and belief_horizon to keyword argument
+        (
+            [pd.DataFrame([[4]], columns=["event_value"])],
+            {
+                "sensor": tb.Sensor(name="temp", event_resolution=timedelta(hours=1)),
+                "source": 3,
+                "belief_horizon": timedelta(),
+                "event_start": datetime(2000, 1, 1, tzinfo=pytz.utc),
+            },
+        ),  # move source, belief_horizon and event_start to keyword argument
+        (
+            [pd.Series([4])],
+            {
+                "sensor": tb.Sensor(name="temp", event_resolution=timedelta(hours=1)),
+                "source": 3,
+                "belief_horizon": timedelta(),
+                "event_start": datetime(2000, 1, 1, tzinfo=pytz.utc),
+            },
+        ),  # move source, belief_horizon and event_start to keyword argument and use Series instead of DataFrame
+        (
+            [
+                pd.Series(
+                    [4], index=pd.DatetimeIndex([datetime(2000, 1, 1, tzinfo=pytz.utc)])
+                )
+            ],
+            {
+                "sensor": tb.Sensor(name="temp", event_resolution=timedelta(hours=1)),
+                "source": 3,
+                "belief_horizon": timedelta(),
+            },
+        ),  # move source and belief_horizon keyword argument and use Series instead of DataFrame
+    ],
+)
+def test_belief_setup_with_data_frame(args, kwargs):
+    """Test different ways of setting up the same BeliefsDataFrame."""
+    with pytest.warns(UserWarning, match="created"):
+        bdf = tb.BeliefsDataFrame(*args, **kwargs)
+    assert bdf.event_starts[0] == datetime(2000, 1, 1, tzinfo=pytz.utc)
+    assert (
+        bdf.belief_times[0]
+        == datetime(2000, 1, 1, tzinfo=pytz.utc) + bdf.event_resolution
+    )
+    assert bdf.belief_horizons[0] == timedelta()
+    assert bdf.sources[0].name == "3"
+    assert bdf.values[0] == 4
+
+
+@pytest.mark.parametrize(
+    "args, kwargs",
+    [
+        (
+            [],
+            {
+                "beliefs": [
+                    tb.TimedBelief(
+                        tb.Sensor(name="temp", event_resolution=timedelta(hours=1)),
+                        tb.BeliefSource(3),
+                        4,
+                        event_start=datetime(2000, 1, 1, tzinfo=pytz.utc),
+                        belief_horizon=timedelta(),
+                    )
+                ]
+            },
+        ),
+        (
+            [
+                [
+                    tb.TimedBelief(
+                        tb.Sensor(name="temp", event_resolution=timedelta(hours=1)),
+                        tb.BeliefSource(3),
+                        4,
+                        event_start=datetime(2000, 1, 1, tzinfo=pytz.utc),
+                        belief_horizon=timedelta(),
+                    )
+                ]
+            ],
+            {},
+        ),
+    ],
+)
+def test_belief_setup_with_timed_beliefs(args, kwargs):
+    """Test different ways of setting up the same BeliefsDataFrame."""
+    bdf = tb.BeliefsDataFrame(*args, **kwargs)
+    assert bdf.event_starts[0] == datetime(2000, 1, 1, tzinfo=pytz.utc)
+    assert (
+        bdf.belief_times[0]
+        == datetime(2000, 1, 1, tzinfo=pytz.utc) + bdf.event_resolution
+    )
+    assert bdf.belief_horizons[0] == timedelta()
+    assert bdf.sources[0].name == "3"
+    assert bdf.values[0] == 4
+    tb.BeliefsDataFrame()
