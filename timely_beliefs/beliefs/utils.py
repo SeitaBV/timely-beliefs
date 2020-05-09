@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 from datetime import datetime, timedelta
 import warnings
 
@@ -313,20 +313,28 @@ def resample_event_start(
 def load_time_series(
     event_value_series: pd.Series,
     sensor: Sensor,
-    source: BeliefSource,
-    belief_horizon: timedelta,
+    source: Union[BeliefSource, pd.Series],
+    belief_horizon: Union[timedelta, pd.Series],
     cumulative_probability: float = 0.5,
 ) -> List["classes.TimedBelief"]:
     """Turn series entries into TimedBelief objects."""
     beliefs = []
-    for time, value in event_value_series.items():
+    if isinstance(belief_horizon, timedelta):
+        belief_horizon_series = pd.Series(belief_horizon)
+    else:
+        belief_horizon_series = belief_horizon
+    if isinstance(source, BeliefSource):
+        source_series = pd.Series(BeliefSource)
+    else:
+        source_series = source
+    for time, value, h, s in zip(pd.to_datetime(event_value_series.index), event_value_series.values, belief_horizon_series.values, source_series.values):
         beliefs.append(
             classes.TimedBelief(
                 sensor=sensor,
-                source=source,
+                source=s,
                 value=value,
                 event_start=time,
-                belief_horizon=belief_horizon,
+                belief_horizon=h,
                 cumulative_probability=cumulative_probability,
             )
         )
