@@ -329,6 +329,11 @@ class BeliefsDataFrame(pd.DataFrame):
 
     :param sensor: the Sensor object that the beliefs pertain to
     :param beliefs: a list of TimedBelief objects used to initialise the BeliefsDataFrame
+    :param source: the source for each belief in the input DataFrame (BeliefSource, str or int)
+    :param event_start: the start of the event that the beliefs pertain to (datetime)
+    :param belief_time: the time at which the beliefs were formed (datetime)
+    :param belief_horizon: how long before (the event could be known) the belief was formed (timedelta), alternative to belief_time
+    :param cumulative_probability: float in the range [0, 1] describing the cumulative probability of the belief
     """
 
     _metadata = ["sensor", "event_resolution"]
@@ -443,13 +448,22 @@ class BeliefsDataFrame(pd.DataFrame):
         # Call the pandas DataFrame constructor with the right input
         kwargs["columns"] = columns
         if beliefs:
-            sources = set(belief.source for belief in beliefs)
-            source_names = set(source.name for source in sources)
-            if len(source_names) != len(sources):
+            # Check for different sensors
+            unique_sensors = set(belief.sensor for belief in beliefs)
+            if len(unique_sensors) != 1:
+                raise ValueError("BeliefsDataFrame cannot describe multiple sensors.")
+            sensor = list(unique_sensors)[0]
+
+            # Check for different sources with the same name
+            unique_sources = set(belief.source for belief in beliefs)
+            unique_source_names = set(source.name for source in unique_sources)
+            if len(unique_source_names) != len(unique_sources):
                 raise ValueError(
                     "Source names must be unique. Cannot initialise BeliefsDataFrame given the following unique sources:\n%s"
-                    % sources
+                    % unique_sources
                 )
+
+            # Construct data and index from beliefs before calling super class
             beliefs = sorted(
                 beliefs,
                 key=lambda b: (
@@ -482,7 +496,7 @@ class BeliefsDataFrame(pd.DataFrame):
         self,
         event_value_series: pd.Series,
         source: BeliefSource,
-        belief_horizon: timedelta,
+        belief_horizon: Union[timedelta, pd.Series],
         cumulative_probability: float = 0.5,
     ) -> "BeliefsDataFrame":
         """Append beliefs from time series entries into this BeliefsDataFrame. Sensor is assumed to be the same.
@@ -545,7 +559,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(
-            self.event_starts.to_series(keep_tz=True, name="knowledge_time").apply(
+            self.event_starts.to_series(name="knowledge_time").apply(
                 lambda event_start: self.sensor.knowledge_time(event_start)
             )
         )
@@ -553,7 +567,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def knowledge_horizons(self) -> pd.TimedeltaIndex:
         return pd.TimedeltaIndex(
-            self.event_starts.to_series(keep_tz=True, name="knowledge_horizon").apply(
+            self.event_starts.to_series(name="knowledge_horizon").apply(
                 lambda event_start: self.sensor.knowledge_horizon(event_start)
             )
         )
@@ -579,10 +593,22 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def event_ends(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(
-            self.event_starts.to_series(keep_tz=True, name="event_end").apply(
+            self.event_starts.to_series(name="event_end").apply(
                 lambda event_start: event_start + self.event_resolution
             )
         )
+
+    @property
+    def sources(self) -> pd.Index:
+        """Shorthand to list the source of each belief in the BeliefsDataFrame."""
+        # Todo: subclass pd.Index to create a BeliefSourceIndex?
+        return self.index.get_level_values("source")
+
+    @property
+    def event_time_window(self) -> Tuple[datetime, datetime]:
+        start, end = self.index.get_level_values("event_start")[[0, -1]]
+        end = end + self.event_resolution
+        return start, end
 
     @hybrid_method
     def for_each_belief(
