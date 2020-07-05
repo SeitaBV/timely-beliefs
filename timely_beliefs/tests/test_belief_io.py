@@ -5,6 +5,7 @@ import pytz
 from datetime import datetime, timedelta
 
 from timely_beliefs.examples import example_df
+from timely_beliefs.beliefs.classes import METADATA
 import timely_beliefs as tb
 
 
@@ -333,3 +334,26 @@ def test_belief_setup_with_timed_beliefs(args, kwargs):
     assert bdf.sources[0].name == "3"
     assert bdf.values[0] == 4
     tb.BeliefsDataFrame()
+
+
+def test_converting_between_data_frame_and_series_retains_metadata():
+    """
+    Test whether slicing of a BeliefsDataFrame into a BeliefsSeries retains the metadata.
+    Test whether expanding dimensions of a BeliefsSeries into a BeliefsDataFrame retains the metadata.
+    """
+    df = example_df
+    metadata = {md: getattr(example_df, md) for md in METADATA}
+    series = df["event_value"]
+    for md in metadata:
+        assert getattr(series, md) == metadata[md]
+    df = series.to_frame()
+    for md in metadata:
+        assert getattr(df, md) == metadata[md]
+
+
+def test_dropping_index_levels_retains_metadata():
+    df = example_df
+    metadata = {md: getattr(example_df, md) for md in METADATA}
+    df.index = df.index.get_level_values("event_start")  # drop all other index levels
+    for md in metadata:
+        assert getattr(df, md) == metadata[md]

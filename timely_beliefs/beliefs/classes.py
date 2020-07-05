@@ -23,6 +23,9 @@ from timely_beliefs.beliefs import probabilistic_utils
 from timely_beliefs.visualization import utils as visualization_utils
 
 
+METADATA = ["sensor", "event_resolution"]
+
+
 class TimedBelief(object):
     """
     The basic description of a data point as a belief, which includes the following:
@@ -293,7 +296,7 @@ class DBTimedBelief(Base, TimedBelief):
 class BeliefsSeries(pd.Series):
     """Just for slicing, to keep around the metadata."""
 
-    _metadata = ["sensor", "event_resolution"]
+    _metadata = METADATA
 
     @property
     def _constructor(self):
@@ -301,7 +304,13 @@ class BeliefsSeries(pd.Series):
 
     @property
     def _constructor_expanddim(self):
-        return BeliefsDataFrame
+        def f(*args, **kwargs):
+            # adapted from https://github.com/pandas-dev/pandas/issues/19850#issuecomment-367934440
+            return BeliefsDataFrame(*args, **kwargs).__finalize__(
+                self, method="inherit"
+            )
+
+        return f
 
     def __finalize__(self, other, method=None, **kwargs):
         """Propagate metadata from other to self."""
@@ -342,15 +351,38 @@ class BeliefsDataFrame(pd.DataFrame):
     :param cumulative_probability: float in the range [0, 1] describing the cumulative probability of the belief
     """
 
-    _metadata = ["sensor", "event_resolution"]
+    _metadata = METADATA
 
     @property
     def _constructor(self):
         return BeliefsDataFrame
 
-    def __init__(
+    @property
+    def _constructor_sliced(self):
+        def f(*args, **kwargs):
+            # adapted from https://github.com/pandas-dev/pandas/issues/19850#issuecomment-367934440
+            return BeliefsSeries(*args, **kwargs).__finalize__(self, method="inherit")
+
+        return f
+
+    def __finalize__(self, other, method=None, **kwargs):
+        """Propagate metadata from other to self."""
+        # merge operation: using metadata of the left object
+        if method == "merge":
+            for name in self._metadata:
+                object.__setattr__(self, name, getattr(other.left, name, None))
+        # concat operation: using metadata of the first object
+        elif method == "concat":
+            for name in self._metadata:
+                object.__setattr__(self, name, getattr(other.objs[0], name, None))
+        else:
+            for name in self._metadata:
+                object.__setattr__(self, name, getattr(other, name, None))
+        return self
+
+    def __init__(  # noqa: C901 todo: refactor, e.g. by detecting initialization method
         self, *args, **kwargs
-    ):  # noqa: C901 todo: refactor, e.g. by detecting initialization method
+    ):
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
 
         # Obtain parameters that are specific to our DataFrame subclass
@@ -565,25 +597,6 @@ class BeliefsDataFrame(pd.DataFrame):
             cumulative_probability,
         )
         return self.append(BeliefsDataFrame(sensor=self.sensor, beliefs=beliefs))
-
-    @property
-    def _constructor_sliced(self):
-        return BeliefsSeries
-
-    def __finalize__(self, other, method=None, **kwargs):
-        """Propagate metadata from other to self."""
-        # merge operation: using metadata of the left object
-        if method == "merge":
-            for name in self._metadata:
-                object.__setattr__(self, name, getattr(other.left, name, None))
-        # concat operation: using metadata of the first object
-        elif method == "concat":
-            for name in self._metadata:
-                object.__setattr__(self, name, getattr(other.objs[0], name, None))
-        else:
-            for name in self._metadata:
-                object.__setattr__(self, name, getattr(other, name, None))
-        return self
 
     def convert_index_from_belief_time_to_horizon(self) -> "BeliefsDataFrame":
         return tb_utils.replace_multi_index_level(
