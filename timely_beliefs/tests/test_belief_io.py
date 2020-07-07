@@ -352,7 +352,7 @@ def test_converting_between_data_frame_and_series_retains_metadata():
 
 
 def test_dropping_index_levels_retains_metadata():
-    df = example_df
+    df = example_df.copy()
     metadata = {md: getattr(example_df, md) for md in METADATA}
     df.index = df.index.get_level_values("event_start")  # drop all other index levels
     for md in metadata:

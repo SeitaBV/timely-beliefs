@@ -71,20 +71,18 @@ class TimedBelief(object):
         else:
             self.cumulative_probability = 0.5
         if "event_start" in kwargs:
-            self.event_start = tb_utils.enforce_utc(
-                kwargs["event_start"], "event_start"
-            )
+            self.event_start = tb_utils.enforce_tz(kwargs["event_start"], "event_start")
         elif "event_time" in kwargs:
             if self.sensor.event_resolution != timedelta():
                 raise KeyError(
                     "Sensor has a non-zero resolution, so it doesn't measure instantaneous events. "
                     "Use event_start instead of event_time."
                 )
-            self.event_start = tb_utils.enforce_utc(kwargs["event_time"], "event_time")
+            self.event_start = tb_utils.enforce_tz(kwargs["event_time"], "event_time")
         if "belief_horizon" in kwargs:
             self.belief_horizon = kwargs["belief_horizon"]
         elif "belief_time" in kwargs:
-            belief_time = tb_utils.enforce_utc(kwargs["belief_time"], "belief_time")
+            belief_time = tb_utils.enforce_tz(kwargs["belief_time"], "belief_time")
             self.belief_horizon = (
                 self.sensor.knowledge_time(self.event_start) - belief_time
             )
@@ -209,15 +207,13 @@ class DBTimedBelief(Base, TimedBelief):
 
         # Check for timezone-aware datetime input
         if event_before is not None:
-            event_before = tb_utils.enforce_utc(event_before, "event_before")
+            event_before = tb_utils.enforce_tz(event_before, "event_before")
         if event_not_before is not None:
-            event_not_before = tb_utils.enforce_utc(
-                event_not_before, "event_not_before"
-            )
+            event_not_before = tb_utils.enforce_tz(event_not_before, "event_not_before")
         if belief_before is not None:
-            belief_before = tb_utils.enforce_utc(belief_before, "belief_before")
+            belief_before = tb_utils.enforce_tz(belief_before, "belief_before")
         if belief_not_before is not None:
-            belief_not_before = tb_utils.enforce_utc(
+            belief_not_before = tb_utils.enforce_tz(
                 belief_not_before, "belief_not_before"
             )
 
@@ -468,7 +464,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 elif not isinstance(self["source"].dtype, BeliefSource):
                     self["source"] = self["source"].apply(source_utils.ensure_source)
                 if event_start is not None:
-                    self["event_start"] = tb_utils.enforce_utc(
+                    self["event_start"] = tb_utils.enforce_tz(
                         event_start, "event_start"
                     )
                 elif "event_start" not in self and "event_end" not in self:
@@ -477,10 +473,10 @@ class BeliefsDataFrame(pd.DataFrame):
                     )
                 else:
                     self["event_start"] = self["event_start"].apply(
-                        lambda x: tb_utils.enforce_utc(pd.to_datetime(x), "event_start")
+                        lambda x: tb_utils.enforce_tz(pd.to_datetime(x), "event_start")
                     )
                 if belief_time is not None:
-                    self["belief_time"] = tb_utils.enforce_utc(
+                    self["belief_time"] = tb_utils.enforce_tz(
                         belief_time, "belief_time"
                     )
                 elif belief_horizon is not None:
@@ -491,7 +487,7 @@ class BeliefsDataFrame(pd.DataFrame):
                     )
                 elif "belief_time" in self:
                     self["belief_time"] = self["belief_time"].apply(
-                        lambda x: tb_utils.enforce_utc(pd.to_datetime(x), "belief_time")
+                        lambda x: tb_utils.enforce_tz(pd.to_datetime(x), "belief_time")
                     )
                 elif not pd.api.types.is_timedelta64_dtype(
                     self["belief_horizon"]
@@ -509,9 +505,9 @@ class BeliefsDataFrame(pd.DataFrame):
                     )
 
                 # Check for correct types and convert if possible
-                self["event_start"] = pd.to_datetime(self["event_start"], utc=True)
+                self["event_start"] = pd.to_datetime(self["event_start"])
                 if "belief_time" in self:
-                    self["belief_time"] = pd.to_datetime(self["belief_time"], utc=True)
+                    self["belief_time"] = pd.to_datetime(self["belief_time"])
                 self["source"] = self["source"].apply(source_utils.ensure_source)
 
                 # Set index levels and metadata
@@ -571,8 +567,12 @@ class BeliefsDataFrame(pd.DataFrame):
 
         # Clean up duplicate beliefs and ensure datetimes are set (even with an empty BeliefsDataFrame)
         self.reset_index(inplace=True)
-        self["event_start"] = pd.to_datetime(self["event_start"], utc=True)
-        self["belief_time"] = pd.to_datetime(self["belief_time"], utc=True)
+        self["event_start"] = pd.to_datetime(
+            self["event_start"], utc=True if self["event_start"].empty else None
+        )
+        self["belief_time"] = pd.to_datetime(
+            self["belief_time"], utc=True if self["belief_time"].empty else None
+        )
         self.drop_duplicates(inplace=True)
         self.set_index(indices, inplace=True)
 
@@ -753,7 +753,7 @@ class BeliefsDataFrame(pd.DataFrame):
                (e.g. between 1 and 2 hours before the event value could have been known)
         """
         df = self.xs(
-            tb_utils.enforce_utc(event_start, "event_start"),
+            tb_utils.enforce_tz(event_start, "event_start"),
             level="event_start",
             drop_level=False,
         ).sort_index()
@@ -822,12 +822,12 @@ class BeliefsDataFrame(pd.DataFrame):
         if belief_time_window[0] is not None:
             df = df[
                 df.index.get_level_values("belief_time")
-                >= tb_utils.enforce_utc(belief_time_window[0], "belief_time")
+                >= tb_utils.enforce_tz(belief_time_window[0], "belief_time")
             ]
         if belief_time_window[1] is not None:
             df = df[
                 df.index.get_level_values("belief_time")
-                <= tb_utils.enforce_utc(belief_time_window[1], "belief_time")
+                <= tb_utils.enforce_tz(belief_time_window[1], "belief_time")
             ]
         df = belief_utils.select_most_recent_belief(df)
         if update_belief_times is True:

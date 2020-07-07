@@ -7,7 +7,7 @@ from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.ext.declarative import declared_attr
 
 from timely_beliefs.db_base import Base
-from timely_beliefs.utils import enforce_utc
+from timely_beliefs.utils import enforce_tz
 from timely_beliefs.sensors.func_store.knowledge_horizons import constant_timedelta
 from timely_beliefs.sensors.utils import (
     jsonify_time_dict,
@@ -62,14 +62,14 @@ class Sensor(object):
 
     @hybrid_method
     def knowledge_horizon(self, event_start: datetime = None) -> timedelta:
-        event_start = enforce_utc(event_start, "event_start")
+        event_start = enforce_tz(event_start, "event_start")
         return eval_verified_knowledge_horizon_fnc(
             self.knowledge_horizon_fnc, self.knowledge_horizon_par, event_start
         )
 
     @hybrid_method
     def knowledge_time(self, event_start: datetime) -> datetime:
-        event_start = enforce_utc(event_start, "event_start")
+        event_start = enforce_tz(event_start, "event_start")
         return event_start - self.knowledge_horizon(event_start)
 
     def __repr__(self):
