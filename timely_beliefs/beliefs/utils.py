@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 from datetime import datetime, timedelta
 import warnings
 
@@ -15,10 +15,11 @@ from timely_beliefs.beliefs.probabilistic_utils import (
 )
 from timely_beliefs import BeliefSource, Sensor
 from timely_beliefs import utils as tb_utils
+from timely_beliefs.sources import utils as source_utils
 
 
 def select_most_recent_belief(
-    df: "classes.BeliefsDataFrame"
+    df: "classes.BeliefsDataFrame",
 ) -> "classes.BeliefsDataFrame":
     """Drop all but most recent belief."""
     if "belief_horizon" in df.index.names:
@@ -175,9 +176,7 @@ def align_belief_times(
                 ps = previous_slice_with_existing_belief_time.reset_index()
                 ps[
                     "belief_time"
-                ] = (
-                    ubt
-                )  # Update belief time to reflect propagation of beliefs over time
+                ] = ubt  # Update belief time to reflect propagation of beliefs over time
                 data.extend(ps.values.tolist())
             else:
                 data.append([event_start, ubt, source, np.nan, np.nan])
@@ -313,20 +312,35 @@ def resample_event_start(
 def load_time_series(
     event_value_series: pd.Series,
     sensor: Sensor,
-    source: BeliefSource,
-    belief_horizon: timedelta,
+    source: Union[BeliefSource, pd.Series],
+    belief_horizon: Union[timedelta, pd.Series],
     cumulative_probability: float = 0.5,
 ) -> List["classes.TimedBelief"]:
     """Turn series entries into TimedBelief objects."""
     beliefs = []
-    for time, value in event_value_series.items():
+    if isinstance(belief_horizon, timedelta):
+        belief_horizon_series = pd.Series(
+            belief_horizon, index=event_value_series.index
+        )
+    else:
+        belief_horizon_series = belief_horizon
+    if isinstance(source, BeliefSource):
+        source_series = pd.Series(BeliefSource, index=event_value_series.index)
+    else:
+        source_series = source
+    for time, value, h, s in zip(
+        pd.to_datetime(event_value_series.index),
+        event_value_series.values,
+        belief_horizon_series.values,
+        source_series.values,
+    ):
         beliefs.append(
             classes.TimedBelief(
                 sensor=sensor,
-                source=source,
+                source=s,
                 value=value,
                 event_start=time,
-                belief_horizon=belief_horizon,
+                belief_horizon=h,
                 cumulative_probability=cumulative_probability,
             )
         )
@@ -455,7 +469,7 @@ def read_csv(
     """
     df = pd.read_csv(path)
     if source is not None:
-        df["source"] = source
+        df["source"] = source_utils.ensure_source_exists(source)
     elif "source" in df.columns:
         if look_up_sources is not None:
             source_names = df["source"].unique()

@@ -1,3 +1,5 @@
+from typing import Union
+
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.ext.declarative import declared_attr
 
@@ -8,9 +10,13 @@ class BeliefSource(object):
 
     name: str
 
-    def __init__(self, name: str = ""):
-        if name == "":
-            raise Exception("Please give this source a name to be identifiable.")
+    def __init__(self, name: Union[str, int]):
+        """Initialize with a name (string or integer identifier)."""
+        if not isinstance(name, str):
+            if isinstance(name, int):
+                name = str(name)
+            else:
+                raise TypeError("Please give this source a name to be identifiable.")
         self.name = name
 
     def __repr__(self):
@@ -24,7 +30,7 @@ class BeliefSource(object):
         return self.name < other.name
 
 
-class DBBeliefSource(Base):
+class DBBeliefSource(Base, BeliefSource):
     """Mixin class for a table with belief sources, i.e. data-creating entities such as users or scripts."""
 
     __tablename__ = "belief_source"
@@ -38,7 +44,8 @@ class DBBeliefSource(Base):
     name = Column(String(120), nullable=False, default="")
 
     def __init__(self, name: str):
-        self.name = name
+        BeliefSource.__init__(self, name)
+        Base.__init__(self)
 
     def __repr__(self):
         return "<DBBeliefSource %s (%s)>" % (self.id, self.name)

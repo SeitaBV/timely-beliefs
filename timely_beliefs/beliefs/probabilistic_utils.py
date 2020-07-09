@@ -160,9 +160,7 @@ def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
     """
 
     dim = len(marginal_cdfs_p)
-    n_outcomes = (
-        99
-    )  # Todo: refactor to avoid having to set this above our threshold for computing exact probabilities
+    n_outcomes = 99  # Todo: refactor to avoid having to set this above our threshold for computing exact probabilities
 
     # Set up marginal distributions
     empirical_method_possible = True
@@ -240,8 +238,8 @@ def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
             )
         else:
             smallest_marginal_point_distance = (
-                1
-            )  # With just 1 point, an arbitrary positive distance suffices (e.g. 1)
+                1  # With just 1 point, an arbitrary positive distance suffices (e.g. 1)
+            )
         margin = smallest_marginal_point_distance / 2
 
         # Construct an n-dimensional matrix with all possible points (i.e. combinations of outcomes of our random variables)
@@ -492,7 +490,7 @@ def partial_cdf(cdf_p: np.ndarray, cdf_v: np.ndarray, cp_range: Tuple[float, flo
 
 
 def get_cdfs_from_beliefsdataframe(
-    df: "classes.BeliefsDataFrame"
+    df: "classes.BeliefsDataFrame",
 ) -> Tuple[np.ndarray, np.ndarray]:
     """From a BeliefsDataFrame with a single belief, get the cumulative distribution functions."""
     if df.empty:
@@ -507,7 +505,7 @@ def get_cdfs_from_beliefsdataframe(
 
 
 def get_pdfs_from_beliefsdataframe(
-    df: "classes.BeliefsDataFrame"
+    df: "classes.BeliefsDataFrame",
 ) -> Tuple[np.ndarray, np.ndarray]:
     """From a BeliefsDataFrame with a single belief, get the probability distribution functions."""
     cdf_p, pdf_v = get_cdfs_from_beliefsdataframe(df)

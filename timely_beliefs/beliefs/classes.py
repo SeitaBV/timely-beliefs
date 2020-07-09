@@ -1,7 +1,6 @@
 from typing import Any, Callable, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 import math
-import warnings
 
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
@@ -19,8 +18,12 @@ from timely_beliefs.sensors.classes import Sensor, DBSensor
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.beliefs import utils as belief_utils
+from timely_beliefs.sources import utils as source_utils
 from timely_beliefs.beliefs import probabilistic_utils
 from timely_beliefs.visualization import utils as visualization_utils
+
+
+METADATA = ["sensor", "event_resolution"]
 
 
 class TimedBelief(object):
@@ -41,14 +44,20 @@ class TimedBelief(object):
 
     event_start: datetime
     belief_horizon: timedelta
-    event_value: float
+    event_value: float  # todo: allow string to represent beliefs about labels? But what would nominal data mean for the interpretation of cp?
     sensor: Sensor
     source: BeliefSource
     cumulative_probability: float
 
-    def __init__(self, sensor: Sensor, source: BeliefSource, value: float, **kwargs):
+    def __init__(
+        self,
+        sensor: Sensor,
+        source: Union[BeliefSource, str, int],
+        value: float,
+        **kwargs
+    ):
         self.sensor = sensor
-        self.source = source
+        self.source = source_utils.ensure_source_exists(source)
         self.event_value = value
 
         if "cumulative_probability" in kwargs:
@@ -62,18 +71,18 @@ class TimedBelief(object):
         else:
             self.cumulative_probability = 0.5
         if "event_start" in kwargs:
-            self.event_start = tb_utils.enforce_utc(kwargs["event_start"])
+            self.event_start = tb_utils.enforce_tz(kwargs["event_start"], "event_start")
         elif "event_time" in kwargs:
             if self.sensor.event_resolution != timedelta():
                 raise KeyError(
                     "Sensor has a non-zero resolution, so it doesn't measure instantaneous events. "
                     "Use event_start instead of event_time."
                 )
-            self.event_start = tb_utils.enforce_utc(kwargs["event_time"])
+            self.event_start = tb_utils.enforce_tz(kwargs["event_time"], "event_time")
         if "belief_horizon" in kwargs:
             self.belief_horizon = kwargs["belief_horizon"]
         elif "belief_time" in kwargs:
-            belief_time = tb_utils.enforce_utc(kwargs["belief_time"])
+            belief_time = tb_utils.enforce_tz(kwargs["belief_time"], "belief_time")
             self.belief_horizon = (
                 self.sensor.knowledge_time(self.event_start) - belief_time
             )
@@ -198,13 +207,15 @@ class DBTimedBelief(Base, TimedBelief):
 
         # Check for timezone-aware datetime input
         if event_before is not None:
-            event_before = tb_utils.enforce_utc(event_before)
+            event_before = tb_utils.enforce_tz(event_before, "event_before")
         if event_not_before is not None:
-            event_not_before = tb_utils.enforce_utc(event_not_before)
+            event_not_before = tb_utils.enforce_tz(event_not_before, "event_not_before")
         if belief_before is not None:
-            belief_before = tb_utils.enforce_utc(belief_before)
+            belief_before = tb_utils.enforce_tz(belief_before, "belief_before")
         if belief_not_before is not None:
-            belief_not_before = tb_utils.enforce_utc(belief_not_before)
+            belief_not_before = tb_utils.enforce_tz(
+                belief_not_before, "belief_not_before"
+            )
 
         # Query sensor for relevant timing properties
         event_resolution, knowledge_horizon_fnc, knowledge_horizon_par = (
@@ -218,7 +229,10 @@ class DBTimedBelief(Base, TimedBelief):
         )
 
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
-        knowledge_horizon_min, knowledge_horizon_max = sensor_utils.eval_verified_knowledge_horizon_fnc(
+        (
+            knowledge_horizon_min,
+            knowledge_horizon_max,
+        ) = sensor_utils.eval_verified_knowledge_horizon_fnc(
             knowledge_horizon_fnc, knowledge_horizon_par, None
         )
 
@@ -278,7 +292,7 @@ class DBTimedBelief(Base, TimedBelief):
 class BeliefsSeries(pd.Series):
     """Just for slicing, to keep around the metadata."""
 
-    _metadata = ["sensor", "event_resolution"]
+    _metadata = METADATA
 
     @property
     def _constructor(self):
@@ -286,7 +300,14 @@ class BeliefsSeries(pd.Series):
 
     @property
     def _constructor_expanddim(self):
-        return BeliefsDataFrame
+        def f(*args, **kwargs):
+            """ Call __finalize__() after construction to inherit metadata. """
+            # adapted from https://github.com/pandas-dev/pandas/issues/19850#issuecomment-367934440
+            return BeliefsDataFrame(*args, **kwargs).__finalize__(
+                self, method="inherit"
+            )
+
+        return f
 
     def __finalize__(self, other, method=None, **kwargs):
         """Propagate metadata from other to self."""
@@ -306,31 +327,83 @@ class BeliefsDataFrame(pd.DataFrame):
     columns: ["event_value"]
     index levels: ["event_start", "belief_time", "source", "cumulative_probability"]
 
-    Note that source can either be an ID or a name, depending on the beliefs being used (TimedBelief or DBTimedBelief).
+    To initialize, pass sensor=Sensor("sensor_name"), together with data through one of these methods:
+        Method 1:   pass a list of TimedBelief objects.
+        Method 2:   pass a pandas DataFrame with columns ["event_start", "belief_time", "source", "event_value"]
+                    - Optional column: "cumulative_probability" (the default is 0.5)
+                    - Alternatively, use keyword arguments to replace columns containing unique values for each belief
+        Method 3:   pass a pandas Series with DatetimeIndex and keyword arguments for "source"
+                    - Optional keyword argument: "belief_horizon" (the default is sensor.event_resolution)
+                    - Alternatively, use the "event_start" keyword argument to ignore the index
 
     In addition to the standard DataFrame constructor arguments,
     BeliefsDataFrame also accepts the following keyword arguments:
 
-    :param sensor: the Sensor object that the beliefs pertain to
     :param beliefs: a list of TimedBelief objects used to initialise the BeliefsDataFrame
+    :param sensor: the Sensor object that each belief pertains to
+    :param source: the source of each belief in the input DataFrame (a BeliefSource, str or int)
+    :param event_start: the start of the event that each belief pertains to (a datetime)
+    :param belief_time: the time at which each belief was formed (a datetime) - use this as alternative to belief_horizon
+    :param belief_horizon: how long before (the event could be known) each belief was formed (a timedelta) - use this as alternative to belief_time
+    :param cumulative_probability: a float in the range [0, 1] describing the cumulative probability of each belief - use this e.g. to initialize a BeliefsDataFrame containing only the values at 95% cumulative probability
     """
 
-    _metadata = ["sensor", "event_resolution"]
+    _metadata = METADATA
 
     @property
     def _constructor(self):
         return BeliefsDataFrame
 
-    def __init__(self, *args, **kwargs):
+    @property
+    def _constructor_sliced(self):
+        def f(*args, **kwargs):
+            """ Call __finalize__() after construction to inherit metadata. """
+            # adapted from https://github.com/pandas-dev/pandas/issues/19850#issuecomment-367934440
+            return BeliefsSeries(*args, **kwargs).__finalize__(self, method="inherit")
+
+        return f
+
+    def __finalize__(self, other, method=None, **kwargs):
+        """Propagate metadata from other to self."""
+        # merge operation: using metadata of the left object
+        if method == "merge":
+            for name in self._metadata:
+                object.__setattr__(self, name, getattr(other.left, name, None))
+        # concat operation: using metadata of the first object
+        elif method == "concat":
+            for name in self._metadata:
+                object.__setattr__(self, name, getattr(other.objs[0], name, None))
+        else:
+            for name in self._metadata:
+                object.__setattr__(self, name, getattr(other, name, None))
+        return self
+
+    def __init__(  # noqa: C901 todo: refactor, e.g. by detecting initialization method
+        self, *args, **kwargs
+    ):
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
 
         # Obtain parameters that are specific to our DataFrame subclass
         sensor: Sensor = kwargs.pop("sensor", None)
-        source: BeliefSource = kwargs.pop("source", None)
+        source: Union[BeliefSource, str, int] = kwargs.pop("source", None)
+        source: BeliefSource = source_utils.ensure_source_exists(
+            source, allow_none=True
+        )
         event_start: datetime = kwargs.pop("event_start", None)
         belief_time: datetime = kwargs.pop("belief_time", None)
+        belief_horizon: datetime = kwargs.pop("belief_horizon", None)
         cumulative_probability: float = kwargs.pop("cumulative_probability", None)
         beliefs: List[TimedBelief] = kwargs.pop("beliefs", None)
+        if beliefs is None:  # check if args contains a list of beliefs
+            for i, arg in enumerate(args):
+                if isinstance(arg, list):
+                    if all(isinstance(b, TimedBelief) for b in arg):
+                        args = list(args)
+                        beliefs = args.pop(
+                            i
+                        )  # arg contains beliefs, and we simultaneously remove it from args
+                        args = tuple(args)
+                        break
 
         # Define our columns and indices
         columns = ["event_value"]
@@ -339,43 +412,146 @@ class BeliefsDataFrame(pd.DataFrame):
         # Use our constructor if initialising from a previous (Beliefs)DataFrame (e.g. when slicing), copying the Sensor metadata
         # TODO: how is the metadata copied here?
         if beliefs is None:
+
+            # Interpret initialisation with a pandas Series (preprocessing step of method 3)
+            if len(args) > 0 and isinstance(args[0], pd.Series):
+                args = list(args)
+                args[0] = args[0].to_frame(
+                    name="event_value" if not args[0].name else args[0].name
+                )
+                if isinstance(args[0].index, pd.DatetimeIndex) and event_start is None:
+                    args[0].index.name = (
+                        "event_start" if not args[0].index.name else args[0].index.name
+                    )
+                    args[0].reset_index(inplace=True)
+                args = tuple(args)
+
             super().__init__(*args, **kwargs)
-            if isinstance(args[0], pd.DataFrame):
+
+            # Set up empty frame with columns, indices and attributes
+            if len(args) == 0:
+                self.reset_index(inplace=True)
+                if "belief_horizon" in self and "belief_time" not in self:
+                    indices = [
+                        "belief_horizon" if index == "belief_time" else index
+                        for index in indices
+                    ]
+                if "event_end" in self and "event_start" not in self:
+                    indices = [
+                        "event_end" if index == "event_start" else index
+                        for index in indices
+                    ]
+                for col in columns + indices:
+                    self[col] = None
+                self.set_index(indices, inplace=True)
+                self.sensor = sensor
+                self.event_resolution = sensor.event_resolution if sensor else None
+                return
+            if isinstance(args[0], (pd.DataFrame, pd.Series)) and not isinstance(
+                args[0], BeliefsDataFrame
+            ):
+
+                # Initialise empty BeliefsDataFrame with columns, indices and sensor information
+                if self.empty:
+                    for col in columns + indices:
+                        self[col] = None
+                    self.set_index(indices, inplace=True)
+                    self.sensor = sensor
+                    self.event_resolution = sensor.event_resolution if sensor else None
+                    return
 
                 # Set (possibly overwrite) each index level to a unique value if set explicitly
                 if source is not None:
-                    self["source"] = source
+                    self["source"] = source_utils.ensure_source_exists(source)
+                elif "source" not in self:
+                    raise KeyError("DataFrame should contain column named 'source'.")
+                elif not isinstance(self["source"].dtype, BeliefSource):
+                    self["source"] = self["source"].apply(
+                        source_utils.ensure_source_exists
+                    )
                 if event_start is not None:
-                    self["event_start"] = tb_utils.enforce_utc(event_start)
+                    self["event_start"] = tb_utils.enforce_tz(
+                        event_start, "event_start"
+                    )
+                elif "event_start" not in self and "event_end" not in self:
+                    raise KeyError(
+                        "DataFrame should contain column named 'event_start' or 'event_end'."
+                    )
+                else:
+                    self["event_start"] = self["event_start"].apply(
+                        lambda x: tb_utils.enforce_tz(pd.to_datetime(x), "event_start")
+                    )
                 if belief_time is not None:
-                    self["belief_time"] = tb_utils.enforce_utc(belief_time)
+                    self["belief_time"] = tb_utils.enforce_tz(
+                        belief_time, "belief_time"
+                    )
+                elif belief_horizon is not None:
+                    self["belief_horizon"] = belief_horizon
+                elif "belief_time" not in self and "belief_horizon" not in self:
+                    raise KeyError(
+                        "DataFrame should contain column named 'belief_time' or 'belief_horizon'."
+                    )
+                elif "belief_time" in self:
+                    self["belief_time"] = self["belief_time"].apply(
+                        lambda x: tb_utils.enforce_tz(pd.to_datetime(x), "belief_time")
+                    )
+                elif not pd.api.types.is_timedelta64_dtype(
+                    self["belief_horizon"]
+                ) and self["belief_horizon"].dtype not in (timedelta, pd.Timedelta):
+                    raise TypeError(
+                        "belief_horizon should be of type datetime.timedelta."
+                    )
                 if cumulative_probability is not None:
                     self["cumulative_probability"] = cumulative_probability
-
-                # Check for correct types and convert if possible
-                self["event_start"] = pd.to_datetime(self["event_start"], utc=True)
-                self["belief_time"] = pd.to_datetime(self["belief_time"], utc=True)
-                if any(c != BeliefSource for c in self["source"].map(type)):
-                    warnings.warn(
-                        "DataFrame contains sources of type other than BeliefSource."
+                elif "cumulative_probability" not in self:
+                    self["cumulative_probability"] = 0.5
+                if "event_value" not in self:
+                    raise KeyError(
+                        "DataFrame should contain column named 'event_value'."
                     )
 
+                # Check for correct types and convert if possible
+                self["event_start"] = pd.to_datetime(self["event_start"])
+                if "belief_time" in self:
+                    self["belief_time"] = pd.to_datetime(self["belief_time"])
+                self["source"] = self["source"].apply(source_utils.ensure_source_exists)
+
                 # Set index levels and metadata
+                if "belief_horizon" in self and "belief_time" not in self:
+                    indices = [
+                        "belief_horizon" if index == "belief_time" else index
+                        for index in indices
+                    ]
+                if "event_end" in self and "event_start" not in self:
+                    indices = [
+                        "event_end" if index == "event_start" else index
+                        for index in indices
+                    ]
                 self.set_index(indices, inplace=True)
                 self.sensor = sensor
-                self.event_resolution = sensor.event_resolution
+                self.event_resolution = sensor.event_resolution if sensor else None
+                return
             return
 
         # Call the pandas DataFrame constructor with the right input
         kwargs["columns"] = columns
         if beliefs:
-            sources = set(belief.source for belief in beliefs)
-            source_names = set(source.name for source in sources)
-            if len(source_names) != len(sources):
+            # Check for different sensors
+            unique_sensors = set(belief.sensor for belief in beliefs)
+            if len(unique_sensors) != 1:
+                raise ValueError("BeliefsDataFrame cannot describe multiple sensors.")
+            sensor = list(unique_sensors)[0]
+
+            # Check for different sources with the same name
+            unique_sources = set(belief.source for belief in beliefs)
+            unique_source_names = set(source.name for source in unique_sources)
+            if len(unique_source_names) != len(unique_sources):
                 raise ValueError(
                     "Source names must be unique. Cannot initialise BeliefsDataFrame given the following unique sources:\n%s"
-                    % sources
+                    % unique_sources
                 )
+
+            # Construct data and index from beliefs before calling super class
             beliefs = sorted(
                 beliefs,
                 key=lambda b: (
@@ -395,20 +571,26 @@ class BeliefsDataFrame(pd.DataFrame):
             )  # Todo support pandas 0.23
         super().__init__(*args, **kwargs)
 
-        # Clean up duplicate beliefs
+        # Clean up duplicate beliefs and ensure datetimes are set (even with an empty BeliefsDataFrame)
         self.reset_index(inplace=True)
+        self["event_start"] = pd.to_datetime(
+            self["event_start"], utc=True if self["event_start"].empty else None
+        )
+        self["belief_time"] = pd.to_datetime(
+            self["belief_time"], utc=True if self["belief_time"].empty else None
+        )
         self.drop_duplicates(inplace=True)
         self.set_index(indices, inplace=True)
 
         # Set the Sensor metadata (including timing properties of the sensor)
         self.sensor = sensor
-        self.event_resolution = self.sensor.event_resolution
+        self.event_resolution = sensor.event_resolution if sensor else None
 
     def append_from_time_series(
         self,
         event_value_series: pd.Series,
         source: BeliefSource,
-        belief_horizon: timedelta,
+        belief_horizon: Union[timedelta, pd.Series],
         cumulative_probability: float = 0.5,
     ) -> "BeliefsDataFrame":
         """Append beliefs from time series entries into this BeliefsDataFrame. Sensor is assumed to be the same.
@@ -421,25 +603,6 @@ class BeliefsDataFrame(pd.DataFrame):
             cumulative_probability,
         )
         return self.append(BeliefsDataFrame(sensor=self.sensor, beliefs=beliefs))
-
-    @property
-    def _constructor_sliced(self):
-        return BeliefsSeries
-
-    def __finalize__(self, other, method=None, **kwargs):
-        """Propagate metadata from other to self."""
-        # merge operation: using metadata of the left object
-        if method == "merge":
-            for name in self._metadata:
-                object.__setattr__(self, name, getattr(other.left, name, None))
-        # concat operation: using metadata of the first object
-        elif method == "concat":
-            for name in self._metadata:
-                object.__setattr__(self, name, getattr(other.objs[0], name, None))
-        else:
-            for name in self._metadata:
-                object.__setattr__(self, name, getattr(other, name, None))
-        return self
 
     def convert_index_from_belief_time_to_horizon(self) -> "BeliefsDataFrame":
         return tb_utils.replace_multi_index_level(
@@ -471,7 +634,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(
-            self.event_starts.to_series(keep_tz=True, name="knowledge_time").apply(
+            self.event_starts.to_series(name="knowledge_time").apply(
                 lambda event_start: self.sensor.knowledge_time(event_start)
             )
         )
@@ -479,7 +642,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def knowledge_horizons(self) -> pd.TimedeltaIndex:
         return pd.TimedeltaIndex(
-            self.event_starts.to_series(keep_tz=True, name="knowledge_horizon").apply(
+            self.event_starts.to_series(name="knowledge_horizon").apply(
                 lambda event_start: self.sensor.knowledge_horizon(event_start)
             )
         )
@@ -505,10 +668,22 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def event_ends(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(
-            self.event_starts.to_series(keep_tz=True, name="event_end").apply(
+            self.event_starts.to_series(name="event_end").apply(
                 lambda event_start: event_start + self.event_resolution
             )
         )
+
+    @property
+    def sources(self) -> pd.Index:
+        """Shorthand to list the source of each belief in the BeliefsDataFrame."""
+        # Todo: subclass pd.Index to create a BeliefSourceIndex?
+        return self.index.get_level_values("source")
+
+    @property
+    def event_time_window(self) -> Tuple[datetime, datetime]:
+        start, end = self.index.get_level_values("event_start")[[0, -1]]
+        end = end + self.event_resolution
+        return start, end
 
     @hybrid_method
     def for_each_belief(
@@ -584,7 +759,9 @@ class BeliefsDataFrame(pd.DataFrame):
                (e.g. between 1 and 2 hours before the event value could have been known)
         """
         df = self.xs(
-            tb_utils.enforce_utc(event_start), level="event_start", drop_level=False
+            tb_utils.enforce_tz(event_start, "event_start"),
+            level="event_start",
+            drop_level=False,
         ).sort_index()
         if belief_time_window[0] is not None:
             df = df[df.index.get_level_values("belief_time") >= belief_time_window[0]]
@@ -651,12 +828,12 @@ class BeliefsDataFrame(pd.DataFrame):
         if belief_time_window[0] is not None:
             df = df[
                 df.index.get_level_values("belief_time")
-                >= tb_utils.enforce_utc(belief_time_window[0])
+                >= tb_utils.enforce_tz(belief_time_window[0], "belief_time")
             ]
         if belief_time_window[1] is not None:
             df = df[
                 df.index.get_level_values("belief_time")
-                <= tb_utils.enforce_utc(belief_time_window[1])
+                <= tb_utils.enforce_tz(belief_time_window[1], "belief_time")
             ]
         df = belief_utils.select_most_recent_belief(df)
         if update_belief_times is True:
