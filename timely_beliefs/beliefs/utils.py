@@ -319,11 +319,13 @@ def load_time_series(
     """Turn series entries into TimedBelief objects."""
     beliefs = []
     if isinstance(belief_horizon, timedelta):
-        belief_horizon_series = pd.Series(belief_horizon)
+        belief_horizon_series = pd.Series(
+            belief_horizon, index=event_value_series.index
+        )
     else:
         belief_horizon_series = belief_horizon
     if isinstance(source, BeliefSource):
-        source_series = pd.Series(BeliefSource)
+        source_series = pd.Series(BeliefSource, index=event_value_series.index)
     else:
         source_series = source
     for time, value, h, s in zip(
