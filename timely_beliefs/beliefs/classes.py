@@ -339,13 +339,13 @@ class BeliefsDataFrame(pd.DataFrame):
     In addition to the standard DataFrame constructor arguments,
     BeliefsDataFrame also accepts the following keyword arguments:
 
-    :param sensor: the Sensor object that the beliefs pertain to
     :param beliefs: a list of TimedBelief objects used to initialise the BeliefsDataFrame
-    :param source: the source for each belief in the input DataFrame (BeliefSource, str or int)
-    :param event_start: the start of the event that the beliefs pertain to (datetime)
-    :param belief_time: the time at which the beliefs were formed (datetime)
-    :param belief_horizon: how long before (the event could be known) the belief was formed (timedelta), alternative to belief_time
-    :param cumulative_probability: float in the range [0, 1] describing the cumulative probability of the belief
+    :param sensor: the Sensor object that each belief pertains to
+    :param source: the source of each belief in the input DataFrame (a BeliefSource, str or int)
+    :param event_start: the start of the event that each belief pertains to (a datetime)
+    :param belief_time: the time at which each belief was formed (a datetime) - use this as alternative to belief_horizon
+    :param belief_horizon: how long before (the event could be known) each belief was formed (a timedelta) - use this as alternative to belief_time
+    :param cumulative_probability: a float in the range [0, 1] describing the cumulative probability of each belief - use this e.g. to initialize a BeliefsDataFrame containing only the values at 95% cumulative probability
     """
 
     _metadata = METADATA
