@@ -44,7 +44,7 @@ class TimedBelief(object):
 
     event_start: datetime
     belief_horizon: timedelta
-    event_value: float
+    event_value: float  # todo: allow string to represent beliefs about labels? But what would nominal data mean for the interpretation of cp?
     sensor: Sensor
     source: BeliefSource
     cumulative_probability: float
@@ -301,6 +301,7 @@ class BeliefsSeries(pd.Series):
     @property
     def _constructor_expanddim(self):
         def f(*args, **kwargs):
+            """ Call __finalize__() after construction to inherit metadata. """
             # adapted from https://github.com/pandas-dev/pandas/issues/19850#issuecomment-367934440
             return BeliefsDataFrame(*args, **kwargs).__finalize__(
                 self, method="inherit"
@@ -356,6 +357,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def _constructor_sliced(self):
         def f(*args, **kwargs):
+            """ Call __finalize__() after construction to inherit metadata. """
             # adapted from https://github.com/pandas-dev/pandas/issues/19850#issuecomment-367934440
             return BeliefsSeries(*args, **kwargs).__finalize__(self, method="inherit")
 
