@@ -57,7 +57,7 @@ class TimedBelief(object):
         **kwargs
     ):
         self.sensor = sensor
-        self.source = source_utils.ensure_source(source)
+        self.source = source_utils.ensure_source_exists(source)
         self.event_value = value
 
         if "cumulative_probability" in kwargs:
@@ -384,7 +384,9 @@ class BeliefsDataFrame(pd.DataFrame):
         # Obtain parameters that are specific to our DataFrame subclass
         sensor: Sensor = kwargs.pop("sensor", None)
         source: Union[BeliefSource, str, int] = kwargs.pop("source", None)
-        source = source_utils.ensure_source(source, allow_none=True)
+        source: BeliefSource = source_utils.ensure_source_exists(
+            source, allow_none=True
+        )
         event_start: datetime = kwargs.pop("event_start", None)
         belief_time: datetime = kwargs.pop("belief_time", None)
         belief_horizon: datetime = kwargs.pop("belief_horizon", None)
@@ -458,11 +460,13 @@ class BeliefsDataFrame(pd.DataFrame):
 
                 # Set (possibly overwrite) each index level to a unique value if set explicitly
                 if source is not None:
-                    self["source"] = source_utils.ensure_source(source)
+                    self["source"] = source_utils.ensure_source_exists(source)
                 elif "source" not in self:
                     raise KeyError("DataFrame should contain column named 'source'.")
                 elif not isinstance(self["source"].dtype, BeliefSource):
-                    self["source"] = self["source"].apply(source_utils.ensure_source)
+                    self["source"] = self["source"].apply(
+                        source_utils.ensure_source_exists
+                    )
                 if event_start is not None:
                     self["event_start"] = tb_utils.enforce_tz(
                         event_start, "event_start"
@@ -508,7 +512,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 self["event_start"] = pd.to_datetime(self["event_start"])
                 if "belief_time" in self:
                     self["belief_time"] = pd.to_datetime(self["belief_time"])
-                self["source"] = self["source"].apply(source_utils.ensure_source)
+                self["source"] = self["source"].apply(source_utils.ensure_source_exists)
 
                 # Set index levels and metadata
                 if "belief_horizon" in self and "belief_time" not in self:

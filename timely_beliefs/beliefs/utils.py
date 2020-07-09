@@ -467,7 +467,7 @@ def read_csv(
     """
     df = pd.read_csv(path)
     if source is not None:
-        df["source"] = source_utils.ensure_source(source)
+        df["source"] = source_utils.ensure_source_exists(source)
     elif "source" in df.columns:
         if look_up_sources is not None:
             source_names = df["source"].unique()
