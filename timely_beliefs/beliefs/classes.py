@@ -84,7 +84,8 @@ class TimedBelief(object):
         elif "belief_time" in kwargs:
             belief_time = tb_utils.enforce_tz(kwargs["belief_time"], "belief_time")
             self.belief_horizon = (
-                self.sensor.knowledge_time(self.event_start) - belief_time
+                self.sensor.knowledge_time(self.event_start, self.event_resolution)
+                - belief_time
             )
 
     def __repr__(self):
@@ -105,7 +106,7 @@ class TimedBelief(object):
 
     @hybrid_property
     def knowledge_time(self) -> datetime:
-        return self.sensor.knowledge_time(self.event_start)
+        return self.sensor.knowledge_time(self.event_start, self.event_resolution)
 
     @hybrid_property
     def knowledge_horizon(self) -> timedelta:
@@ -635,7 +636,9 @@ class BeliefsDataFrame(pd.DataFrame):
     def knowledge_times(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(
             self.event_starts.to_series(name="knowledge_time").apply(
-                lambda event_start: self.sensor.knowledge_time(event_start)
+                lambda event_start: self.sensor.knowledge_time(
+                    event_start, self.event_resolution
+                )
             )
         )
 

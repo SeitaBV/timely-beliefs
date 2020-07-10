@@ -99,6 +99,10 @@ def test_downsample_twice_upsample_once(df_4323):
     assert df["event_value"].values.tolist() == [
         1501 + 100 * b + 10 * s for b in range(3) for s in range(2)
     ]
+    assert len(df.knowledge_times.unique()) == 1
+    assert df.knowledge_times.unique()[0] == pd.Timestamp(
+        "2000-01-04 09:00", tzinfo=utc
+    )
 
     df = df.resample_events(timedelta(days=2))
     assert df.event_resolution == timedelta(days=2)
@@ -111,6 +115,10 @@ def test_downsample_twice_upsample_once(df_4323):
     assert df["event_value"].values.tolist() == [
         1501 + 100 * b + 10 * s for b in range(3) for s in range(2)
     ]
+    assert len(df.knowledge_times.unique()) == 1
+    assert df.knowledge_times.unique()[0] == pd.Timestamp(
+        "2000-01-05 09:00", tzinfo=utc
+    )
 
     df = df.resample_events(timedelta(days=1))
     assert df.event_resolution == timedelta(days=1)
@@ -126,6 +134,13 @@ def test_downsample_twice_upsample_once(df_4323):
         for b in range(3)
         for s in range(2)
     ]
+    assert len(df.knowledge_times.unique()) == 2
+    assert df.knowledge_times.unique()[0] == pd.Timestamp(
+        "2000-01-04 09:00", tzinfo=utc
+    )
+    assert df.knowledge_times.unique()[1] == pd.Timestamp(
+        "2000-01-05 09:00", tzinfo=utc
+    )
 
 
 def test_upsample_probabilistic(df_4323, test_source_a: BeliefSource):

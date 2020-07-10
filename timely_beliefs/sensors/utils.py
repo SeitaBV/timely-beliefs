@@ -77,11 +77,16 @@ def func_store_list() -> dict:
 
 
 def eval_verified_knowledge_horizon_fnc(
-    requested_fnc_name: str, par: dict, event_start: Optional[datetime]
+    requested_fnc_name: str,
+    par: dict,
+    event_start: Optional[datetime],
+    event_resolution: timedelta,
 ):
     for verified_fnc_name, verified_fnc in func_store_list().items():
         if verified_fnc_name == requested_fnc_name:
-            return verified_fnc(event_start, **(unjsonify_time_dict(par)))
+            return verified_fnc(
+                event_start, event_resolution, **(unjsonify_time_dict(par))
+            )
     raise Exception(
         "knowledge_horizon_fnc %s cannot be executed safely. Please register the function in the func_store."
         % requested_fnc_name

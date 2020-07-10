@@ -8,7 +8,10 @@ from sqlalchemy.ext.declarative import declared_attr
 
 from timely_beliefs.db_base import Base
 from timely_beliefs.utils import enforce_tz
-from timely_beliefs.sensors.func_store.knowledge_horizons import constant_timedelta
+from timely_beliefs.sensors.func_store.knowledge_horizons import (
+    constant_timedelta,
+    timedelta_for_end_of_event,
+)
 from timely_beliefs.sensors.utils import (
     jsonify_time_dict,
     eval_verified_knowledge_horizon_fnc,
@@ -48,7 +51,8 @@ class Sensor(object):
             event_resolution = timedelta(hours=0)
         self.event_resolution = event_resolution
         if knowledge_horizon is None:
-            knowledge_horizon = -event_resolution
+            self.knowledge_horizon_fnc = timedelta_for_end_of_event.__name__
+            self.knowledge_horizon_par = {}
         if isinstance(knowledge_horizon, timedelta):
             self.knowledge_horizon_fnc = constant_timedelta.__name__
             self.knowledge_horizon_par = {
@@ -61,16 +65,23 @@ class Sensor(object):
             self.knowledge_horizon_par = jsonify_time_dict(knowledge_horizon[1])
 
     @hybrid_method
-    def knowledge_horizon(self, event_start: datetime = None) -> timedelta:
+    def knowledge_horizon(
+        self, event_start: datetime, event_resolution: timedelta
+    ) -> timedelta:
         event_start = enforce_tz(event_start, "event_start")
         return eval_verified_knowledge_horizon_fnc(
-            self.knowledge_horizon_fnc, self.knowledge_horizon_par, event_start
+            self.knowledge_horizon_fnc,
+            self.knowledge_horizon_par,
+            event_start,
+            event_resolution,
         )
 
     @hybrid_method
-    def knowledge_time(self, event_start: datetime) -> datetime:
+    def knowledge_time(
+        self, event_start: datetime, event_resolution: timedelta
+    ) -> datetime:
         event_start = enforce_tz(event_start, "event_start")
-        return event_start - self.knowledge_horizon(event_start)
+        return event_start - self.knowledge_horizon(event_start, event_resolution)
 
     def __repr__(self):
         return "<Sensor: %s>" % self.name
