@@ -234,7 +234,7 @@ class DBTimedBelief(Base, TimedBelief):
             knowledge_horizon_min,
             knowledge_horizon_max,
         ) = sensor_utils.eval_verified_knowledge_horizon_fnc(
-            knowledge_horizon_fnc, knowledge_horizon_par, None
+            knowledge_horizon_fnc, knowledge_horizon_par, None, event_resolution
         )
 
         # Query based on start_time_window

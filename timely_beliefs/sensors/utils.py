@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from inspect import getmembers, isfunction
+from inspect import getmembers, isfunction, getfullargspec
 from typing import Union, Optional
 
 from isodate import (
@@ -84,9 +84,14 @@ def eval_verified_knowledge_horizon_fnc(
 ):
     for verified_fnc_name, verified_fnc in func_store_list().items():
         if verified_fnc_name == requested_fnc_name:
-            return verified_fnc(
-                event_start, event_resolution, **(unjsonify_time_dict(par))
-            )
+            if "event_resolution" in getfullargspec(verified_fnc).args:
+                # Knowledge horizons are anchored to event_end = event_start + event_resolution
+                return verified_fnc(
+                    event_start, event_resolution, **(unjsonify_time_dict(par))
+                )
+            else:
+                # Knowledge horizons are anchored to event_start
+                return verified_fnc(event_start, **(unjsonify_time_dict(par)))
     raise Exception(
         "knowledge_horizon_fnc %s cannot be executed safely. Please register the function in the func_store."
         % requested_fnc_name

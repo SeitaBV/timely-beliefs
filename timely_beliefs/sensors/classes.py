@@ -66,9 +66,11 @@ class Sensor(object):
 
     @hybrid_method
     def knowledge_horizon(
-        self, event_start: datetime, event_resolution: timedelta
+        self, event_start: datetime, event_resolution: Optional[timedelta] = None
     ) -> timedelta:
         event_start = enforce_tz(event_start, "event_start")
+        if event_resolution is None:
+            event_resolution = self.event_resolution
         return eval_verified_knowledge_horizon_fnc(
             self.knowledge_horizon_fnc,
             self.knowledge_horizon_par,
@@ -78,9 +80,11 @@ class Sensor(object):
 
     @hybrid_method
     def knowledge_time(
-        self, event_start: datetime, event_resolution: timedelta
+        self, event_start: datetime, event_resolution: Optional[timedelta] = None
     ) -> datetime:
         event_start = enforce_tz(event_start, "event_start")
+        if event_resolution is None:
+            event_resolution = self.event_resolution
         return event_start - self.knowledge_horizon(event_start, event_resolution)
 
     def __repr__(self):

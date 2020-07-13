@@ -60,7 +60,6 @@ def test_replace_index_level_with_intersect(df_4323):
     df = replace_multi_index_level(df, "event_start", pd.Index([]), intersection=True)
     assert len(df.index) == 0
 
-    # Todo: uncomment below to test probabilistic beliefs
     df = df_4323
     df = replace_multi_index_level(
         df,

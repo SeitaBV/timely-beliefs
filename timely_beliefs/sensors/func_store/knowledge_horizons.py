@@ -10,31 +10,31 @@ from timely_beliefs.sensors.utils import datetime_x_days_ago_at_y_oclock
 def timedelta_for_end_of_event(
     event_start: Optional[datetime], event_resolution: timedelta
 ) -> Union[timedelta, Tuple[timedelta, timedelta]]:
-    """Knowledge horizon always matches the negative event_resolution. """
+    """Knowledge horizon always matches the negative event_resolution.
+    This knowledge horizon is anchored to the event_end.
+    """
     if event_start is None:
         return -event_resolution, -event_resolution
     return -event_resolution
 
 
 def constant_timedelta(
-    event_start: Optional[datetime],
-    event_resolution: timedelta,
-    knowledge_horizon: timedelta,
+    event_start: Optional[datetime], knowledge_horizon: timedelta,
 ) -> Union[timedelta, Tuple[timedelta, timedelta]]:
-    """Knowledge horizon is a constant timedelta."""
+    """Knowledge horizon is a constant timedelta.
+    This knowledge horizon is anchored to the event_start.
+    """
     if event_start is None:
         return knowledge_horizon, knowledge_horizon
     return knowledge_horizon
 
 
 def timedelta_for_x_days_ago_at_y_oclock(
-    event_start: Optional[datetime],
-    event_resolution: timedelta,
-    x: int,
-    y: Union[int, float],
-    z: str,
+    event_start: Optional[datetime], x: int, y: Union[int, float], z: str,
 ) -> Union[timedelta, Tuple[timedelta, timedelta]]:
-    """Knowledge horizon is with respect to a previous day at some hour."""
+    """Knowledge horizon is with respect to a previous day at some hour.
+    This knowledge horizon is anchored to the event_start.
+    """
     if event_start is None:
         return (
             timedelta(days=x, hours=-y - 2),
