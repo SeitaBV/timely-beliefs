@@ -4,7 +4,6 @@ import warnings
 
 import pandas as pd
 import numpy as np
-from pandas.tseries.frequencies import to_offset
 from pandas.core.groupby import DataFrameGroupBy
 
 from timely_beliefs.beliefs import classes
@@ -279,18 +278,29 @@ def resample_event_start(
     output_resolution: timedelta,
     input_resolution: timedelta,
     distribution: Optional[str] = None,
+    keep_only_most_recent_belief: bool = False,
 ) -> "classes.BeliefsDataFrame":
     """For a unique source."""
+
+    if input_resolution == output_resolution:
+        return df
 
     # Determine unique set of belief times
     unique_belief_times = np.sort(
         df.reset_index()["belief_time"].unique()
     )  # Sorted from past to present
 
-    # Propagate beliefs so that each event has the same set of unique belief times
-    df = df.groupby(["event_start"], group_keys=False).apply(
-        lambda x: align_belief_times(x, unique_belief_times)
-    )
+    if keep_only_most_recent_belief:
+        # faster
+        df = tb_utils.replace_multi_index_level(
+            df, "belief_time", pd.Index([unique_belief_times[-1]] * len(df))
+        )
+    else:
+        # slower
+        # Propagate beliefs so that each event has the same set of unique belief times
+        df = df.groupby(["event_start"], group_keys=False).apply(
+            lambda x: align_belief_times(x, unique_belief_times)
+        )
 
     # Resample to make sure the df slice contains events with the same frequency as the input_resolution
     # (make nan rows if you have to)

@@ -2,9 +2,9 @@ from typing import Any, Callable, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 import math
 
+import numpy as np
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
-from pandas.tseries.frequencies import to_offset
 from sqlalchemy import Column, DateTime, Integer, Interval, Float, String, ForeignKey
 from sqlalchemy.orm import relationship, backref, Session
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
@@ -386,6 +386,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
         # Obtain parameters that are specific to our DataFrame subclass
         sensor: Sensor = kwargs.pop("sensor", None)
+        event_resolution: timedelta = kwargs.pop("event_resolution", None)
         source: Union[BeliefSource, str, int] = kwargs.pop("source", None)
         source: BeliefSource = source_utils.ensure_source_exists(
             source, allow_none=True
@@ -446,7 +447,13 @@ class BeliefsDataFrame(pd.DataFrame):
                     self[col] = None
                 self.set_index(indices, inplace=True)
                 self.sensor = sensor
-                self.event_resolution = sensor.event_resolution if sensor else None
+                self.event_resolution = (
+                    event_resolution
+                    if event_resolution
+                    else sensor.event_resolution
+                    if sensor
+                    else None
+                )
                 return
             if isinstance(args[0], (pd.DataFrame, pd.Series)) and not isinstance(
                 args[0], BeliefsDataFrame
@@ -458,7 +465,13 @@ class BeliefsDataFrame(pd.DataFrame):
                         self[col] = None
                     self.set_index(indices, inplace=True)
                     self.sensor = sensor
-                    self.event_resolution = sensor.event_resolution if sensor else None
+                    self.event_resolution = (
+                        event_resolution
+                        if event_resolution
+                        else sensor.event_resolution
+                        if sensor
+                        else None
+                    )
                     return
 
                 # Set (possibly overwrite) each index level to a unique value if set explicitly
@@ -530,7 +543,13 @@ class BeliefsDataFrame(pd.DataFrame):
                     ]
                 self.set_index(indices, inplace=True)
                 self.sensor = sensor
-                self.event_resolution = sensor.event_resolution if sensor else None
+                self.event_resolution = (
+                    event_resolution
+                    if event_resolution
+                    else sensor.event_resolution
+                    if sensor
+                    else None
+                )
                 return
             return
 
@@ -585,7 +604,13 @@ class BeliefsDataFrame(pd.DataFrame):
 
         # Set the Sensor metadata (including timing properties of the sensor)
         self.sensor = sensor
-        self.event_resolution = sensor.event_resolution if sensor else None
+        self.event_resolution = (
+            event_resolution
+            if event_resolution
+            else sensor.event_resolution
+            if sensor
+            else None
+        )
 
     def append_from_time_series(
         self,
@@ -761,6 +786,10 @@ class BeliefsDataFrame(pd.DataFrame):
         :param belief_horizon_window: optional tuple specifying a horizon window
                (e.g. between 1 and 2 hours before the event value could have been known)
         """
+
+        if self.empty:
+            return self
+
         df = self.xs(
             tb_utils.enforce_tz(event_start, "event_start"),
             level="event_start",
@@ -819,6 +848,10 @@ class BeliefsDataFrame(pd.DataFrame):
         :param belief_time_window: optional tuple specifying a time window within which beliefs should have been formed
         :param update_belief_times: if True, update the belief time of each belief with the given fixed viewpoint
         """
+
+        if self.empty:
+            return self
+
         if belief_time is not None:
             if belief_time_window != (None, None):
                 raise ValueError(
@@ -878,6 +911,10 @@ class BeliefsDataFrame(pd.DataFrame):
         :param belief_horizon_window: optional tuple specifying a horizon window
                (e.g. between 1 and 2 days before the event value could have been known)
         """
+
+        if self.empty:
+            return self
+
         if belief_horizon is not None:
             if belief_horizon_window != (None, None):
                 raise ValueError(
@@ -899,34 +936,91 @@ class BeliefsDataFrame(pd.DataFrame):
 
     @hybrid_method
     def resample_events(
-        self, event_resolution: timedelta, distribution: Optional[str] = None
+        self,
+        event_resolution: timedelta,
+        distribution: Optional[str] = None,
+        keep_only_most_recent_belief: bool = False,
     ) -> "BeliefsDataFrame":
-        """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample)."""
+        """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample).
+
+        NB If you need to only keep the most recent belief,
+        set keep_only_most_recent_belief=True for a significant speed boost.
+        """
 
         if self.empty:
             return self
+        if event_resolution == self.event_resolution:
+            return self
+        df = self
 
-        df = (
-            self.groupby(
-                [pd.Grouper(freq=event_resolution, level="event_start"), "source",],
-                group_keys=False,
+        # fast track a common case where each event has only one deterministic belief and only the most recent belief is needed
+        if (
+            df.lineage.number_of_beliefs == df.lineage.number_of_events
+            and keep_only_most_recent_belief
+            and df.lineage.number_of_sources == 1
+        ):
+            belief_timing_col = (
+                "belief_time" if "belief_time" in df.index.names else "belief_horizon"
             )
-            .apply(
-                lambda x: belief_utils.resample_event_start(
-                    x,
-                    event_resolution,
-                    input_resolution=self.event_resolution,
-                    distribution=distribution,
+            df = df.reset_index(
+                level=[belief_timing_col, "source", "cumulative_probability"]
+            )
+            if event_resolution > self.event_resolution:
+                # downsample
+                df = df.resample(event_resolution).agg(
+                    {
+                        "event_value": np.nanmean,
+                        "source": "first",  # keep the only source
+                        belief_timing_col: "max"
+                        if belief_timing_col == "belief_time"
+                        else "min",  # keep only most recent belief
+                        "cumulative_probability": "prod",  # assume independent variables
+                    }
                 )
+                # make a new BeliefsDataFrame, because agg() doesn't behave nicely for subclassed DataFrames
+                df = BeliefsDataFrame(
+                    df.reset_index(),
+                    sensor=self.sensor,
+                    event_resolution=event_resolution,
+                )
+            else:
+                # upsample
+                new_index = pd.date_range(
+                    start=df.index[0],
+                    periods=len(df) * self.event_resolution // event_resolution,
+                    freq=event_resolution,
+                    name="event_start",
+                )
+                df = df.reindex(new_index).fillna(method="pad")
+                df.event_resolution = event_resolution
+                df = df.set_index(
+                    [belief_timing_col, "source", "cumulative_probability"], append=True
+                )
+
+        # slow track in case each event has more than 1 belief or probabilistic beliefs
+        else:
+            df = (
+                df.groupby(
+                    [pd.Grouper(freq=event_resolution, level="event_start"), "source"],
+                    group_keys=False,
+                )
+                .apply(
+                    lambda x: belief_utils.resample_event_start(
+                        x,
+                        event_resolution,
+                        input_resolution=self.event_resolution,
+                        distribution=distribution,
+                        keep_only_most_recent_belief=keep_only_most_recent_belief,
+                    )
+                )
+                .sort_index()
             )
-            .sort_index()
-        )
 
-        # Update metadata with new resolution
-        df.event_resolution = event_resolution
+            # Update metadata with new resolution
+            df.event_resolution = event_resolution
 
-        # Put back lost metadata (because groupby statements still tend to lose it)
-        df.sensor = self.sensor
+            # Put back lost metadata (because groupby statements still tend to lose it)
+            df.sensor = self.sensor
 
         return df
 
