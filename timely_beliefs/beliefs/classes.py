@@ -908,12 +908,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
         df = (
             self.groupby(
-                [
-                    pd.Grouper(
-                        freq=to_offset(event_resolution).freqstr, level="event_start"
-                    ),
-                    "source",
-                ],
+                [pd.Grouper(freq=event_resolution, level="event_start"), "source",],
                 group_keys=False,
             )
             .apply(

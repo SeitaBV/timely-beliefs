@@ -64,7 +64,7 @@ def upsample_event_start(
     lvl0 = pd.date_range(
         start=df.index.get_level_values(0)[0],
         periods=input_resolution // output_resolution,
-        freq=to_offset(output_resolution).freqstr,
+        freq=output_resolution,
     )
     new_index_values = [lvl0]
     if df.index.nlevels > 0:
@@ -123,7 +123,7 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
             lvl0 = pd.date_range(
                 start=bin_start,
                 end=bin_end,
-                freq=to_offset(resolution).freqstr,
+                freq=resolution,
                 closed="left",
                 name="event_start",
             )
@@ -238,11 +238,14 @@ def join_beliefs(
     if output_resolution > input_resolution:
 
         # Create new BeliefsDataFrame with downsampled event_start
+        if output_resolution % input_resolution != timedelta():
+            raise NotImplementedError(
+                "Cannot downsample from resolution %s to %s."
+                % (input_resolution, output_resolution)
+            )
         df = slice.groupby(
             [
-                pd.Grouper(
-                    freq=to_offset(output_resolution).freqstr, level="event_start"
-                ),
+                pd.Grouper(freq=output_resolution, level="event_start"),
                 "belief_time",
                 "source",
             ],
@@ -261,9 +264,7 @@ def join_beliefs(
             )
         df = slice.groupby(
             [
-                pd.Grouper(
-                    freq=to_offset(output_resolution).freqstr, level="event_start"
-                ),
+                pd.Grouper(freq=output_resolution, level="event_start"),
                 "belief_time",
                 "source",
                 "cumulative_probability",
