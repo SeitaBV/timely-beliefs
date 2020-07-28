@@ -110,7 +110,7 @@ class TimedBelief(object):
 
     @hybrid_property
     def knowledge_horizon(self) -> timedelta:
-        return self.sensor.knowledge_horizon(self.event_start)
+        return self.sensor.knowledge_horizon(self.event_start, self.event_resolution)
 
     @hybrid_property
     def event_resolution(self) -> timedelta:
@@ -646,7 +646,9 @@ class BeliefsDataFrame(pd.DataFrame):
     def knowledge_horizons(self) -> pd.TimedeltaIndex:
         return pd.TimedeltaIndex(
             self.event_starts.to_series(name="knowledge_horizon").apply(
-                lambda event_start: self.sensor.knowledge_horizon(event_start)
+                lambda event_start: self.sensor.knowledge_horizon(
+                    event_start, self.event_resolution
+                )
             )
         )
 
