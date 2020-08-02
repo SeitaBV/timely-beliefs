@@ -84,9 +84,6 @@ class DBSensor(Base, Sensor):
 
     # two columns for db purposes: id is a row identifier
     id = Column(Integer, primary_key=True)
-    # type is useful so we can use polymorphic inheritance
-    # (https://docs.sqlalchemy.org/en/13/orm/inheritance.html#single-table-inheritance)
-    type = Column(String(50), nullable=False)
 
     name = Column(String(120), nullable=False, default="")
     unit = Column(String(80), nullable=False, default="")
@@ -111,9 +108,15 @@ class DBSensor(Base, Sensor):
     def __repr__(self):
         return "<DBSensor: %s (%s)>" % (self.id, self.name)
 
+    # Supporting single-table inheritance, so db classes can be extended easily.
+    # type_ is required so we can use polymorphic inheritance
+    # (https://docs.sqlalchemy.org/en/13/orm/inheritance.html#single-table-inheritance)
+    type_ = Column(String(50), nullable=False)
+
     @declared_attr
     def __mapper_args__(self):
+        # supporting single-table inheritance
         if self.__name__ == "DBSensor":
-            return {"polymorphic_on": self.type, "polymorphic_identity": "sensor"}
+            return {"polymorphic_on": self.type_, "polymorphic_identity": "sensor"}
         else:
             return {"polymorphic_identity": self.__name__}
