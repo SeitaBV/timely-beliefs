@@ -1,27 +1,26 @@
-from typing import Any, Callable, List, Optional, Tuple, Union
-from datetime import datetime, timedelta
 import math
+from datetime import datetime, timedelta
+from typing import Any, Callable, List, Optional, Tuple, Union
 
+import altair as alt
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
 from pandas.tseries.frequencies import to_offset
-from sqlalchemy import Column, DateTime, Integer, Interval, Float, String, ForeignKey
-from sqlalchemy.orm import relationship, backref, Session
-from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
-from sqlalchemy.ext.declarative import declared_attr, has_inherited_table
-from sqlalchemy.schema import UniqueConstraint
-import altair as alt
 
-from timely_beliefs.db_base import Base
-from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
-from timely_beliefs.sensors.classes import Sensor, DBSensor
 import timely_beliefs.utils as tb_utils
-from timely_beliefs.sensors import utils as sensor_utils
-from timely_beliefs.beliefs import utils as belief_utils
-from timely_beliefs.sources import utils as source_utils
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, Interval
+from sqlalchemy.ext.declarative import declared_attr, has_inherited_table
+from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
+from sqlalchemy.orm import Session, backref, relationship
+from sqlalchemy.schema import UniqueConstraint
 from timely_beliefs.beliefs import probabilistic_utils
+from timely_beliefs.beliefs import utils as belief_utils
+from timely_beliefs.db_base import Base
+from timely_beliefs.sensors import utils as sensor_utils
+from timely_beliefs.sensors.classes import DBSensor, Sensor
+from timely_beliefs.sources import utils as source_utils
+from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 from timely_beliefs.visualization import utils as visualization_utils
-
 
 METADATA = ["sensor", "event_resolution"]
 
@@ -127,7 +126,7 @@ class TimedBelief(object):
         return None
 
 
-class DBTimedBeliefMixin(TimedBelief):
+class TimedBeliefDBMixin(TimedBelief):
     """
     Mixin class for a table with beliefs.
     The fields source and sensor do not point to another table - overwrite them to make that happen.
@@ -151,24 +150,22 @@ class DBTimedBeliefMixin(TimedBelief):
     belief_horizon = Column(Interval(), nullable=False, primary_key=True)
     cumulative_probability = Column(Float, nullable=False, primary_key=True)
     event_value = Column(Float, nullable=False)
-    
+
     @declared_attr
     def sensor_id(cls):
         return Column(
             Integer(), ForeignKey("sensor.id", ondelete="CASCADE"), primary_key=True
         )
+
     @declared_attr
     def source_id(cls):
         return Column(Integer, ForeignKey("belief_source.id"), primary_key=True)
 
-    def __init__(  # TODO: type hinting? 
-        self, sensor, source, value: float, **kwargs
-    ):
+    def __init__(self, sensor, source, value: float, **kwargs):  # TODO: type hinting?
         self.sensor_id = sensor.id
         self.source_id = source.id
         TimedBelief.__init__(self, sensor=sensor, source=source, value=value, **kwargs)
         Base.__init__(self)
-
 
     @classmethod
     def query(
@@ -278,13 +275,15 @@ class DBTimedBeliefMixin(TimedBelief):
         return df
 
 
-class DBTimedBelief(Base, DBTimedBeliefMixin):
+class DBTimedBelief(Base, TimedBeliefDBMixin):
     """Database representation of TimedBelief.
-    We get fields from the Mixin  and configure sensor and source relationships."""
+    We get fields from the Mixin and configure sensor and source relationships.
+    We are not sure why the relationshps cannot live in the Mixin as declared attributes,
+    but they have to be here (thus other custom implementations need to include them, as well).
+    """
 
     __tablename__ = "timed_beliefs"
 
-    
     sensor = relationship(
         "DBSensor",
         backref=backref(
@@ -303,22 +302,6 @@ class DBTimedBelief(Base, DBTimedBeliefMixin):
     ):
         TimedBeliefDBMixin.__init__(self, sensor, source, value, **kwargs)
         Base.__init__(self)
-
-
-# Supporting single-table inheritance, so db classes can be extended easily.
-# (https://docs.sqlalchemy.org/en/13/orm/inheritance.html#single-table-inheritance)
-# type_ is required so we can use polymorphic inheritance
-#type_ = Column(String(50), nullable=False)
-#
-#@declared_attr
-#def __mapper_args__(self):
-#    if self.__name__ == "DBTimedBelief":
-    #       return {
-    #           "polymorphic_on": self.type_,
-    #           "polymorphic_identity": "DBTimedBelief",
-    #       }
-    #   else:
-    #       return {"polymorphic_identity": self.__name__}
 
 
 class BeliefsSeries(pd.Series):

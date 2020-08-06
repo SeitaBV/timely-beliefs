@@ -1,8 +1,6 @@
 from typing import Union
 
 from sqlalchemy import Column, Integer, String
-from sqlalchemy.ext.declarative import declared_attr
-
 from timely_beliefs.db_base import Base
 
 
@@ -50,28 +48,6 @@ class BeliefSourceDBMixin(BeliefSource):
         return "<BeliefSource %s (%s)>" % (self.id, self.name)
 
 
-class InheritableMixin(BeliefSource):
-    """
-    Mixin class which allows your db class to be extended (via inheritance)
-    TODO: maybe we can leave this away!
-    """
-
-    # Supporting single-table inheritance, so db classes can be extended easily.
-    # (https://docs.sqlalchemy.org/en/13/orm/inheritance.html#single-table-inheritance)
-    # type_ is required for polymorphic inheritance
-    type_ = Column(String(50), nullable=False)
-
-    @declared_attr
-    def __mapper_args__(self):
-        if self.__name__ == "DBBeliefSource":
-            return {
-                "polymorphic_on": self.type_,
-                "polymorphic_identity": "DBBeliefSource",
-            }
-        else:
-            return {"polymorphic_identity": self.__name__}
-
-
 class DBBeliefSource(Base, BeliefSourceDBMixin):
     """
     Database class for a table with belief sources.
@@ -82,4 +58,3 @@ class DBBeliefSource(Base, BeliefSourceDBMixin):
     def __init__(self, name: str):
         BeliefSourceDBMixin.__init__(self, name)
         Base.__init__(self)
-
