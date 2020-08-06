@@ -160,7 +160,9 @@ def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
     """
 
     dim = len(marginal_cdfs_p)
-    n_outcomes = 99  # Todo: refactor to avoid having to set this above our threshold for computing exact probabilities
+    n_outcomes = (
+        99
+    )  # Todo: refactor to avoid having to set this above our threshold for computing exact probabilities
 
     # Set up marginal distributions
     empirical_method_possible = True

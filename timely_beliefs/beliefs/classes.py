@@ -393,9 +393,9 @@ class BeliefsDataFrame(pd.DataFrame):
                 object.__setattr__(self, name, getattr(other, name, None))
         return self
 
-    def __init__(  # noqa: C901 todo: refactor, e.g. by detecting initialization method
+    def __init__(
         self, *args, **kwargs
-    ):
+    ):  # noqa: C901 todo: refactor, e.g. by detecting initialization method
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
 
         # Obtain parameters that are specific to our DataFrame subclass
