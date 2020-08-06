@@ -1,10 +1,10 @@
-import pytest
-from typing import List
 from datetime import datetime, timedelta
+from typing import List
 
-from pytz import utc
 import numpy as np
 import pandas as pd
+import pytest
+from pytz import utc
 
 from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
 from timely_beliefs.tests import session

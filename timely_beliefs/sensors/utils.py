@@ -1,13 +1,13 @@
 from datetime import datetime, timedelta
 from inspect import getmembers, isfunction
-from typing import Union, Optional
+from typing import Optional, Union
 
 from isodate import (
-    time_isoformat,
-    duration_isoformat,
-    parse_duration,
     ISO8601Error,
+    duration_isoformat,
     parse_datetime,
+    parse_duration,
+    time_isoformat,
 )
 from pytz import timezone
 

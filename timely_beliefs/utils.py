@@ -1,5 +1,5 @@
-from typing import Optional, Sequence
 from datetime import datetime
+from typing import Optional, Sequence
 
 import pandas as pd
 

@@ -6,13 +6,13 @@ import altair as alt
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
 from pandas.tseries.frequencies import to_offset
-
-import timely_beliefs.utils as tb_utils
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, Interval
 from sqlalchemy.ext.declarative import declared_attr, has_inherited_table
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import Session, backref, relationship
 from sqlalchemy.schema import UniqueConstraint
+
+import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
 from timely_beliefs.beliefs import utils as belief_utils
 from timely_beliefs.db_base import Base

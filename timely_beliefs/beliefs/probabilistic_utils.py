@@ -1,16 +1,16 @@
 import math
 from itertools import product
-from typing import Union, List, Callable, Optional, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
-import pyerf
 import openturns as ot
-import properscoring as ps
 import pandas as pd
+import properscoring as ps
+import pyerf
 from pandas.core.groupby import DataFrameGroupBy
 
-from timely_beliefs.beliefs import classes  # noqa: F401
 from timely_beliefs import utils as tb_utils
+from timely_beliefs.beliefs import classes  # noqa: F401
 
 
 def interpret_complete_cdf(
@@ -358,9 +358,10 @@ def equalize_bins(
     if equal_bin_size is False:
         values = np.unique(cdf_values)  # Also flattens and sorts
     else:
-        import Fraction
         import functools
         import math
+
+        import Fraction
 
         values = np.array(cdf_values).flatten()
         v_min = np.min(values)

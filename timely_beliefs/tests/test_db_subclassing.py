@@ -4,6 +4,7 @@ from pytz import timezone
 from sqlalchemy import Column, Float, ForeignKey, Integer
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import backref, relationship
+
 from timely_beliefs import DBBeliefSource, DBSensor
 from timely_beliefs.beliefs.classes import TimedBeliefDBMixin
 from timely_beliefs.db_base import Base

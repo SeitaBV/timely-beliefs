@@ -1,6 +1,7 @@
 from typing import Union
 
 from sqlalchemy import Column, Integer, String
+
 from timely_beliefs.db_base import Base
 
 

@@ -1,7 +1,6 @@
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import altair as alt
-
 
 idle_color = "lightgray"
 
