@@ -45,9 +45,6 @@ class BeliefSourceDBMixin(BeliefSource):
     def __init__(self, name: str):
         BeliefSource.__init__(self, name)
 
-    def __repr__(self):
-        return "<BeliefSource %s (%s)>" % (self.id, self.name)
-
 
 class DBBeliefSource(Base, BeliefSourceDBMixin):
     """
@@ -59,3 +56,6 @@ class DBBeliefSource(Base, BeliefSourceDBMixin):
     def __init__(self, name: str):
         BeliefSourceDBMixin.__init__(self, name)
         Base.__init__(self)
+
+    def __repr__(self):
+        return "<DBBeliefSource %s (%s)>" % (self.id, self.name)

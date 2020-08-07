@@ -83,7 +83,8 @@ class TimedBelief(object):
         elif "belief_time" in kwargs:
             belief_time = tb_utils.enforce_tz(kwargs["belief_time"], "belief_time")
             self.belief_horizon = (
-                self.sensor.knowledge_time(self.event_start) - belief_time
+                self.sensor.knowledge_time(self.event_start, self.event_resolution)
+                - belief_time
             )
 
     def __repr__(self):
@@ -104,11 +105,11 @@ class TimedBelief(object):
 
     @hybrid_property
     def knowledge_time(self) -> datetime:
-        return self.sensor.knowledge_time(self.event_start)
+        return self.sensor.knowledge_time(self.event_start, self.event_resolution)
 
     @hybrid_property
     def knowledge_horizon(self) -> timedelta:
-        return self.sensor.knowledge_horizon(self.event_start)
+        return self.sensor.knowledge_horizon(self.event_start, self.event_resolution)
 
     @hybrid_property
     def event_resolution(self) -> timedelta:
@@ -188,7 +189,7 @@ class TimedBeliefDBMixin(TimedBelief):
         :param source: only return beliefs formed by the given source or list of sources (pass their id or name)
         :returns: a multi-index DataFrame with all relevant beliefs
 
-        TODO: rename params for clarity: event_finished_before, even_starts_not_before (or similar), same for beliefs
+        TODO: rename params for clarity: event_finished_before, event_starts_not_before (or similar), same for beliefs
         """
 
         # Check for timezone-aware datetime input
@@ -219,7 +220,10 @@ class TimedBeliefDBMixin(TimedBelief):
             knowledge_horizon_min,
             knowledge_horizon_max,
         ) = sensor_utils.eval_verified_knowledge_horizon_fnc(
-            knowledge_horizon_fnc, knowledge_horizon_par, None
+            knowledge_horizon_fnc,
+            knowledge_horizon_par,
+            event_resolution=event_resolution,
+            get_bounds=True,
         )
 
         # Query based on start_time_window
@@ -650,7 +654,9 @@ class BeliefsDataFrame(pd.DataFrame):
     def knowledge_times(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(
             self.event_starts.to_series(name="knowledge_time").apply(
-                lambda event_start: self.sensor.knowledge_time(event_start)
+                lambda event_start: self.sensor.knowledge_time(
+                    event_start, self.event_resolution
+                )
             )
         )
 
@@ -658,7 +664,9 @@ class BeliefsDataFrame(pd.DataFrame):
     def knowledge_horizons(self) -> pd.TimedeltaIndex:
         return pd.TimedeltaIndex(
             self.event_starts.to_series(name="knowledge_horizon").apply(
-                lambda event_start: self.sensor.knowledge_horizon(event_start)
+                lambda event_start: self.sensor.knowledge_horizon(
+                    event_start, self.event_resolution
+                )
             )
         )
 
