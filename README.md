@@ -686,10 +686,9 @@ or this:
 
     docker run --name test-postgres -p 5432:5432 -e POSTGRES_PASSWORD=tbtest -e POSTGRES_USER=tbtest -e POSTGRES_DB_NAME=tbtest -d postgres
 
-    
 And run tests:
-    make test
 
+    make test
 
 ## More examples
 
