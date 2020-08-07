@@ -1,20 +1,20 @@
-from typing import List, Optional, Union
-from datetime import datetime, timedelta
 import warnings
+from datetime import datetime, timedelta
+from typing import List, Optional, Union
 
-import pandas as pd
 import numpy as np
-from pandas.tseries.frequencies import to_offset
+import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
+from pandas.tseries.frequencies import to_offset
 
+from timely_beliefs import BeliefSource, Sensor
+from timely_beliefs import utils as tb_utils
 from timely_beliefs.beliefs import classes
 from timely_beliefs.beliefs.probabilistic_utils import (
     calculate_crps,
     get_expected_belief,
     probabilistic_nan_mean,
 )
-from timely_beliefs import BeliefSource, Sensor
-from timely_beliefs import utils as tb_utils
 from timely_beliefs.sources import utils as source_utils
 
 
@@ -176,7 +176,9 @@ def align_belief_times(
                 ps = previous_slice_with_existing_belief_time.reset_index()
                 ps[
                     "belief_time"
-                ] = ubt  # Update belief time to reflect propagation of beliefs over time
+                ] = (
+                    ubt
+                )  # Update belief time to reflect propagation of beliefs over time
                 data.extend(ps.values.tolist())
             else:
                 data.append([event_start, ubt, source, np.nan, np.nan])

@@ -1,13 +1,13 @@
-import pytest
-from pytest import approx
 from datetime import datetime, timedelta
 
-from pytz import utc
 import pandas as pd
+import pytest
+from pytest import approx
+from pytz import utc
 
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief
-from timely_beliefs.utils import replace_multi_index_level
 from timely_beliefs.examples.beliefs_data_frames import sixteen_probabilistic_beliefs
+from timely_beliefs.utils import replace_multi_index_level
 
 
 @pytest.fixture(scope="function", autouse=True)

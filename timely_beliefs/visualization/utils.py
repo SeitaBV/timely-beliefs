@@ -7,8 +7,8 @@ import pandas as pd
 
 from timely_beliefs.beliefs import classes  # noqa: F401
 from timely_beliefs.beliefs.probabilistic_utils import (
-    interpret_complete_cdf,
     get_nth_percentile_belief,
+    interpret_complete_cdf,
 )
 from timely_beliefs.visualization import graphs, selectors
 
@@ -305,7 +305,9 @@ def align_belief_horizons(
             if previous_slice_with_existing_belief_horizon is not None:
                 previous_slice_with_existing_belief_horizon[
                     "belief_horizon"
-                ] = ubh  # Update belief horizon to reflect propagation of beliefs over time
+                ] = (
+                    ubh
+                )  # Update belief horizon to reflect propagation of beliefs over time
                 data.extend(previous_slice_with_existing_belief_horizon.values.tolist())
         else:
             # If already present, copy the row (may be multiple rows in case of a probabilistic belief)

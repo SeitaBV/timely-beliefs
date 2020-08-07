@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+
 from pytz import utc
 
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief

@@ -5,8 +5,8 @@
 Below, we register customer accessors.
 """
 
-from typing import List
 from datetime import datetime, timedelta
+from typing import List
 
 from pandas.api.extensions import register_dataframe_accessor
 

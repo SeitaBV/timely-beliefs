@@ -2,7 +2,6 @@ import pandas as pd
 
 from timely_beliefs.examples import example_df as df
 
-
 pd.set_option("display.max_columns", None)
 
 chart = df.plot(reference_source=df.lineage.sources[0], interpolate=False)

@@ -66,6 +66,7 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
       1. [Select a belief time](#select-a-belief-time)
       1. [Select a horizon](#select-a-horizon)
       1. [Switch viewpoints](#switch-viewpoints)
+1. [Development](#development)
 1. [More examples](#more-examples)
 1. [References](#references)
 
@@ -437,16 +438,52 @@ You can let sqlalchemy create the tables in your database session and start usin
 
         return session
 
-Note how we're using timely-belief's sqlalchemy base (we're calling it `TBBase`) to create them. This does not create other tables you might have in your data model.
+Note how we're using timely-belief's sqlalchemy base (we're calling it `TBBase`) to create them. This does not create other tables you might have in your data model:
+
+    session = create_db_and_session()
+    for table_name in ("belief_source", "sensor", "timed_beliefs"):
+        assert table_name in session.tables.keys()
+
+Now you can add objects to your database and query them:
+
+    from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
+
+    source = DBBeliefSource(name="my_mom")
+    session.add(source)
+
+    sensor = DBSensor(name="AnySensor")
+    session.add(sensor)
+
+    session.flush()
+
+    now = datetime.now(tz=timezone("Europe/Amsterdam"))
+    belief = DBTimedBelief(
+        sensor=sensor,
+        source=source,
+        belief_time=now,
+        event_start=now + timedelta(minutes=3),
+        value=100,
+    )
+    session.add(belief)
+
+    q = session.query(DBTimedBelief).filter(DBTimedBelief.event_value == 100)
+    assert q.count() == 1
+    assert q.first().source == source
+    assert q.first().sensor == sensor
+    assert sensor.beliefs == [belief]
+
+
 
 ### Subclassing
 
-`DBTimedBelief`, `DBSensor` and `DBBeliefSource` also can be subclassed, if more attributes are needed. This should be most interesting for sensors and maybe belief sources.
+`DBTimedBelief`, `DBSensor` and `DBBeliefSource` also can be subclassed, for customization purposes. Possible reasons are to add more attributes or to use an existing table with a different name.
 
+Adding fields should be most interesting for sensors and maybe belief sources.
 Below is an example, for the case of a db-backed case, where we wanted a sensor to have a location. We added three attributes, `latitude`, `longitude` and `location_name`:
 
     from timely_beliefs import DBSensor
     from sqlalchemy import Column, Float, String
+
 
     class DBLocatedSensor(DBSensor):
         """A sensor with a location lat/long and location name"""
@@ -466,6 +503,38 @@ Below is an example, for the case of a db-backed case, where we wanted a sensor 
             self.longitude = longitude
             self.location_name = location_name
             DBSensor.__init__(self, **kwargs)
+
+Changing the table name is more tricky. Here is a class where we do that. This one uses a Mixin class (which is also used to create the class `DBTimedBelief` which we saw above) ― so we have to do more work, but also have more freedom to influence lower-level things such as the `table_name` attribute and pointing to a customer table for belief sources ("my_belief_source"):
+
+
+    from sqlalchemy import Column, Float, ForeignKey
+    from sqlalchemy.orm import backref, relationship
+    from sqlalchemy.ext.declarative import declared_attr
+    
+    from timely_beliefs.beliefs.classes import TimedBeliefDBMixin
+
+
+    class JoyfulBeliefInCustomTable(Base, TimedBeliefDBMixin):
+
+        __tablename__ = "my_timed_belief"
+
+        happiness = Column(Float(), default=0)
+
+        @declared_attr
+        def source_id(cls):
+            return Column(Integer, ForeignKey("my_belief_source.id"), primary_key=True)
+
+        source = relationship(
+            "RatedSourceInCustomTable", backref=backref("beliefs", lazy=True)
+        )
+
+        def __init__(self, sensor, source, happiness: float = None, **kwargs):
+            self.happiness = happiness
+            TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
+
+
+Note that we don say where the sqlalchemy `Base` comes from here. This is the one from your project. If you create tables from timely_belief's Base (see above) as well, you end up with more tables that you probably want to use. Which is not a blocker, but for cleanliness you might want to get all tables from timely beliefś base or define all Table implementations yourself, such as with `JoyfulBeliefInCustomTable` above.
+
 
 ## Accuracy
 
@@ -597,6 +666,29 @@ A ridgeline plot of beliefs (e.g. temperature forecasts) with a fixed viewpoint 
     >>> chart.serve()
     
 ![Ridgeline belief history](timely_beliefs/docs/belief_history_ridgeline.png "Belief history")
+
+## Development
+
+We welcome other contributions to timely_beliefs. 
+
+As a developer, you can build the code like this:
+
+    make install
+
+For testing, add a local database with expected credentials, for instance like this:
+
+    sudo -u postgres psql                                          
+    postgres=# CREATE USER tbtest WITH PASSWORD 'tbtest';
+    postgres=# CREATE DATABASE tbtest WITH OWNER = tbtest;
+    postgres=# exit
+
+or this:
+
+    docker run --name test-postgres -p 5432:5432 -e POSTGRES_PASSWORD=tbtest -e POSTGRES_USER=tbtest -e POSTGRES_DB_NAME=tbtest -d postgres
+
+And run tests:
+
+    make test
 
 ## More examples
 

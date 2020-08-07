@@ -1,5 +1,5 @@
-from typing import Optional, Union
 import warnings
+from typing import Optional, Union
 
 from timely_beliefs import BeliefSource
 

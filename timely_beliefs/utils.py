@@ -1,5 +1,5 @@
-from typing import Optional, Sequence
 from datetime import datetime
+from typing import Optional, Sequence
 
 import pandas as pd
 
@@ -21,11 +21,11 @@ def all_of_type(l: Sequence, element_type) -> bool:
 
 
 def replace_multi_index_level(
-    df: "classes.BeliefsDataFrame",  # noqa: F821
+    df: "classes.BeliefsDataFrame",
     level: str,
     index: pd.Index,
-    intersection: bool = False,
-) -> "classes.BeliefsDataFrame":  # noqa: F821
+    intersection: bool = False,  # noqa: F821
+) -> "classes.BeliefsDataFrame":
     """Replace one of the index levels of the multi-indexed DataFrame. Returns a new DataFrame object.
     :param df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
     :param level: the name of the index level to replace.
