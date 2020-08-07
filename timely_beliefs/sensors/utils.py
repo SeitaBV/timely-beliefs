@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
-from inspect import getmembers, isfunction
-from typing import Union, Optional
+from inspect import getmembers, isfunction, getfullargspec
+from typing import Optional, Tuple, Union
 
 from isodate import (
     time_isoformat,
@@ -77,11 +77,40 @@ def func_store_list() -> dict:
 
 
 def eval_verified_knowledge_horizon_fnc(
-    requested_fnc_name: str, par: dict, event_start: Optional[datetime]
-):
+    requested_fnc_name: str,
+    par: dict,
+    event_start: Optional[datetime] = None,
+    event_resolution: timedelta = None,
+    get_bounds: bool = False,
+) -> Union[timedelta, Tuple[timedelta, timedelta]]:
+    """ Evaluate knowledge horizon function to return a knowledge horizon.
+        Only function names that represent Callable objects in our function store can be evaluated.
+        If get_bounds is True, a tuple is returned with bounds on the possible return value.
+    """
     for verified_fnc_name, verified_fnc in func_store_list().items():
         if verified_fnc_name == requested_fnc_name:
-            return verified_fnc(event_start, **(unjsonify_time_dict(par)))
+            if {"event_start", "event_resolution"} < set(
+                getfullargspec(verified_fnc).args
+            ):
+                # Knowledge horizons are anchored to event_end = event_start + event_resolution
+                return verified_fnc(
+                    event_start,
+                    event_resolution,
+                    **(unjsonify_time_dict(par)),
+                    get_bounds=get_bounds
+                )
+            elif "event_start" in getfullargspec(verified_fnc).args:
+                # Knowledge horizons are anchored to event_start
+                return verified_fnc(
+                    event_start, **(unjsonify_time_dict(par)), get_bounds=get_bounds
+                )
+            elif "event_resolution" in getfullargspec(verified_fnc).args:
+                # Knowledge horizons are anchored to event_start
+                return verified_fnc(
+                    event_resolution,
+                    **(unjsonify_time_dict(par)),
+                    get_bounds=get_bounds
+                )
     raise Exception(
         "knowledge_horizon_fnc %s cannot be executed safely. Please register the function in the func_store."
         % requested_fnc_name
