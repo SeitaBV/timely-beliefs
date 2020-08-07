@@ -64,7 +64,7 @@ def test_custom_source_with_mixin(db):
     assert "my_belief_source" in db.tables.keys()
 
 
-class HappyBeliefInCustomTable(Base, TimedBeliefDBMixin):
+class JoyfulBeliefInCustomTable(Base, TimedBeliefDBMixin):
     """ A custom db class for representing beliefs.
     We overwrite the source_id reference, to our custom source table (see above).
     We also specify the source relationship here, so code can use it.
@@ -97,7 +97,7 @@ def test_custom_source_and_beliefs_with_mixin(db):
     session.flush()
 
     now = datetime.now(tz=timezone("Europe/Amsterdam"))
-    belief = HappyBeliefInCustomTable(
+    belief = JoyfulBeliefInCustomTable(
         sensor=sensor,
         source=source,
         belief_time=now,
@@ -113,8 +113,8 @@ def test_custom_source_and_beliefs_with_mixin(db):
     assert q.count() == 1
     assert q.first().rating == 7
 
-    q = session.query(HappyBeliefInCustomTable).filter(
-        HappyBeliefInCustomTable.happiness == 3
+    q = session.query(JoyfulBeliefInCustomTable).filter(
+        JoyfulBeliefInCustomTable.happiness == 3
     )
     assert q.count() == 1
     the_belief = q.first()

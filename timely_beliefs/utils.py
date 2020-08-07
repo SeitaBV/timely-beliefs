@@ -25,7 +25,7 @@ def replace_multi_index_level(
     level: str,
     index: pd.Index,
     intersection: bool = False,  # noqa: F821
-) -> "classes.BeliefsDataFrame":  # noqa: F821
+) -> "classes.BeliefsDataFrame":
     """Replace one of the index levels of the multi-indexed DataFrame. Returns a new DataFrame object.
     :param df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
     :param level: the name of the index level to replace.
