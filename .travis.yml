@@ -1,11 +1,15 @@
 language: python
 python:
   - "3.6"
-  - "3.7-dev"
+  - "3.7"
+  - "3.8"
+  - "3.9"
 services:
   - postgresql
 install:
-  - make install
+  - pip install pip-tools
+  - pip-sync
+  - pip install .
 before_script:
   - psql -c "CREATE USER tbtest WITH UNENCRYPTED PASSWORD 'tbtest';" -U postgres
   - psql -c "CREATE DATABASE tbtest WITH OWNER = tbtest;" -U postgres
