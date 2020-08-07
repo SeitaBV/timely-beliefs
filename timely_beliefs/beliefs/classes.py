@@ -413,7 +413,46 @@ class BeliefsDataFrame(pd.DataFrame):
 
         # Use our constructor if initialising from a previous (Beliefs)DataFrame (e.g. when slicing), copying the Sensor metadata
         # TODO: how is the metadata copied here?
-        if beliefs is None:
+        if beliefs:
+            # Method 1
+
+            # Call the pandas DataFrame constructor with the right input
+            kwargs["columns"] = columns
+
+            # Check for different sensors
+            unique_sensors = set(belief.sensor for belief in beliefs)
+            if len(unique_sensors) != 1:
+                raise ValueError("BeliefsDataFrame cannot describe multiple sensors.")
+            sensor = list(unique_sensors)[0]
+
+            # Check for different sources with the same name
+            unique_sources = set(belief.source for belief in beliefs)
+            unique_source_names = set(source.name for source in unique_sources)
+            if len(unique_source_names) != len(unique_sources):
+                raise ValueError(
+                    "Source names must be unique. Cannot initialise BeliefsDataFrame given the following unique sources:\n%s"
+                    % unique_sources
+                )
+
+            # Construct data and index from beliefs before calling super class
+            beliefs = sorted(
+                beliefs,
+                key=lambda b: (
+                    b.event_start,
+                    b.belief_time,
+                    b.source,
+                    b.cumulative_probability,
+                ),
+            )
+            kwargs["data"] = [[getattr(i, j) for j in columns] for i in beliefs]
+            kwargs["index"] = pd.MultiIndex.from_tuples(
+                [[getattr(i, j) for j in indices] for i in beliefs], names=indices
+            )
+            super().__init__(*args, **kwargs)
+            clean_up_duplicates(self, indices)
+
+        else:
+            # Method 2 and 3
 
             # Interpret initialisation with a pandas Series (preprocessing step of method 3)
             if len(args) > 0 and isinstance(args[0], pd.Series):
@@ -430,50 +469,15 @@ class BeliefsDataFrame(pd.DataFrame):
 
             super().__init__(*args, **kwargs)
 
-            # Set up empty frame with columns, indices and attributes
-            if len(args) == 0:
-                self.reset_index(inplace=True)
-                if "belief_horizon" in self and "belief_time" not in self:
-                    indices = [
-                        "belief_horizon" if index == "belief_time" else index
-                        for index in indices
-                    ]
-                if "event_end" in self and "event_start" not in self:
-                    indices = [
-                        "event_end" if index == "event_start" else index
-                        for index in indices
-                    ]
-                for col in columns + indices:
-                    self[col] = None
-                self.set_index(indices, inplace=True)
-                self.sensor = sensor
-                self.event_resolution = (
-                    event_resolution
-                    if event_resolution
-                    else sensor.event_resolution
-                    if sensor
-                    else None
-                )
-                return
-            if isinstance(args[0], (pd.DataFrame, pd.Series)) and not isinstance(
+            if len(args) == 0 or (
+                self.empty
+                and isinstance(args[0], (pd.DataFrame, pd.Series))
+                and not isinstance(args[0], BeliefsDataFrame)
+            ):
+                set_columns_and_indices_for_empty_frame(self, columns, indices)
+            elif isinstance(args[0], (pd.DataFrame, pd.Series)) and not isinstance(
                 args[0], BeliefsDataFrame
             ):
-
-                # Initialise empty BeliefsDataFrame with columns, indices and sensor information
-                if self.empty:
-                    for col in columns + indices:
-                        self[col] = None
-                    self.set_index(indices, inplace=True)
-                    self.sensor = sensor
-                    self.event_resolution = (
-                        event_resolution
-                        if event_resolution
-                        else sensor.event_resolution
-                        if sensor
-                        else None
-                    )
-                    return
-
                 # Set (possibly overwrite) each index level to a unique value if set explicitly
                 if source is not None:
                     self["source"] = source_utils.ensure_source_exists(source)
@@ -513,7 +517,7 @@ class BeliefsDataFrame(pd.DataFrame):
                     self["belief_horizon"]
                 ) and self["belief_horizon"].dtype not in (timedelta, pd.Timedelta):
                     raise TypeError(
-                        "belief_horizon should be of type datetime.timedelta."
+                        "belief_horizon should be of type datetime.timedelta or pandas.Timedelta."
                     )
                 if cumulative_probability is not None:
                     self["cumulative_probability"] = cumulative_probability
@@ -542,75 +546,8 @@ class BeliefsDataFrame(pd.DataFrame):
                         for index in indices
                     ]
                 self.set_index(indices, inplace=True)
-                self.sensor = sensor
-                self.event_resolution = (
-                    event_resolution
-                    if event_resolution
-                    else sensor.event_resolution
-                    if sensor
-                    else None
-                )
-                return
-            return
 
-        # Call the pandas DataFrame constructor with the right input
-        kwargs["columns"] = columns
-        if beliefs:
-            # Check for different sensors
-            unique_sensors = set(belief.sensor for belief in beliefs)
-            if len(unique_sensors) != 1:
-                raise ValueError("BeliefsDataFrame cannot describe multiple sensors.")
-            sensor = list(unique_sensors)[0]
-
-            # Check for different sources with the same name
-            unique_sources = set(belief.source for belief in beliefs)
-            unique_source_names = set(source.name for source in unique_sources)
-            if len(unique_source_names) != len(unique_sources):
-                raise ValueError(
-                    "Source names must be unique. Cannot initialise BeliefsDataFrame given the following unique sources:\n%s"
-                    % unique_sources
-                )
-
-            # Construct data and index from beliefs before calling super class
-            beliefs = sorted(
-                beliefs,
-                key=lambda b: (
-                    b.event_start,
-                    b.belief_time,
-                    b.source,
-                    b.cumulative_probability,
-                ),
-            )
-            kwargs["data"] = [[getattr(i, j) for j in columns] for i in beliefs]
-            kwargs["index"] = pd.MultiIndex.from_tuples(
-                [[getattr(i, j) for j in indices] for i in beliefs], names=indices
-            )
-        else:
-            kwargs["index"] = pd.MultiIndex(
-                levels=[[] for _ in indices], codes=[[] for _ in indices], names=indices
-            )  # Todo support pandas 0.23
-        super().__init__(*args, **kwargs)
-
-        # Clean up duplicate beliefs and ensure datetimes are set (even with an empty BeliefsDataFrame)
-        self.reset_index(inplace=True)
-        self["event_start"] = pd.to_datetime(
-            self["event_start"], utc=True if self["event_start"].empty else None
-        )
-        self["belief_time"] = pd.to_datetime(
-            self["belief_time"], utc=True if self["belief_time"].empty else None
-        )
-        self.drop_duplicates(inplace=True)
-        self.set_index(indices, inplace=True)
-
-        # Set the Sensor metadata (including timing properties of the sensor)
-        self.sensor = sensor
-        self.event_resolution = (
-            event_resolution
-            if event_resolution
-            else sensor.event_resolution
-            if sensor
-            else None
-        )
+        assign_sensor_and_event_resolution(self, sensor, event_resolution)
 
     def append_from_time_series(
         self,
@@ -1386,3 +1323,43 @@ class BeliefsDataFrame(pd.DataFrame):
             df = pd.concat([df, reference_df], axis=1)
             return df.convert_index_from_belief_horizon_to_time()
         return pd.concat([df, reference_df], axis=1)
+
+
+def set_columns_and_indices_for_empty_frame(df, columns, indices):
+    """ Set appropriate columns and indices for the empty BeliefsDataFrame. """
+    if "belief_horizon" in df and "belief_time" not in df:
+        indices = [
+            "belief_horizon" if index == "belief_time" else index for index in indices
+        ]
+    if "event_end" in df and "event_start" not in df:
+        indices = [
+            "event_end" if index == "event_start" else index for index in indices
+        ]
+    for col in columns + indices:
+        df[col] = None
+    df.set_index(indices, inplace=True)
+
+
+def assign_sensor_and_event_resolution(df, sensor, event_resolution):
+    """ Set the Sensor metadata (including timing properties of the sensor). """
+    df.sensor = sensor
+    df.event_resolution = (
+        event_resolution
+        if event_resolution
+        else sensor.event_resolution
+        if sensor
+        else None
+    )
+
+
+def clean_up_duplicates(df, indices):
+    """ Clean up duplicate beliefs and ensure datetimes are set (even with an empty BeliefsDataFrame). """
+    df.reset_index(inplace=True)
+    df["event_start"] = pd.to_datetime(
+        df["event_start"], utc=True if df["event_start"].empty else None
+    )
+    df["belief_time"] = pd.to_datetime(
+        df["belief_time"], utc=True if df["belief_time"].empty else None
+    )
+    df.drop_duplicates(inplace=True)
+    df.set_index(indices, inplace=True)
