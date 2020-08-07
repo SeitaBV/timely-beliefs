@@ -5,7 +5,7 @@ python:
 services:
   - postgresql
 install:
-  - pip install .
+  - make install
 before_script:
   - psql -c "CREATE USER tbtest WITH UNENCRYPTED PASSWORD 'tbtest';" -U postgres
   - psql -c "CREATE DATABASE tbtest WITH OWNER = tbtest;" -U postgres
