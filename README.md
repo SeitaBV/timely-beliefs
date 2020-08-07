@@ -66,6 +66,7 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
       1. [Select a belief time](#select-a-belief-time)
       1. [Select a horizon](#select-a-horizon)
       1. [Switch viewpoints](#switch-viewpoints)
+1. [Development](#development)
 1. [More examples](#more-examples)
 1. [References](#references)
 
@@ -665,6 +666,30 @@ A ridgeline plot of beliefs (e.g. temperature forecasts) with a fixed viewpoint 
     >>> chart.serve()
     
 ![Ridgeline belief history](timely_beliefs/docs/belief_history_ridgeline.png "Belief history")
+
+## Development
+
+We welcome other contributions to timely_beliefs. 
+
+As a developer, you can build the code like this:
+
+    make install
+
+For testing, add a local database with expected credentials, for instance like this:
+
+    sudo -u postgres psql                                          
+    postgres=# CREATE USER tbtest WITH PASSWORD 'tbtest';
+    postgres=# CREATE DATABASE tbtest WITH OWNER = tbtest;
+    postgres=# exit
+
+or this:
+
+    docker run --name test-postgres -p 5432:5432 -e POSTGRES_PASSWORD=tbtest -e POSTGRES_USER=tbtest -e POSTGRES_DB_NAME=tbtest -d postgres
+
+    
+And run tests:
+    make test
+
 
 ## More examples
 
