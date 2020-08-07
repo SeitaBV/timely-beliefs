@@ -5,7 +5,7 @@ from timely_beliefs.db_base import Base
 from timely_beliefs.tests import engine, session
 from timely_beliefs import DBBeliefSource, DBSensor
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
-    timedelta_for_x_days_ago_at_y_oclock,
+    determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
 )
 
 
@@ -53,7 +53,7 @@ def ex_post_time_slot_sensor(db):
         name="ExPostSensor",
         event_resolution=timedelta(minutes=15),
         knowledge_horizon=(
-            timedelta_for_x_days_ago_at_y_oclock,
+            determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
             dict(x=1, y=12, z="Europe/Amsterdam"),
         ),
     )

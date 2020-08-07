@@ -1,7 +1,6 @@
 from typing import Any, Callable, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
-from isodate import duration_isoformat
 from sqlalchemy import Column, Integer, Interval, JSON, String
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.ext.declarative import declared_attr
@@ -9,8 +8,8 @@ from sqlalchemy.ext.declarative import declared_attr
 from timely_beliefs.db_base import Base
 from timely_beliefs.utils import enforce_tz
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
-    constant_timedelta,
-    timedelta_for_end_of_event,
+    determine_ex_ante_knowledge_horizon,
+    determine_ex_post_knowledge_horizon,
 )
 from timely_beliefs.sensors.utils import (
     jsonify_time_dict,
@@ -51,18 +50,28 @@ class Sensor(object):
             event_resolution = timedelta(hours=0)
         self.event_resolution = event_resolution
         if knowledge_horizon is None:
-            self.knowledge_horizon_fnc = timedelta_for_end_of_event.__name__
-            self.knowledge_horizon_par = {}
-        if isinstance(knowledge_horizon, timedelta):
-            self.knowledge_horizon_fnc = constant_timedelta.__name__
-            self.knowledge_horizon_par = {
-                constant_timedelta.__code__.co_varnames[-1]: duration_isoformat(
-                    knowledge_horizon
+            # Set an appropriate knowledge horizon for physical sensors, representing ex-post knowledge time.
+            self.knowledge_horizon_fnc = determine_ex_post_knowledge_horizon.__name__
+            knowledge_horizon_par = {
+                determine_ex_post_knowledge_horizon.__code__.co_varnames[1]: timedelta(
+                    hours=0
                 )
             }
-        if isinstance(knowledge_horizon, Tuple):
+        elif isinstance(knowledge_horizon, timedelta):
+            self.knowledge_horizon_fnc = determine_ex_ante_knowledge_horizon.__name__
+            knowledge_horizon_par = {
+                determine_ex_ante_knowledge_horizon.__code__.co_varnames[
+                    0
+                ]: knowledge_horizon
+            }
+        elif isinstance(knowledge_horizon, Tuple):
             self.knowledge_horizon_fnc = knowledge_horizon[0].__name__
-            self.knowledge_horizon_par = jsonify_time_dict(knowledge_horizon[1])
+            knowledge_horizon_par = knowledge_horizon[1]
+        else:
+            raise ValueError(
+                "Knowledge horizon should be a timedelta or a tuple containing a knowledge horizon function (import from function store) and a kwargs dict."
+            )
+        self.knowledge_horizon_par = jsonify_time_dict(knowledge_horizon_par)
 
     @hybrid_method
     def knowledge_horizon(
