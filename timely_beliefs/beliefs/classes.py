@@ -411,8 +411,7 @@ class BeliefsDataFrame(pd.DataFrame):
         columns = ["event_value"]
         indices = ["event_start", "belief_time", "source", "cumulative_probability"]
 
-        # Use our constructor if initialising from a previous (Beliefs)DataFrame (e.g. when slicing), copying the Sensor metadata
-        # TODO: how is the metadata copied here?
+        # Pick an initialization method
         if beliefs:
             # Method 1
 
