@@ -412,7 +412,7 @@ Get the (number of) sources contributing to the BeliefsDataFrame:
 
 All of the above can be done with `TimedBelief` objects in a `BeliefsDataFrame`. However, if you are dealing with a lot of data and need performance, you'll want to persist your belief data in a database. The timely-beliefs library supports this, as all relevant classes have a subclass which also derives from [sqlalchemy's declarative base](https://docs.sqlalchemy.org/en/13/orm/extensions/declarative/index.html?highlight=declarative).
 
-The timely-beliefs library comes with database-backed classes for the three main components of the data model - `DBTimedBelief`, `DBSensor` and `DBBeliefSource`. Objects from these classes can be used just like their super classes, so for instance `DBTimedBelief` objects can be used for creating a `BeliefDataFrame`.
+The timely-beliefs library comes with database-backed classes for the three main components of the data model - `DBTimedBelief`, `DBSensor` and `DBBeliefSource`. Objects from these classes can be used just like their super classes, so for instance `DBTimedBelief` objects can be used for creating a `BeliefsDataFrame`.
 
 ### Table creation and storage
 

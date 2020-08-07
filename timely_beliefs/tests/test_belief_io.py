@@ -357,3 +357,16 @@ def test_dropping_index_levels_retains_metadata():
     df.index = df.index.get_level_values("event_start")  # drop all other index levels
     for md in metadata:
         assert getattr(df, md) == metadata[md]
+
+
+@pytest.mark.parametrize("drop_level", [True, False])
+def test_slicing_retains_metadata(drop_level):
+    """
+    Test whether slicing the index of a BeliefsDataFrame retains the metadata.
+    """
+    df = example_df
+    metadata = {md: getattr(example_df, md) for md in METADATA}
+    df = df.xs("2000-01-03 10:00:00+00:00", level="event_start", drop_level=drop_level)
+    print(df)
+    for md in metadata:
+        assert getattr(df, md) == metadata[md]
