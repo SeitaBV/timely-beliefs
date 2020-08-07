@@ -436,7 +436,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
             # Construct data and index from beliefs before calling super class
             beliefs = sorted(
-                beliefs,
+                set(beliefs),
                 key=lambda b: (
                     b.event_start,
                     b.belief_time,
@@ -449,7 +449,6 @@ class BeliefsDataFrame(pd.DataFrame):
                 [[getattr(i, j) for j in indices] for i in beliefs], names=indices
             )
             super().__init__(*args, **kwargs)
-            clean_up_duplicates(self, indices)
 
         else:
             # Method 2 and 3
@@ -1350,16 +1349,3 @@ def assign_sensor_and_event_resolution(df, sensor, event_resolution):
         if sensor
         else None
     )
-
-
-def clean_up_duplicates(df, indices):
-    """ Clean up duplicate beliefs and ensure datetimes are set (even with an empty BeliefsDataFrame). """
-    df.reset_index(inplace=True)
-    df["event_start"] = pd.to_datetime(
-        df["event_start"], utc=True if df["event_start"].empty else None
-    )
-    df["belief_time"] = pd.to_datetime(
-        df["belief_time"], utc=True if df["belief_time"].empty else None
-    )
-    df.drop_duplicates(inplace=True)
-    df.set_index(indices, inplace=True)
