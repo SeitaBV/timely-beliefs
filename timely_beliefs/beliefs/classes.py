@@ -1,27 +1,26 @@
-from typing import Any, Callable, List, Optional, Tuple, Union
-from datetime import datetime, timedelta
 import math
+from datetime import datetime, timedelta
+from typing import Any, Callable, List, Optional, Tuple, Union
 
+import altair as alt
 import numpy as np
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
-from sqlalchemy import Column, DateTime, Integer, Interval, Float, String, ForeignKey
-from sqlalchemy.orm import relationship, backref, Session
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, Interval
+from sqlalchemy.ext.declarative import declared_attr, has_inherited_table
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
-from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.orm import Session, backref, relationship
 from sqlalchemy.schema import UniqueConstraint
-import altair as alt
 
-from timely_beliefs.db_base import Base
-from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
-from timely_beliefs.sensors.classes import Sensor, DBSensor
 import timely_beliefs.utils as tb_utils
-from timely_beliefs.sensors import utils as sensor_utils
-from timely_beliefs.beliefs import utils as belief_utils
-from timely_beliefs.sources import utils as source_utils
 from timely_beliefs.beliefs import probabilistic_utils
+from timely_beliefs.beliefs import utils as belief_utils
+from timely_beliefs.db_base import Base
+from timely_beliefs.sensors import utils as sensor_utils
+from timely_beliefs.sensors.classes import DBSensor, Sensor
+from timely_beliefs.sources import utils as source_utils
+from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 from timely_beliefs.visualization import utils as visualization_utils
-
 
 METADATA = ["sensor", "event_resolution"]
 
@@ -128,58 +127,45 @@ class TimedBelief(object):
         return None
 
 
-class DBTimedBelief(Base, TimedBelief):
-    """Database representation of TimedBelief"""
+class TimedBeliefDBMixin(TimedBelief):
+    """
+    Mixin class for a table with beliefs.
+    The fields source and sensor do not point to another table - overwrite them to make that happen.
+    """
 
-    __tablename__ = "timed_beliefs"
-    __table_args__ = (
-        UniqueConstraint(
-            "event_start",
-            "belief_horizon",
-            "sensor_id",
-            "source_id",
-            name="_one_belief_by_one_source_uc",
-        ),
-    )
-    # type is useful so we can use polymorphic inheritance
-    # (https://docs.sqlalchemy.org/en/13/orm/inheritance.html#single-table-inheritance)
-    type = Column(String(50), nullable=False)
+    @declared_attr
+    def __table_args__(cls):
+        if has_inherited_table(cls):
+            return (
+                UniqueConstraint(
+                    "event_start",
+                    "belief_horizon",
+                    "sensor_id",
+                    "source_id",
+                    name="_one_belief_by_one_source_uc",
+                ),
+            )
+        return None
 
     event_start = Column(DateTime(timezone=True), primary_key=True)
     belief_horizon = Column(Interval(), nullable=False, primary_key=True)
     cumulative_probability = Column(Float, nullable=False, primary_key=True)
     event_value = Column(Float, nullable=False)
-    sensor_id = Column(
-        Integer(), ForeignKey("sensor.id", ondelete="CASCADE"), primary_key=True
-    )
-    source_id = Column(Integer, ForeignKey("belief_source.id"), primary_key=True)
-    sensor = relationship(
-        "DBSensor",
-        backref=backref(
-            "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
-        ),
-    )
-    source = relationship(
-        "DBBeliefSource",
-        backref=backref(
-            "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
-        ),
-    )
 
     @declared_attr
-    def __mapper_args__(self):
-        if self.__name__ == "DBTimedBelief":
-            return {
-                "polymorphic_on": self.type,
-                "polymorphic_identity": "DBTimedBelief",
-            }
-        else:
-            return {"polymorphic_identity": self.__name__}
+    def sensor_id(cls):
+        return Column(
+            Integer(), ForeignKey("sensor.id", ondelete="CASCADE"), primary_key=True
+        )
 
-    def __init__(
-        self, sensor: DBSensor, source: DBBeliefSource, value: float, **kwargs
-    ):
-        TimedBelief.__init__(self, sensor, source, value, **kwargs)
+    @declared_attr
+    def source_id(cls):
+        return Column(Integer, ForeignKey("belief_source.id"), primary_key=True)
+
+    def __init__(self, sensor, source, value: float, **kwargs):  # TODO: type hinting?
+        self.sensor_id = sensor.id
+        self.source_id = source.id
+        TimedBelief.__init__(self, sensor=sensor, source=source, value=value, **kwargs)
         Base.__init__(self)
 
     @classmethod
@@ -293,6 +279,35 @@ class DBTimedBelief(Base, TimedBelief):
         return df
 
 
+class DBTimedBelief(Base, TimedBeliefDBMixin):
+    """Database representation of TimedBelief.
+    We get fields from the Mixin and configure sensor and source relationships.
+    We are not sure why the relationshps cannot live in the Mixin as declared attributes,
+    but they have to be here (thus other custom implementations need to include them, as well).
+    """
+
+    __tablename__ = "timed_beliefs"
+
+    sensor = relationship(
+        "DBSensor",
+        backref=backref(
+            "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
+        ),
+    )
+    source = relationship(
+        "DBBeliefSource",
+        backref=backref(
+            "beliefs", lazy=True, cascade="all, delete-orphan", passive_deletes=True
+        ),
+    )
+
+    def __init__(
+        self, sensor: DBSensor, source: DBBeliefSource, value: float, **kwargs
+    ):
+        TimedBeliefDBMixin.__init__(self, sensor, source, value, **kwargs)
+        Base.__init__(self)
+
+
 class BeliefsSeries(pd.Series):
     """Just for slicing, to keep around the metadata."""
 
@@ -382,9 +397,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 object.__setattr__(self, name, getattr(other, name, None))
         return self
 
-    def __init__(  # noqa: C901 todo: refactor, e.g. by detecting initialization method
-        self, *args, **kwargs
-    ):
+    def __init__(self, *args, **kwargs):  # noqa: C901
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
 
         # Obtain parameters that are specific to our DataFrame subclass

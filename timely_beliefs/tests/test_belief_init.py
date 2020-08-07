@@ -1,6 +1,6 @@
-import pytest
 from datetime import datetime, timedelta
 
+import pytest
 from pytz import utc
 
 from timely_beliefs import BeliefSource, Sensor, TimedBelief

@@ -7,8 +7,8 @@ import pandas as pd
 
 from timely_beliefs.beliefs import classes  # noqa: F401
 from timely_beliefs.beliefs.probabilistic_utils import (
-    interpret_complete_cdf,
     get_nth_percentile_belief,
+    interpret_complete_cdf,
 )
 from timely_beliefs.visualization import graphs, selectors
 

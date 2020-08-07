@@ -1,20 +1,19 @@
-from typing import Any, Callable, Optional, Tuple, Union
 from datetime import datetime, timedelta
+from typing import Any, Callable, Optional, Tuple, Union
 
-from sqlalchemy import Column, Integer, Interval, JSON, String
+from sqlalchemy import JSON, Column, Integer, Interval, String
 from sqlalchemy.ext.hybrid import hybrid_method
-from sqlalchemy.ext.declarative import declared_attr
 
 from timely_beliefs.db_base import Base
-from timely_beliefs.utils import enforce_tz
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
     determine_ex_ante_knowledge_horizon,
     determine_ex_post_knowledge_horizon,
 )
 from timely_beliefs.sensors.utils import (
-    jsonify_time_dict,
     eval_verified_knowledge_horizon_fnc,
+    jsonify_time_dict,
 )
+from timely_beliefs.utils import enforce_tz
 
 
 class Sensor(object):
@@ -100,24 +99,38 @@ class Sensor(object):
         return "<Sensor: %s>" % self.name
 
 
-class DBSensor(Base, Sensor):
-    """Mixin class for a table with sensors.
+class SensorDBMixin(Sensor):
+    """
+    Mixin class for a table with sensors.
     """
 
-    __tablename__ = "sensor"
-
-    # two columns for db purposes: id is a row identifier
     id = Column(Integer, primary_key=True)
-    # type is useful so we can use polymorphic inheritance
-    # (https://docs.sqlalchemy.org/en/13/orm/inheritance.html#single-table-inheritance)
-    type = Column(String(50), nullable=False)
-
+    # overwriting name as db field
     name = Column(String(120), nullable=False, default="")
     unit = Column(String(80), nullable=False, default="")
     timezone = Column(String(80), nullable=False, default="UTC")
     event_resolution = Column(Interval(), nullable=False, default=timedelta(hours=0))
     knowledge_horizon_fnc = Column(String(80), nullable=False)
     knowledge_horizon_par = Column(JSON(), default={}, nullable=False)
+
+    def __init__(
+        self,
+        name: str,
+        unit: str = "",
+        timezone: str = "UTC",
+        event_resolution: Optional[timedelta] = None,
+        knowledge_horizon: Optional[
+            Union[timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]]
+        ] = None,
+    ):
+        Sensor.__init__(self, name, unit, timezone, event_resolution, knowledge_horizon)
+
+
+class DBSensor(Base, SensorDBMixin):
+    """Database class for a table with sensors.
+    """
+
+    __tablename__ = "sensor"
 
     def __init__(
         self,
@@ -129,15 +142,10 @@ class DBSensor(Base, Sensor):
             Union[timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]]
         ] = None,
     ):
-        Sensor.__init__(self, name, unit, timezone, event_resolution, knowledge_horizon)
+        SensorDBMixin.__init__(
+            self, name, unit, timezone, event_resolution, knowledge_horizon
+        )
         Base.__init__(self)
 
     def __repr__(self):
         return "<DBSensor: %s (%s)>" % (self.id, self.name)
-
-    @declared_attr
-    def __mapper_args__(self):
-        if self.__name__ == "DBSensor":
-            return {"polymorphic_on": self.type, "polymorphic_identity": "sensor"}
-        else:
-            return {"polymorphic_identity": self.__name__}

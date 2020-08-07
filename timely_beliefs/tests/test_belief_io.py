@@ -1,12 +1,13 @@
-import pytest
 import os
-import pandas as pd
-import pytz
 from datetime import datetime, timedelta
 
-from timely_beliefs.examples import example_df
-from timely_beliefs.beliefs.classes import METADATA
+import pandas as pd
+import pytest
+import pytz
+
 import timely_beliefs as tb
+from timely_beliefs.beliefs.classes import METADATA
+from timely_beliefs.examples import example_df
 
 
 @pytest.fixture(scope="module")

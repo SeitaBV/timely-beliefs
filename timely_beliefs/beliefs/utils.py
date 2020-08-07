@@ -1,19 +1,19 @@
-from typing import List, Optional, Union
-from datetime import datetime, timedelta
 import warnings
+from datetime import datetime, timedelta
+from typing import List, Optional, Union
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
 
+from timely_beliefs import BeliefSource, Sensor
+from timely_beliefs import utils as tb_utils
 from timely_beliefs.beliefs import classes
 from timely_beliefs.beliefs.probabilistic_utils import (
     calculate_crps,
     get_expected_belief,
     probabilistic_nan_mean,
 )
-from timely_beliefs import BeliefSource, Sensor
-from timely_beliefs import utils as tb_utils
 from timely_beliefs.sources import utils as source_utils
 
 

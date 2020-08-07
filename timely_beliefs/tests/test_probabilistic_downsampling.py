@@ -1,13 +1,13 @@
-import pytest
-from pytest import approx
 from typing import Tuple
 
 import numpy as np
 import openturns as ot
+import pytest
+from pytest import approx
 
 from timely_beliefs.beliefs.probabilistic_utils import (
-    multivariate_marginal_to_univariate_joint_cdf,
     equalize_bins,
+    multivariate_marginal_to_univariate_joint_cdf,
 )
 from timely_beliefs.tests.utils import equal_lists
 
