@@ -504,7 +504,7 @@ Below is an example, for the case of a db-backed case, where we wanted a sensor 
             self.location_name = location_name
             DBSensor.__init__(self, **kwargs)
 
-Changing the table name is more tricky. Here is a class where we do that. This one uses a Mixin class (which is also used to create the class `DBTimedBelief` which we saw above) ― so we have to do more work, but also have more freedom to influence lower-level thngs such as the `table_name` attribute and pointing to a customer table for belief sources ("my_belief_source"):
+Changing the table name is more tricky. Here is a class where we do that. This one uses a Mixin class (which is also used to create the class `DBTimedBelief` which we saw above) ― so we have to do more work, but also have more freedom to influence lower-level things such as the `table_name` attribute and pointing to a customer table for belief sources ("my_belief_source"):
 
 
     from sqlalchemy import Column, Float, ForeignKey
