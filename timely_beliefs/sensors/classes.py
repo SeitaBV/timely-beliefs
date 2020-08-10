@@ -5,7 +5,6 @@ from sqlalchemy import JSON, Column, Integer, Interval, String
 from sqlalchemy.ext.hybrid import hybrid_method
 
 from timely_beliefs.db_base import Base
-from timely_beliefs.utils import enforce_tz
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
     determine_ex_ante_knowledge_horizon,
     determine_ex_post_knowledge_horizon,

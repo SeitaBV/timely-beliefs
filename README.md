@@ -531,6 +531,7 @@ Changing the table name is more tricky. Here is a class where we do that. This o
         def __init__(self, sensor, source, happiness: float = None, **kwargs):
             self.happiness = happiness
             TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
+            Base.__init__(self)
 
 
 Note that we don say where the sqlalchemy `Base` comes from here. This is the one from your project. If you create tables from timely_belief's Base (see above) as well, you end up with more tables that you probably want to use. Which is not a blocker, but for cleanliness you might want to get all tables from timely beliefś base or define all Table implementations yourself, such as with `JoyfulBeliefInCustomTable` above.

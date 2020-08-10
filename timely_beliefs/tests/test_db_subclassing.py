@@ -82,9 +82,20 @@ class JoyfulBeliefInCustomTable(Base, TimedBeliefDBMixin):
         "RatedSourceInCustomTable", backref=backref("beliefs", lazy=True)
     )
 
-    def __init__(self, sensor, source, happiness: float = None, **kwargs):
+    def __init__(
+        self,
+        sensor: DBSensor,
+        source: DBBeliefSource,
+        happiness: float = None,
+        **kwargs
+    ):
         self.happiness = happiness
         TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
+        [
+            kwargs.pop(key, None)
+            for key in TimedBeliefDBMixin.__init__.__code__.co_varnames
+        ]
+        Base.__init__(self, **kwargs)
 
 
 def test_custom_source_and_beliefs_with_mixin(db):

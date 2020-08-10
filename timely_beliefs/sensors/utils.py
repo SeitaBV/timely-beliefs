@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from inspect import getmembers, isfunction, getfullargspec
+from inspect import getfullargspec, getmembers, isfunction
 from typing import Optional, Tuple, Union
 
 from isodate import (
