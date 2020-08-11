@@ -14,7 +14,7 @@ setup(
         "uncertainty",
         "lineage",
     ],
-    version="0.0.10",
+    version="0.1.0",
     install_requires=[
         "pytz",
         "pandas>=1.0",
