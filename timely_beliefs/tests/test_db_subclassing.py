@@ -94,7 +94,7 @@ class JoyfulBeliefInCustomTable(Base, TimedBeliefDBMixin):
         [
             kwargs.pop(key, None)
             for key in TimedBeliefDBMixin.__init__.__code__.co_varnames
-        ]
+        ]  # take out any kwargs used by the mixin, and pass on any remaining kwargs to the next super class.
         Base.__init__(self, **kwargs)
 
 
