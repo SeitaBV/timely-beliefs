@@ -485,7 +485,6 @@ Below is an example, for the case of a db-backed case, where we wanted a sensor 
     from timely_beliefs import DBSensor
 
 
-
     class DBLocatedSensor(DBSensor):
         """A sensor with a location lat/long and location name"""
 

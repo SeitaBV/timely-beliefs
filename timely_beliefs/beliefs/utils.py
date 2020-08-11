@@ -5,6 +5,7 @@ from typing import List, Optional, Union
 import numpy as np
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
+from pandas.tseries.frequencies import to_offset
 
 from timely_beliefs import BeliefSource, Sensor
 from timely_beliefs import utils as tb_utils
