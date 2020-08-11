@@ -4,6 +4,7 @@ repos:
         hooks:
               - id: isort
                 name: isort (import sorting)
+                additional_dependencies: [toml]
       - repo: https://gitlab.com/pycqa/flake8
         rev: 3.8.3
         hooks:

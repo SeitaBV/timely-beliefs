@@ -419,8 +419,8 @@ The timely-beliefs library comes with database-backed classes for the three main
 
 You can let sqlalchemy create the tables in your database session and start using the DB classes (or subclasses, see below) and program code without much work by yourself. The database session is under your control - where or how you get it, depends on the context you're working in. Here is an example how to set up a session and also have sqlachemy create the tables:
 
-    from timely_beliefs.db_base import Base as TBBase
     from sqlalchemy.orm import sessionmaker
+    from timely_beliefs.db_base import Base as TBBase
 
     SessionClass = sessionmaker()
     session = None
@@ -481,8 +481,8 @@ Now you can add objects to your database and query them:
 Adding fields should be most interesting for sensors and maybe belief sources.
 Below is an example, for the case of a db-backed case, where we wanted a sensor to have a location. We added three attributes, `latitude`, `longitude` and `location_name`:
 
-    from timely_beliefs import DBSensor
     from sqlalchemy import Column, Float, String
+    from timely_beliefs import DBSensor
 
 
     class DBLocatedSensor(DBSensor):
@@ -510,8 +510,7 @@ Changing the table name is more tricky. Here is a class where we do that. This o
     from sqlalchemy import Column, Float, ForeignKey
     from sqlalchemy.orm import backref, relationship
     from sqlalchemy.ext.declarative import declared_attr
-    
-    from timely_beliefs.beliefs.classes import TimedBeliefDBMixin
+    from timely_beliefs import TimedBeliefDBMixin
 
 
     class JoyfulBeliefInCustomTable(Base, TimedBeliefDBMixin):
@@ -531,6 +530,7 @@ Changing the table name is more tricky. Here is a class where we do that. This o
         def __init__(self, sensor, source, happiness: float = None, **kwargs):
             self.happiness = happiness
             TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
+            Base.__init__(self)
 
 
 Note that we don say where the sqlalchemy `Base` comes from here. This is the one from your project. If you create tables from timely_belief's Base (see above) as well, you end up with more tables that you probably want to use. Which is not a blocker, but for cleanliness you might want to get all tables from timely beliefś base or define all Table implementations yourself, such as with `JoyfulBeliefInCustomTable` above.
