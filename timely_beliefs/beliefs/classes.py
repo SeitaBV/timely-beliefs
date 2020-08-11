@@ -53,35 +53,49 @@ class TimedBelief(object):
         sensor: Sensor,
         source: Union[BeliefSource, str, int],
         value: float,
-        **kwargs
+        cumulative_probability: Optional[float] = None,
+        cp: Optional[float] = None,
+        sigma: Optional[float] = None,
+        event_start: Optional[datetime] = None,
+        event_time: Optional[datetime] = None,
+        belief_horizon: Optional[timedelta] = None,
+        belief_time: Optional[datetime] = None,
     ):
         self.sensor = sensor
         self.source = source_utils.ensure_source_exists(source)
         self.event_value = value
 
-        if "cumulative_probability" in kwargs:
-            self.cumulative_probability = kwargs["cumulative_probability"]
-        elif "cp" in kwargs:
-            self.cumulative_probability = kwargs["cp"]
-        elif "sigma" in kwargs:
-            self.cumulative_probability = (
-                1 / 2 + (math.erf(kwargs["sigma"] / 2 ** 0.5)) / 2
+        if [cumulative_probability, cp, sigma].count(None) not in (2, 3):
+            raise ValueError(
+                "Must specify either cumulative_probability, cp, sigma or none of them (0.5 is the default value)."
             )
+        if cumulative_probability is not None:
+            self.cumulative_probability = cumulative_probability
+        elif cp is not None:
+            self.cumulative_probability = cp
+        elif sigma is not None:
+            self.cumulative_probability = 1 / 2 + (math.erf(sigma / 2 ** 0.5)) / 2
         else:
             self.cumulative_probability = 0.5
-        if "event_start" in kwargs:
-            self.event_start = tb_utils.enforce_tz(kwargs["event_start"], "event_start")
-        elif "event_time" in kwargs:
+
+        if [event_start, event_time].count(None) != 1:
+            raise ValueError("Must specify either an event_start or an event_time.")
+        elif event_start is not None:
+            self.event_start = tb_utils.enforce_tz(event_start, "event_start")
+        elif event_time is not None:
             if self.sensor.event_resolution != timedelta():
                 raise KeyError(
                     "Sensor has a non-zero resolution, so it doesn't measure instantaneous events. "
                     "Use event_start instead of event_time."
                 )
-            self.event_start = tb_utils.enforce_tz(kwargs["event_time"], "event_time")
-        if "belief_horizon" in kwargs:
-            self.belief_horizon = kwargs["belief_horizon"]
-        elif "belief_time" in kwargs:
-            belief_time = tb_utils.enforce_tz(kwargs["belief_time"], "belief_time")
+            self.event_start = tb_utils.enforce_tz(event_time, "event_time")
+
+        if [belief_horizon, belief_time].count(None) != 1:
+            raise ValueError("Must specify either a belief_horizon or a belief_time.")
+        elif belief_horizon is not None:
+            self.belief_horizon = belief_horizon
+        elif belief_time is not None:
+            belief_time = tb_utils.enforce_tz(belief_time, "belief_time")
             self.belief_horizon = (
                 self.sensor.knowledge_time(self.event_start, self.event_resolution)
                 - belief_time
@@ -162,11 +176,34 @@ class TimedBeliefDBMixin(TimedBelief):
     def source_id(cls):
         return Column(Integer, ForeignKey("belief_source.id"), primary_key=True)
 
-    def __init__(self, sensor, source, value: float, **kwargs):  # TODO: type hinting?
+    def __init__(
+        self,
+        sensor: DBSensor,
+        source: DBBeliefSource,
+        value: float,
+        cumulative_probability: Optional[float] = None,
+        cp: Optional[float] = None,
+        sigma: Optional[float] = None,
+        event_start: Optional[datetime] = None,
+        event_time: Optional[datetime] = None,
+        belief_horizon: Optional[timedelta] = None,
+        belief_time: Optional[datetime] = None,
+    ):
         self.sensor_id = sensor.id
         self.source_id = source.id
-        TimedBelief.__init__(self, sensor=sensor, source=source, value=value, **kwargs)
-        Base.__init__(self)
+        TimedBelief.__init__(
+            self,
+            sensor=sensor,
+            source=source,
+            value=value,
+            cumulative_probability=cumulative_probability,
+            cp=cp,
+            sigma=sigma,
+            event_start=event_start,
+            event_time=event_time,
+            belief_horizon=belief_horizon,
+            belief_time=belief_time,
+        )
 
     @classmethod
     def query(
@@ -282,7 +319,7 @@ class TimedBeliefDBMixin(TimedBelief):
 class DBTimedBelief(Base, TimedBeliefDBMixin):
     """Database representation of TimedBelief.
     We get fields from the Mixin and configure sensor and source relationships.
-    We are not sure why the relationshps cannot live in the Mixin as declared attributes,
+    We are not sure why the relationships cannot live in the Mixin as declared attributes,
     but they have to be here (thus other custom implementations need to include them, as well).
     """
 
@@ -302,9 +339,31 @@ class DBTimedBelief(Base, TimedBeliefDBMixin):
     )
 
     def __init__(
-        self, sensor: DBSensor, source: DBBeliefSource, value: float, **kwargs
+        self,
+        sensor: DBSensor,
+        source: DBBeliefSource,
+        value: float,
+        cumulative_probability: Optional[float] = None,
+        cp: Optional[float] = None,
+        sigma: Optional[float] = None,
+        event_start: Optional[datetime] = None,
+        event_time: Optional[datetime] = None,
+        belief_horizon: Optional[timedelta] = None,
+        belief_time: Optional[datetime] = None,
     ):
-        TimedBeliefDBMixin.__init__(self, sensor, source, value, **kwargs)
+        TimedBeliefDBMixin.__init__(
+            self,
+            sensor,
+            source,
+            value,
+            cumulative_probability,
+            cp,
+            sigma,
+            event_start,
+            event_time,
+            belief_horizon,
+            belief_time,
+        )
         Base.__init__(self)
 
 
@@ -397,7 +456,9 @@ class BeliefsDataFrame(pd.DataFrame):
                 object.__setattr__(self, name, getattr(other, name, None))
         return self
 
-    def __init__(self, *args, **kwargs):  # noqa: C901
+    def __init__(  # noqa: C901
+        self, *args, **kwargs
+    ):  # noqa: C901 todo: refactor, e.g. by detecting initialization method
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
 
         # Obtain parameters that are specific to our DataFrame subclass
