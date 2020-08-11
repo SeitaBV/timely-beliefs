@@ -176,9 +176,7 @@ def align_belief_times(
                 ps = previous_slice_with_existing_belief_time.reset_index()
                 ps[
                     "belief_time"
-                ] = (
-                    ubt
-                )  # Update belief time to reflect propagation of beliefs over time
+                ] = ubt  # Update belief time to reflect propagation of beliefs over time
                 data.extend(ps.values.tolist())
             else:
                 data.append([event_start, ubt, source, np.nan, np.nan])

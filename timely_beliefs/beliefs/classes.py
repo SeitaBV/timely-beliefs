@@ -66,7 +66,9 @@ class TimedBelief(object):
         self.event_value = value
 
         if [cumulative_probability, cp, sigma].count(None) not in (2, 3):
-            raise ValueError("Must specify either cumulative_probability, cp, sigma or none of them (0.5 is the default value).")
+            raise ValueError(
+                "Must specify either cumulative_probability, cp, sigma or none of them (0.5 is the default value)."
+            )
         if cumulative_probability is not None:
             self.cumulative_probability = cumulative_probability
         elif cp is not None:
@@ -454,7 +456,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 object.__setattr__(self, name, getattr(other, name, None))
         return self
 
-    def __init__(
+    def __init__(  # noqa: C901
         self, *args, **kwargs
     ):  # noqa: C901 todo: refactor, e.g. by detecting initialization method
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
