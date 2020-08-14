@@ -375,7 +375,11 @@ class BeliefsSeries(pd.Series):
 
     @property
     def _constructor(self):
-        return BeliefsSeries
+        def f(*args, **kwargs):
+            """ Call __finalize__() after construction to inherit metadata. """
+            return BeliefsSeries(*args, **kwargs).__finalize__(self, method="inherit")
+
+        return f
 
     @property
     def _constructor_expanddim(self):
@@ -436,7 +440,13 @@ class BeliefsDataFrame(pd.DataFrame):
 
     @property
     def _constructor(self):
-        return BeliefsDataFrame
+        def f(*args, **kwargs):
+            """ Call __finalize__() after construction to inherit metadata. """
+            return BeliefsDataFrame(*args, **kwargs).__finalize__(
+                self, method="inherit"
+            )
+
+        return f
 
     @property
     def _constructor_sliced(self):
@@ -1017,12 +1027,7 @@ class BeliefsDataFrame(pd.DataFrame):
                         "cumulative_probability": "prod",  # assume independent variables
                     }
                 )
-                # make a new BeliefsDataFrame, because agg() doesn't behave nicely for subclassed DataFrames
-                df = BeliefsDataFrame(
-                    df.reset_index(),
-                    sensor=self.sensor,
-                    event_resolution=event_resolution,
-                )
+                df.event_resolution = event_resolution
             else:
                 # upsample
                 new_index = pd.date_range(

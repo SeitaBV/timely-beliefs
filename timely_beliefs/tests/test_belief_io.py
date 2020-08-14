@@ -385,6 +385,50 @@ def test_slicing_retains_metadata(drop_level):
     metadata = {md: getattr(example_df, md) for md in METADATA}
     df = df.xs("2000-01-03 10:00:00+00:00", level="event_start", drop_level=drop_level)
     print(df)
+    assert isinstance(df, tb.BeliefsDataFrame)
+    for md in metadata:
+        assert getattr(df, md) == metadata[md]
+
+
+@pytest.mark.parametrize("resolution", [timedelta(minutes=30), timedelta(hours=2)])
+def test_agg_resampling_retains_metadata(resolution):
+    """
+    Test whether aggregate resampling retains the metadata.
+
+    Fails with pandas==1.0.0
+    Succeeds with pandas==1.1.0
+    """
+    df = example_df
+    metadata = {md: getattr(example_df, md) for md in METADATA}
+    df = df.resample(resolution, level="event_start").mean()
+    print(df)
+    assert isinstance(df, tb.BeliefsDataFrame)
+    for md in metadata:
+        # if md == "event_resolution":
+        #     assert df.event_resolution == resolution
+        # else:  # todo: the event_resolution metadata is only updated when resampling using df.resample_events(). A reason to override the original resample method, or otherwise something to document.
+        assert getattr(df, md) == metadata[md]
+
+
+def test_groupby_retains_metadata():
+    """ Test whether grouping by index level retains the metadata.
+
+    Succeeds with pandas==1.0.0
+    Fails with pandas==1.1.0
+    Should be fixed with https://github.com/pandas-dev/pandas/pull/35688
+    """
+    df = example_df
+    metadata = {md: getattr(example_df, md) for md in METADATA}
+
+    def assert_function(x):
+        print(x)
+        assert isinstance(x, tb.BeliefsDataFrame)
+        for md in metadata:
+            assert getattr(x, md) == metadata[md]
+        return x
+
+    df = df.groupby(level="event_start").apply(lambda x: assert_function(x))
+    assert isinstance(df, tb.BeliefsDataFrame)
     for md in metadata:
         assert getattr(df, md) == metadata[md]
 

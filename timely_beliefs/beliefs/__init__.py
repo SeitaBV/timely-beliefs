@@ -8,6 +8,7 @@ Below, we register customer accessors.
 from datetime import datetime, timedelta
 from typing import List
 
+import pandas as pd
 from pandas.api.extensions import register_dataframe_accessor
 
 
@@ -120,7 +121,9 @@ class BeliefsAccessor(object):
     @property
     def number_of_probabilistic_beliefs(self) -> int:
         """Return the number of beliefs in the BeliefsDataFrame that are probabilistic (more than 1 unique value)."""
-        df = self._obj.for_each_belief(df=self._obj).nunique(dropna=True)
+        df = self._obj.for_each_belief(
+            df=self._obj, fnc=pd.DataFrame.nunique, dropna=True
+        )
         return len(df[df > 1].max(axis=1).dropna())
 
     @property
