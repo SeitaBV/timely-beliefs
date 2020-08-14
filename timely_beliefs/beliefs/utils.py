@@ -5,7 +5,6 @@ from typing import List, Optional, Union
 import numpy as np
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
-from pandas.tseries.frequencies import to_offset
 
 from timely_beliefs import BeliefSource, Sensor
 from timely_beliefs import utils as tb_utils
@@ -496,3 +495,11 @@ def read_csv(
     else:
         raise Exception("No source specified in csv, please set a source.")
     return classes.BeliefsDataFrame(df, sensor=sensor)
+
+
+def is_pandas_structure(x):
+    return isinstance(x, (pd.DataFrame, pd.Series))
+
+
+def is_tb_structure(x):
+    return isinstance(x, (classes.BeliefsDataFrame, classes.BeliefsSeries))

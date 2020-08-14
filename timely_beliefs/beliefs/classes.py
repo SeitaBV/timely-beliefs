@@ -15,6 +15,7 @@ from sqlalchemy.schema import UniqueConstraint
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
 from timely_beliefs.beliefs import utils as belief_utils
+from timely_beliefs.beliefs.utils import is_pandas_structure, is_tb_structure
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.sensors.classes import DBSensor, Sensor
@@ -544,15 +545,9 @@ class BeliefsDataFrame(pd.DataFrame):
 
             super().__init__(*args, **kwargs)
 
-            if len(args) == 0 or (
-                self.empty
-                and isinstance(args[0], (pd.DataFrame, pd.Series))
-                and not isinstance(args[0], BeliefsDataFrame)
-            ):
+            if len(args) == 0 or (self.empty and is_pandas_structure(args[0])):
                 set_columns_and_indices_for_empty_frame(self, columns, indices)
-            elif isinstance(args[0], (pd.DataFrame, pd.Series)) and not isinstance(
-                args[0], BeliefsDataFrame
-            ):
+            elif is_pandas_structure(args[0]) and not is_tb_structure(args[0]):
                 # Set (possibly overwrite) each index level to a unique value if set explicitly
                 if source is not None:
                     self["source"] = source_utils.ensure_source_exists(source)
