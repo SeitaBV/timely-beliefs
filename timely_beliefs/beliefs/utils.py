@@ -5,7 +5,6 @@ from typing import List, Optional, Union
 import numpy as np
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
-from pandas.tseries.frequencies import to_offset
 
 from timely_beliefs import BeliefSource, Sensor
 from timely_beliefs import utils as tb_utils
@@ -64,7 +63,7 @@ def upsample_event_start(
     lvl0 = pd.date_range(
         start=df.index.get_level_values(0)[0],
         periods=input_resolution // output_resolution,
-        freq=to_offset(output_resolution).freqstr,
+        freq=output_resolution,
     )
     new_index_values = [lvl0]
     if df.index.nlevels > 0:
@@ -123,7 +122,7 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
             lvl0 = pd.date_range(
                 start=bin_start,
                 end=bin_end,
-                freq=to_offset(resolution).freqstr,
+                freq=resolution,
                 closed="left",
                 name="event_start",
             )
@@ -238,11 +237,14 @@ def join_beliefs(
     if output_resolution > input_resolution:
 
         # Create new BeliefsDataFrame with downsampled event_start
+        if output_resolution % input_resolution != timedelta(0):
+            raise NotImplementedError(
+                "Cannot downsample from resolution %s to %s."
+                % (input_resolution, output_resolution)
+            )
         df = slice.groupby(
             [
-                pd.Grouper(
-                    freq=to_offset(output_resolution).freqstr, level="event_start"
-                ),
+                pd.Grouper(freq=output_resolution, level="event_start"),
                 "belief_time",
                 "source",
             ],
@@ -261,9 +263,7 @@ def join_beliefs(
             )
         df = slice.groupby(
             [
-                pd.Grouper(
-                    freq=to_offset(output_resolution).freqstr, level="event_start"
-                ),
+                pd.Grouper(freq=output_resolution, level="event_start"),
                 "belief_time",
                 "source",
                 "cumulative_probability",
@@ -278,18 +278,29 @@ def resample_event_start(
     output_resolution: timedelta,
     input_resolution: timedelta,
     distribution: Optional[str] = None,
+    keep_only_most_recent_belief: bool = False,
 ) -> "classes.BeliefsDataFrame":
     """For a unique source."""
+
+    if input_resolution == output_resolution:
+        return df
 
     # Determine unique set of belief times
     unique_belief_times = np.sort(
         df.reset_index()["belief_time"].unique()
     )  # Sorted from past to present
 
-    # Propagate beliefs so that each event has the same set of unique belief times
-    df = df.groupby(["event_start"], group_keys=False).apply(
-        lambda x: align_belief_times(x, unique_belief_times)
-    )
+    if keep_only_most_recent_belief:
+        # faster
+        df = tb_utils.replace_multi_index_level(
+            df, "belief_time", pd.Index([unique_belief_times[-1]] * len(df))
+        )
+    else:
+        # slower
+        # Propagate beliefs so that each event has the same set of unique belief times
+        df = df.groupby(["event_start"], group_keys=False).apply(
+            lambda x: align_belief_times(x, unique_belief_times)
+        )
 
     # Resample to make sure the df slice contains events with the same frequency as the input_resolution
     # (make nan rows if you have to)
@@ -484,3 +495,11 @@ def read_csv(
     else:
         raise Exception("No source specified in csv, please set a source.")
     return classes.BeliefsDataFrame(df, sensor=sensor)
+
+
+def is_pandas_structure(x):
+    return isinstance(x, (pd.DataFrame, pd.Series))
+
+
+def is_tb_structure(x):
+    return isinstance(x, (classes.BeliefsDataFrame, classes.BeliefsSeries))

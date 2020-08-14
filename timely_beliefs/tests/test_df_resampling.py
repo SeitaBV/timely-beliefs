@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
+from typing import Callable, Optional
 
 import pandas as pd
 import pytest
+import pytz
 from pytest import approx
-from pytz import utc
 
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief
 from timely_beliefs.examples.beliefs_data_frames import sixteen_probabilistic_beliefs
@@ -11,34 +12,56 @@ from timely_beliefs.utils import replace_multi_index_level
 
 
 @pytest.fixture(scope="function", autouse=True)
-def df_4323(
+def df_wxyz(
     time_slot_sensor: Sensor, test_source_a: BeliefSource, test_source_b: BeliefSource
+) -> Callable[[int, int, int, int, Optional[datetime]], BeliefsDataFrame]:
+    """Convenient BeliefsDataFrame to run tests on.
+    For a single sensor, it contains w events, for each of which x beliefs by y sources each (max 2),
+    described by z probabilistic values (max 3).
+    Note that the event resolution of the sensor is 15 minutes.
+    """
+
+    sources = [test_source_a, test_source_b]  # expand to increase max y
+    cps = [0.1587, 0.5, 0.8413]  # expand to increase max z
+
+    def f(w: int, x: int, y: int, z: int, start: Optional[datetime] = None):
+        if start is None:
+            start = datetime(2000, 1, 3, 9, tzinfo=pytz.utc)
+
+        # Build up a BeliefsDataFrame with various events, beliefs, sources and probabilistic accuracy (for a single sensor)
+        beliefs = [
+            TimedBelief(
+                source=sources[s],
+                sensor=time_slot_sensor,
+                value=1000 * e + 100 * b + 10 * s + p,
+                belief_time=datetime(2000, 1, 1, tzinfo=pytz.utc) + timedelta(hours=b),
+                event_start=start + timedelta(hours=e),
+                cumulative_probability=cps[p],
+            )
+            for e in range(w)  # w events
+            for b in range(x)  # x beliefs
+            for s in range(y)  # y sources
+            for p in range(z)  # z cumulative probabilities
+        ]
+        return BeliefsDataFrame(sensor=time_slot_sensor, beliefs=beliefs)
+
+    return f
+
+
+@pytest.fixture(scope="function", autouse=True)
+def df_4323(
+    time_slot_sensor: Sensor,
+    test_source_a: BeliefSource,
+    test_source_b: BeliefSource,
+    df_wxyz: Callable[[int, int, int, int, Optional[datetime]], BeliefsDataFrame],
 ) -> BeliefsDataFrame:
     """Convenient BeliefsDataFrame to run tests on.
     For a single sensor, it contains 4 events, for each of which 3 beliefs by 2 sources each, described by 3
     probabilistic values.
     Note that the event resolution of the sensor is 15 minutes.
     """
-
-    sources = [test_source_a, test_source_b]
-    cps = [0.1587, 0.5, 0.8413]
-
-    # Build up a BeliefsDataFrame with various events, beliefs, sources and probabilistic accuracy (for a single sensor)
-    beliefs = [
-        TimedBelief(
-            source=sources[s],
-            sensor=time_slot_sensor,
-            value=1000 * e + 100 * b + 10 * s + p,
-            belief_time=datetime(2000, 1, 1, tzinfo=utc) + timedelta(hours=b),
-            event_start=datetime(2000, 1, 3, 9, tzinfo=utc) + timedelta(hours=e),
-            cumulative_probability=cps[p],
-        )
-        for e in range(4)  # 4 events
-        for b in range(3)  # 3 beliefs
-        for s in range(2)  # 2 sources
-        for p in range(3)  # 3 cumulative probabilities
-    ]
-    return BeliefsDataFrame(sensor=time_slot_sensor, beliefs=beliefs)
+    start = pytz.timezone("utc").localize(datetime(2000, 1, 3, 9,))
+    return df_wxyz(4, 3, 2, 3, start)
 
 
 def test_replace_index_level_with_intersect(df_4323):
@@ -100,7 +123,7 @@ def test_downsample_twice_upsample_once(df_4323):
     ]
     assert len(df.knowledge_times.unique()) == 1
     assert df.knowledge_times.unique()[0] == pd.Timestamp(
-        "2000-01-04 09:00", tzinfo=utc
+        "2000-01-04 09:00", tzinfo=pytz.utc
     )
 
     df = df.resample_events(timedelta(days=2))
@@ -116,7 +139,7 @@ def test_downsample_twice_upsample_once(df_4323):
     ]
     assert len(df.knowledge_times.unique()) == 1
     assert df.knowledge_times.unique()[0] == pd.Timestamp(
-        "2000-01-05 09:00", tzinfo=utc
+        "2000-01-05 09:00", tzinfo=pytz.utc
     )
 
     df = df.resample_events(timedelta(days=1))
@@ -135,10 +158,10 @@ def test_downsample_twice_upsample_once(df_4323):
     ]
     assert len(df.knowledge_times.unique()) == 2
     assert df.knowledge_times.unique()[0] == pd.Timestamp(
-        "2000-01-04 09:00", tzinfo=utc
+        "2000-01-04 09:00", tzinfo=pytz.utc
     )
     assert df.knowledge_times.unique()[1] == pd.Timestamp(
-        "2000-01-05 09:00", tzinfo=utc
+        "2000-01-05 09:00", tzinfo=pytz.utc
     )
 
 
@@ -213,3 +236,34 @@ def test_percentages_and_accuracy_of_probabilistic_model(df_4323: BeliefsDataFra
     assert df.lineage.percentage_of_probabilistic_beliefs == 1
     assert df.lineage.percentage_of_deterministic_beliefs == 0
     assert df.lineage.probabilistic_depth == (8 * 3 + 8 * 2) / 16
+
+
+def test_downsample_once_upsample_once_around_dst(
+    df_wxyz: Callable[[int, int, int, int, Optional[datetime]], BeliefsDataFrame]
+):
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2020, 3, 29, 0))
+    df = df_wxyz(25, 1, 1, 1, start)  # 1 deterministic belief per event
+    print(df)
+    event_resolution_1 = timedelta(hours=24)
+    df_resampled_1 = df.resample_events(
+        event_resolution_1, keep_only_most_recent_belief=True
+    )  # enables fast track resampling for 1 deterministic belief per event
+    print(df_resampled_1)
+    # todo: uncomment if this is ever fixed: https://github.com/pandas-dev/pandas/issues/35248
+    # assert df_resampled_1.index.get_level_values("event_start")[1] == pd.Timestamp(start) + event_resolution
+    assert len(df_resampled_1) == 2 * event_resolution_1 / event_resolution_1  # 2
+    assert df_resampled_1.sensor == df.sensor
+    assert df_resampled_1.event_resolution == event_resolution_1
+    event_resolution_2 = timedelta(minutes=5)
+    df_resampled_2 = df_resampled_1.resample_events(
+        event_resolution_2, keep_only_most_recent_belief=True
+    )
+    pd.set_option("display.max_rows", None)
+    print(df_resampled_2)
+    assert len(df_resampled_2) == 2 * event_resolution_1 / event_resolution_2  # 12*24*2
+    assert (
+        df_resampled_2.index.get_level_values("event_start")[1]
+        == pd.Timestamp(start) + event_resolution_2
+    )
+    assert df_resampled_2.sensor == df.sensor
+    assert df_resampled_2.event_resolution == event_resolution_2

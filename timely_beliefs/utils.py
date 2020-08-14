@@ -12,9 +12,9 @@ def enforce_tz(dt: datetime, name: Optional[str]) -> datetime:
     return dt
 
 
-def all_of_type(l: Sequence, element_type) -> bool:
+def all_of_type(seq: Sequence, element_type) -> bool:
     """Return true if all elements in sequence are of the same type."""
-    for item in l:
+    for item in seq:
         if type(item) != element_type:
             return False
     return True
