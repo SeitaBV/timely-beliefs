@@ -267,3 +267,12 @@ def test_downsample_once_upsample_once_around_dst(
     )
     assert df_resampled_2.sensor == df.sensor
     assert df_resampled_2.event_resolution == event_resolution_2
+
+
+def test_resample_with_belief_horizon(df_4323: BeliefsDataFrame):
+    # GH 25
+    df = df_4323.convert_index_from_belief_time_to_horizon()
+    assert "belief_horizon" in df.index.names
+    df = df.resample_events(timedelta(hours=1))
+    assert df.sensor == df_4323.sensor
+    assert "belief_horizon" in df.index.names
