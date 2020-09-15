@@ -280,7 +280,7 @@ def resample_event_start(
     distribution: Optional[str] = None,
     keep_only_most_recent_belief: bool = False,
 ) -> "classes.BeliefsDataFrame":
-    """For a unique source."""
+    """For a unique source. Also assumes belief_time is one of the index levels."""
 
     if input_resolution == output_resolution:
         return df

@@ -962,15 +962,16 @@ class BeliefsDataFrame(pd.DataFrame):
             return self
         df = self
 
+        belief_timing_col = (
+            "belief_time" if "belief_time" in df.index.names else "belief_horizon"
+        )
+
         # fast track a common case where each event has only one deterministic belief and only the most recent belief is needed
         if (
             df.lineage.number_of_beliefs == df.lineage.number_of_events
             and keep_only_most_recent_belief
             and df.lineage.number_of_sources == 1
         ):
-            belief_timing_col = (
-                "belief_time" if "belief_time" in df.index.names else "belief_horizon"
-            )
             df = df.reset_index(
                 level=[belief_timing_col, "source", "cumulative_probability"]
             )
@@ -1008,6 +1009,8 @@ class BeliefsDataFrame(pd.DataFrame):
 
         # slow track in case each event has more than 1 belief or probabilistic beliefs
         else:
+            if belief_timing_col == "belief_horizon":
+                df = df.convert_index_from_belief_horizon_to_time()
             df = (
                 df.groupby(
                     [pd.Grouper(freq=event_resolution, level="event_start"), "source"],
@@ -1030,6 +1033,9 @@ class BeliefsDataFrame(pd.DataFrame):
 
             # Put back lost metadata (because groupby statements still tend to lose it)
             df.sensor = self.sensor
+
+            if belief_timing_col == "belief_horizon":
+                df = df.convert_index_from_belief_time_to_horizon()
 
         return df
 
