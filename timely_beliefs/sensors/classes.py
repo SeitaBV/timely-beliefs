@@ -127,8 +127,7 @@ class SensorDBMixin(Sensor):
 
 
 class DBSensor(Base, SensorDBMixin):
-    """Database class for a table with sensors.
-    """
+    """Database class for a table with sensors."""
 
     __tablename__ = "sensor"
 
