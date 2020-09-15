@@ -17,7 +17,7 @@ setup(
     version="0.1.0",
     install_requires=[
         "pytz",
-        "pandas>=1.0",
+        "pandas>=0.24",
         "numpy",
         "pyerf",
         "SQLAlchemy",
