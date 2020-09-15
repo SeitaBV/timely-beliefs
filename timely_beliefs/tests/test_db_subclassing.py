@@ -40,7 +40,7 @@ def test_subclassing_source(db):
 
 
 class RatedSourceInCustomTable(Base, BeliefSourceDBMixin):
-    """ A custom db class for representing belief sources.
+    """A custom db class for representing belief sources.
     BeliefSource properties are added via the Mixin, so the Base is added by us.
     Here, we can change the table name.
     """
@@ -65,7 +65,7 @@ def test_custom_source_with_mixin(db):
 
 
 class JoyfulBeliefInCustomTable(Base, TimedBeliefDBMixin):
-    """ A custom db class for representing beliefs.
+    """A custom db class for representing beliefs.
     We overwrite the source_id reference, to our custom source table (see above).
     We also specify the source relationship here, so code can use it.
     """

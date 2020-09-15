@@ -83,9 +83,9 @@ def eval_verified_knowledge_horizon_fnc(
     event_resolution: timedelta = None,
     get_bounds: bool = False,
 ) -> Union[timedelta, Tuple[timedelta, timedelta]]:
-    """ Evaluate knowledge horizon function to return a knowledge horizon.
-        Only function names that represent Callable objects in our function store can be evaluated.
-        If get_bounds is True, a tuple is returned with bounds on the possible return value.
+    """Evaluate knowledge horizon function to return a knowledge horizon.
+    Only function names that represent Callable objects in our function store can be evaluated.
+    If get_bounds is True, a tuple is returned with bounds on the possible return value.
     """
     for verified_fnc_name, verified_fnc in func_store_list().items():
         if verified_fnc_name == requested_fnc_name:

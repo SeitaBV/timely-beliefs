@@ -130,14 +130,12 @@ class BeliefsAccessor(object):
 
     @property
     def percentage_of_probabilistic_beliefs(self) -> float:
-        """Return the percentage of beliefs in the BeliefsDataFrame that are probabilistic (more than 1 unique value).
-        """
+        """Return the percentage of beliefs in the BeliefsDataFrame that are probabilistic (more than 1 unique value)."""
         return self.number_of_probabilistic_beliefs / self.number_of_beliefs
 
     @property
     def percentage_of_deterministic_beliefs(self) -> float:
-        """Return the percentage of beliefs in the BeliefsDataFrame that are deterministic (1 unique value).
-        """
+        """Return the percentage of beliefs in the BeliefsDataFrame that are deterministic (1 unique value)."""
         return 1 - self.number_of_probabilistic_beliefs / self.number_of_beliefs
 
     @property

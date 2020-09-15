@@ -361,7 +361,7 @@ def load_time_series(
 def compute_accuracy_scores(
     df: "classes.BeliefsDataFrame", lite_metrics: bool = False
 ) -> "classes.BeliefsDataFrame":
-    """ Compute the following accuracy scores:
+    """Compute the following accuracy scores:
     - mean absolute error (mae)
     - mean absolute percentage error (mape)
     - weighted absolute percentage error (wape)
