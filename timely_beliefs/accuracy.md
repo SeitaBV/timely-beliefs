@@ -41,6 +41,6 @@ It is possible that the reference itself is a probabilistic belief rather than a
 Our implementation of CRPS handles this case, too, by calculating the distance between the cumulative distribution functions of each forecast and reference [(Hans Hersbach, 2000)](#references).
 As the denominator for calculating MAPE and WAPE, we use the expected value of the probabilistic reference.
 
-# References
+## References
 
 - Hans Hersbach. [Decomposition of the Continuous Ranked Probability Score for Ensemble Prediction Systems](https://journals.ametsoc.org/doi/pdf/10.1175/1520-0434%282000%29015%3C0559%3ADOTCRP%3E2.0.CO%3B2) in Weather and Forecasting, Volume 15, No. 5, pages 559-570, 2000.
