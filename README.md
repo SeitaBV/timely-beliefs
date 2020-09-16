@@ -67,7 +67,6 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
       1. [Select a horizon](#select-a-horizon)
       1. [Switch viewpoints](#switch-viewpoints)
 1. [Development](#development)
-1. [More examples](#more-examples)
 1. [References](#references)
 
 ## The data model
@@ -517,10 +516,6 @@ A ridgeline plot of beliefs (e.g. temperature forecasts) with a fixed viewpoint 
     >>> chart.serve()
     
 ![Ridgeline belief history](timely_beliefs/docs/belief_history_ridgeline.png "Belief history")
-
-## More examples
-
-...
 
 ## Development
 
