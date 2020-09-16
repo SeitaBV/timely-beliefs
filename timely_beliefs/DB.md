@@ -1,5 +1,13 @@
 # Database storage
 
+## Table of contents
+
+1. [Derived database classes](#derived-database-classes)
+1. [Table creation and session](#table-creation-and-session)
+1. [Subclassing](#subclassing)
+
+## Derived database classes
+
 The timely-beliefs library supports persisting your beliefs data in a database.
 All relevant classes have a subclass which also derives from [sqlalchemy's declarative base](https://docs.sqlalchemy.org/en/13/orm/extensions/declarative/index.html?highlight=declarative).
 
