@@ -421,40 +421,6 @@ The accuracy of a belief is defined with respect to some reference.
 The default reference is the most recent belief held by the same source,
 but it is possible to set beliefs held by a specific source at a specific time to serve as the reference instead.
 
-### Accuracy and error metrics
-
-To our knowledge, there is no standard metric for accuracy.
-However, there are some standard metrics for what can be considered to be its opposite: error.
-By default, we give back the Mean Absolute Error (MAE),
-the Mean Absolute Percentage Error (MAPE)
-and the Weighted Absolute Percentage Error (WAPE).
-Each of these metrics is a representation of how wrong a belief is (believed to be),
-with its convenience depending on use case.
-For example, for intermittent demand time series (i.e. sparse data with lots of zero values) MAPE is not a useful metric.
-For an intuitive representation of accuracy that works in many cases, we suggest to use `df["accuracy"] = 1 - df["wape"]`.
-With this definition:
-
-- 100% accuracy denotes that all values are correct
-- 50% accuracy denotes that, on average, the values are wrong by half of the reference value
-- 0% accuracy denotes that, on average, the values are wrong by exactly the reference value (i.e. zeros or twice the reference value)
-- negative accuracy denotes that, on average, the values are off-the-chart wrong (by more than the reference value itself)
-
-### Probabilistic forecasts
-
-The previous metrics (MAE, MAPE and WAPE) are technically not defined for probabilistic beliefs.
-However, there is a straightforward generalisation of MAE called the Continuous Ranked Probability Score (CRPS), which is used instead.
-The other metrics follow by dividing over the deterministic reference value.
-For simplicity in usage of the `timely-beliefs` package,
-the metrics names in the BeliefsDataFrame are the same regardless of whether the beliefs are deterministic or probabilistic.
-
-### Probabilistic reference
-
-It is possible that the reference itself is a probabilistic belief rather than a deterministic belief.
-Our implementation of CRPS handles this case, too, by calculating the distance between the cumulative distribution functions of each forecast and reference [(Hans Hersbach, 2000)](#references).
-As the denominator for calculating MAPE and WAPE, we use the expected value of the probabilistic reference.
-
-### Viewpoints
-
 There are two common use cases for wanting to know the accuracy of beliefs,
 each with a different viewpoint.
 With a rolling viewpoint, you get the accuracy of beliefs at a certain `belief_horizon` before (or after) `knowledge_time`,
@@ -473,6 +439,12 @@ With a fixed viewpoint, you get the accuracy of beliefs held at a certain `belie
     source
     Source A    0.00000  0.000000  0.000000
     Source B  125.85325  0.503413  0.503413
+
+For an intuitive representation of accuracy that works in many cases, we suggest to use:
+
+    >>> `df["accuracy"] = 1 - df["wape"]`
+
+For more details about these accuracy and error metrics, see [accuracy.md](timely_beliefs/accuracy.md).
 
 ## Visualisation
 
@@ -557,5 +529,4 @@ See [DEV.md](dev/DEV.md) for details.
 
 ## References
 
-- Hans Hersbach. [Decomposition of the Continuous Ranked Probability Score for Ensemble Prediction Systems](https://journals.ametsoc.org/doi/pdf/10.1175/1520-0434%282000%29015%3C0559%3ADOTCRP%3E2.0.CO%3B2) in Weather and Forecasting, Volume 15, No. 5, pages 559-570, 2000.
 - Arvind Satyanarayan, Dominik Moritz, Kanit Wongsuphasawat, and Jeffrey Heer. [Vega-Lite: A Grammar of Interactive Graphics](https://idl.cs.washington.edu/files/2017-VegaLite-InfoVis.pdf) in IEEE transactions on visualization and computer graphics, Volume 23, No. 1, pages 341-350, 2016.
