@@ -19,6 +19,7 @@ rather than our more precise definition of belief horizon.
 1. [Ridgeline plots](#ridgeline-plots)
     1. [Belief history](#belief-history)
     1. [Fixed viewpoint](#fixed-viewpoint)
+1. [References](#references)
 
 ## How to interact with the chart
 

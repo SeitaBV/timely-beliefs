@@ -5,6 +5,7 @@
 1. [Accuracy and error metrics](#accuracy-and-error-metrics)
 1. [Probabilistic forecasts](#probabilistic-forecasts)
 1. [Probabilistic reference](#probabilistic-reference)
+1. [References](#references)
 
 ## Accuracy and error metrics
 
