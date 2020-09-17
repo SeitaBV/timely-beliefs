@@ -11,17 +11,17 @@ The `timely-beliefs` package provides a convenient data model for numerical time
 that is both simple enough for humans to understand and sufficiently rich for forecasting and machine learning.
 The data model is an extended [pandas](https://pandas.pydata.org/) DataFrame that assigns properties and index levels to describe:
 
-- [What the data is about](#events-and-sensors)
+- [What the data is about](timely_beliefs/docs/timing.md/#events-and-sensors)
 - Who (or what) created the data
-- [When the data was created](#beliefs-in-physics)
-- [How certain they were](#keeping-track-of-confidence)
+- [When the data was created](timely_beliefs/docs/timing.md/#beliefs-in-physics)
+- [How certain they were](timely_beliefs/docs/confidence.md)
 
 The package contains the following functionality:
 
 - [A model for time series data](#the-data-model), suitable for a notebook or a [database-backed](#database-storage) program (using [sqlalchemy](https://sqlalche.me))
-- [Selecting/querying beliefs](#convenient-slicing-methods), e.g. those held at a certain moment in time
+- [Selecting/querying beliefs](timely_beliefs/docs/slicing.md), e.g. those held at a certain moment in time
 - [Computing accuracy](#accuracy), e.g. against after-the-fact knowledge, also works with probabilistic forecasts
-- [Resampling time series with uncertainty](#resampling) (experimental)
+- [Resampling time series with uncertainty](timely_beliefs/docs/resampling.md/) (experimental)
 - [Visualising time series and accuracy metrics](#visualisation) (experimental)
 
 Some use cases of the package:
@@ -43,7 +43,6 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
 1. [Accuracy](#accuracy)
 1. [Visualisation](#visualisation)
 1. [Development](#development)
-1. [References](#references)
 
 ## The data model
 
@@ -90,17 +89,18 @@ _For a future release we are considering adding the sensor as another index leve
 to offer out-of-the-box support for aggregating over multiple sensors._
 
 
-- Read more about how the DataFrame is [keeping track of time](timely_beliefs/timing.md).
-- Read more about how the DataFrame is [keeping track of confidence](timely_beliefs/confidence.md).
-- Discover [convenient slicing methods](timely_beliefs/slicing.md), e.g. to show a rolling horizon forecast.
-- Serve your data fast by [resampling](timely_beliefs/resampling.md), while taking into account auto-correlation.
-- Track where your data comes from, by following its [lineage](timely_beliefs/lineage.md).
+- [Read more about how the DataFrame is keeping track of time.](timely_beliefs/docs/timing.md)
+- [Read more about how the DataFrame is keeping track of confidence.](timely_beliefs/docs/confidence.md)
+- [Discover convenient slicing methods (e.g. to show a rolling horizon forecast).](timely_beliefs/docs/slicing.md)
+- [Serve your data fast by resampling (while taking into account auto-correlation).](timely_beliefs/docs/resampling.md)
+- [Track where your data comes from, by following its lineage.](timely_beliefs/docs/lineage.md)
 
 ## Database storage
 
 All of the above can be done with `TimedBelief` objects in a `BeliefsDataFrame`.
 However, if you are dealing with a lot of data and need performance, you'll want to persist your belief data in a database.
-The timely-beliefs library supports this. See [DB.md](timely_beliefs/DB.md) for details.
+
+[Read more about how timely-beliefs supports this.](timely_beliefs/docs/db.md)
 
 ## Accuracy
 
@@ -131,7 +131,7 @@ For an intuitive representation of accuracy that works in many cases, we suggest
 
     >>> `df["accuracy"] = 1 - df["wape"]`
 
-For more details about these accuracy and error metrics, see [accuracy.md](timely_beliefs/accuracy.md).
+[A more detailed discussion of accuracy and error metrics can be found here.](timely_beliefs/docs/accuracy.md)
 
 ## Visualisation
 
@@ -142,11 +142,12 @@ Create interactive charts using [Altair](http://altair-viz.github.io) and view t
 
 This will create an interactive Vega-Lite chart like the one in the screenshot at the top of this Readme.
 
-[Read more](timely_beliefs/viz.md) about built-in visualisation such as ridgeline plots.
+[Read more about built-in visualisation such as ridgeline plots.](timely_beliefs/docs/viz.md)
 
 ![Ridgeline fixed viewpoint](timely_beliefs/docs/fixed_viewpoint_ridgeline.png "Fixed viewpoint")
 
 ## Development
 
-We welcome other contributions to timely_beliefs. 
-See [DEV.md](dev/DEV.md) for details.
+We welcome other contributions to timely_beliefs.
+
+[See our developer docs for details.](dev/dev.md)
