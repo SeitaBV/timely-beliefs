@@ -276,3 +276,13 @@ def test_resample_with_belief_horizon(df_4323: BeliefsDataFrame):
     df = df.resample_events(timedelta(hours=1))
     assert df.sensor == df_4323.sensor
     assert "belief_horizon" in df.index.names
+
+
+def test_groupby_preserves_metadata(df_4323: BeliefsDataFrame):
+    df = df_4323
+    grouper = df.groupby("event_start")
+    groups = list(grouper.__iter__())
+    slice_0 = groups[0][1]
+    assert slice_0.sensor == df.sensor
+    df_2 = grouper.apply(lambda x: x.head(1))
+    assert df_2.sensor == df.sensor

@@ -667,7 +667,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(
-            self.event_starts.to_series(name="knowledge_time").apply(
+            self.event_starts.to_series(name="knowledge_time", keep_tz=True).apply(
                 lambda event_start: self.sensor.knowledge_time(
                     event_start, self.event_resolution
                 )
@@ -677,7 +677,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def knowledge_horizons(self) -> pd.TimedeltaIndex:
         return pd.TimedeltaIndex(
-            self.event_starts.to_series(name="knowledge_horizon").apply(
+            self.event_starts.to_series(name="knowledge_horizon", keep_tz=True).apply(
                 lambda event_start: self.sensor.knowledge_horizon(
                     event_start, self.event_resolution
                 )
@@ -705,7 +705,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def event_ends(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(
-            self.event_starts.to_series(name="event_end").apply(
+            self.event_starts.to_series(name="event_end", keep_tz=True).apply(
                 lambda event_start: event_start + self.event_resolution
             )
         )

@@ -7,7 +7,7 @@ services:
   - postgresql
 install:
   - pip install pip-tools
-  - pip-sync
+  - pip-sync dev/requirements.txt
   - pip install pytest
   - pip install .
 before_script:
