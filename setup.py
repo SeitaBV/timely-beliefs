@@ -14,10 +14,10 @@ setup(
         "uncertainty",
         "lineage",
     ],
-    version="0.1.0",
+    version="0.1.1",
     install_requires=[
         "pytz",
-        "pandas>=1.0",
+        "pandas>=0.24,<1.1",  # test_groupby_preserves_metadata fails on 1.1
         "numpy",
         "pyerf",
         "SQLAlchemy",
