@@ -31,7 +31,7 @@ Some use cases of the package:
 - Learn **when** someone is a bad predictor.
 - Evaluate the risk of being wrong about an event.
 
-Check out [our interactive demonstration](http://forecasting-accuracy.seita.nl) comparing forecasting models for renewable energy production.
+Check out [our interactive demonstration](https://forecasting-accuracy.seita.nl/#/demo) comparing forecasting models for renewable energy production.
 These visuals are created simply by calling the plot method on our BeliefsDataFrame, using the visualisation library [Altair](https://altair-viz.github.io/).
 
 ![Comparing wind speed forecasting models](timely_beliefs/docs/comparing_wind_speed_forecasting_models.png)
