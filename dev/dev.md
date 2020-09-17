@@ -21,8 +21,8 @@ And run tests:
 
 To update dependencies run:
 
-    pip-compile -o ci/requirements.txt -U
+    pip-compile -o dev/requirements.txt -U
 
 To install dependencies run:
 
-    pip install -r ci/requirements.txt
+    pip install -r dev/requirements.txt
