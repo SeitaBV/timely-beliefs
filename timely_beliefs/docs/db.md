@@ -108,8 +108,9 @@ We added three attributes, `latitude`, `longitude` and `location_name`:
             self.location_name = location_name
             DBSensor.__init__(self, **kwargs)
 
-Changing the table name is more tricky. Here is a class where we do that.
-This one uses a Mixin class (which is also used to create the class `DBTimedBelief` which we saw above) ― so we have to do more work, but also have more freedom to influence lower-level things such as the `table_name` attribute and pointing to a customer table for belief sources ("my_belief_source"):
+If we want more control, e.g. for adapting the table name, our task is slightly more tricky. Below is a class where we do that for the table containing the actual beliefs.
+
+This one uses a Mixin class called `TimedBeliefDBMixin` (which is also used in the db class which TimelyBeliefs ships with ― `DBTimedBelief`, we discussed it above). If we use this Mixin class directly, we have to do more work, but also have more freedom to influence lower-level things ― we set the `__tablename__` attribute to "my_timed_belief" and point to a custom table for belief sources (the hypothetical custom class `MyBeliefSource` with the table "my_belief_source_table"):
 
 
     from sqlalchemy import Column, Float, ForeignKey
@@ -126,10 +127,10 @@ This one uses a Mixin class (which is also used to create the class `DBTimedBeli
 
         @declared_attr
         def source_id(cls):
-            return Column(Integer, ForeignKey("my_belief_source.id"), primary_key=True)
+            return Column(Integer, ForeignKey("my_belief_source_table.id"), primary_key=True)
 
         source = relationship(
-            "RatedSourceInCustomTable", backref=backref("beliefs", lazy=True)
+            "MyBeliefSource", backref=backref("beliefs", lazy=True)
         )
 
         def __init__(self, sensor, source, happiness: float = None, **kwargs):
