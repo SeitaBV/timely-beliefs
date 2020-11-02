@@ -491,13 +491,13 @@ class BeliefsDataFrame(pd.DataFrame):
         # Define our columns and indices
         columns = ["event_value"]
         indices = ["event_start", "belief_time", "source", "cumulative_probability"]
-        index_dtypes = {
+        default_dtypes = {
             "event_value": float,
             "event_start": datetime,
             "event_end": datetime,
             "belief_time": datetime,
             "belief_horizon": timedelta,
-            "source": object,
+            "source": str,
             "cumulative_probability": float,
         }
 
@@ -559,7 +559,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
             if len(args) == 0 or (self.empty and is_pandas_structure(args[0])):
                 set_columns_and_indices_for_empty_frame(
-                    self, columns, indices, index_dtypes
+                    self, columns, indices, default_dtypes
                 )
             elif is_pandas_structure(args[0]) and not is_tb_structure(args[0]):
                 # Set (possibly overwrite) each index level to a unique value if set explicitly
