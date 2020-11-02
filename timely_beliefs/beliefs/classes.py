@@ -491,13 +491,13 @@ class BeliefsDataFrame(pd.DataFrame):
         # Define our columns and indices
         columns = ["event_value"]
         indices = ["event_start", "belief_time", "source", "cumulative_probability"]
-        index_dtypes = {
+        default_types = {
             "event_value": float,
             "event_start": datetime,
             "event_end": datetime,
             "belief_time": datetime,
             "belief_horizon": timedelta,
-            "source": object,
+            "source": BeliefSource,
             "cumulative_probability": float,
         }
 
@@ -559,7 +559,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
             if len(args) == 0 or (self.empty and is_pandas_structure(args[0])):
                 set_columns_and_indices_for_empty_frame(
-                    self, columns, indices, index_dtypes
+                    self, columns, indices, default_types
                 )
             elif is_pandas_structure(args[0]) and not is_tb_structure(args[0]):
                 # Set (possibly overwrite) each index level to a unique value if set explicitly
@@ -1417,7 +1417,7 @@ class BeliefsDataFrame(pd.DataFrame):
         return pd.concat([df, reference_df], axis=1)
 
 
-def set_columns_and_indices_for_empty_frame(df, columns, indices, index_dtypes):
+def set_columns_and_indices_for_empty_frame(df, columns, indices, default_types):
     """ Set appropriate columns and indices for the empty BeliefsDataFrame. """
     if "belief_horizon" in df and "belief_time" not in df:
         indices = [
@@ -1430,12 +1430,12 @@ def set_columns_and_indices_for_empty_frame(df, columns, indices, index_dtypes):
     for col in columns + indices:
         df[col] = None
 
-        # Set the correct types
-        if index_dtypes[col] == datetime:
+        # Set the pandas types where needed
+        if default_types[col] == datetime:
             df[col] = pd.to_datetime(df[col]).dt.tz_localize("utc")
-        elif index_dtypes[col] == timedelta:
+        elif default_types[col] == timedelta:
             df[col] = pd.to_timedelta(df[col])
-        elif index_dtypes[col] in (int, float):
+        elif default_types[col] in (int, float):
             df[col] = pd.to_numeric(df[col])
 
     df.set_index(indices, inplace=True)
