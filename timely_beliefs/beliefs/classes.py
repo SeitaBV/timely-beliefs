@@ -386,6 +386,9 @@ class BeliefsSeries(pd.Series):
                 self, method="inherit"
             )
 
+        # workaround from https://github.com/pandas-dev/pandas/issues/32860#issuecomment-697993089
+        f._get_axis_number = super(BeliefsSeries, self)._get_axis_number
+
         return f
 
     def __finalize__(self, other, method=None, **kwargs):
@@ -488,6 +491,15 @@ class BeliefsDataFrame(pd.DataFrame):
         # Define our columns and indices
         columns = ["event_value"]
         indices = ["event_start", "belief_time", "source", "cumulative_probability"]
+        default_types = {
+            "event_value": float,
+            "event_start": datetime,
+            "event_end": datetime,
+            "belief_time": datetime,
+            "belief_horizon": timedelta,
+            "source": BeliefSource,
+            "cumulative_probability": float,
+        }
 
         # Pick an initialization method
         if beliefs:
@@ -546,7 +558,9 @@ class BeliefsDataFrame(pd.DataFrame):
             super().__init__(*args, **kwargs)
 
             if len(args) == 0 or (self.empty and is_pandas_structure(args[0])):
-                set_columns_and_indices_for_empty_frame(self, columns, indices)
+                set_columns_and_indices_for_empty_frame(
+                    self, columns, indices, default_types
+                )
             elif is_pandas_structure(args[0]) and not is_tb_structure(args[0]):
                 # Set (possibly overwrite) each index level to a unique value if set explicitly
                 if source is not None:
@@ -1403,7 +1417,7 @@ class BeliefsDataFrame(pd.DataFrame):
         return pd.concat([df, reference_df], axis=1)
 
 
-def set_columns_and_indices_for_empty_frame(df, columns, indices):
+def set_columns_and_indices_for_empty_frame(df, columns, indices, default_types):
     """ Set appropriate columns and indices for the empty BeliefsDataFrame. """
     if "belief_horizon" in df and "belief_time" not in df:
         indices = [
@@ -1415,6 +1429,15 @@ def set_columns_and_indices_for_empty_frame(df, columns, indices):
         ]
     for col in columns + indices:
         df[col] = None
+
+        # Set the pandas types where needed
+        if default_types[col] == datetime:
+            df[col] = pd.to_datetime(df[col]).dt.tz_localize("utc")
+        elif default_types[col] == timedelta:
+            df[col] = pd.to_timedelta(df[col])
+        elif default_types[col] in (int, float):
+            df[col] = pd.to_numeric(df[col])
+
     df.set_index(indices, inplace=True)
 
 
