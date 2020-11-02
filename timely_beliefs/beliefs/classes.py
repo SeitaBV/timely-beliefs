@@ -386,6 +386,9 @@ class BeliefsSeries(pd.Series):
                 self, method="inherit"
             )
 
+        # workaround from https://github.com/pandas-dev/pandas/issues/32860#issuecomment-697993089
+        f._get_axis_number = super(BeliefsSeries, self)._get_axis_number
+
         return f
 
     def __finalize__(self, other, method=None, **kwargs):
