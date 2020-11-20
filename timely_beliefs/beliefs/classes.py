@@ -545,6 +545,7 @@ class BeliefsDataFrame(pd.DataFrame):
             # Interpret initialisation with a pandas Series (preprocessing step of method 3)
             if len(args) > 0 and isinstance(args[0], pd.Series):
                 args = list(args)
+                args[0] = args[0].copy()  # avoid inplace operations
                 args[0] = args[0].to_frame(
                     name="event_value" if not args[0].name else args[0].name
                 )
@@ -557,7 +558,7 @@ class BeliefsDataFrame(pd.DataFrame):
             elif len(args) > 0 and isinstance(args[0], pd.DataFrame):
                 # Avoid inplace operations on the input DataFrame
                 args = list(args)
-                args[0] = args[0].copy()
+                args[0] = args[0].copy()  # avoid inplace operations
                 args = tuple(args)
 
             super().__init__(*args, **kwargs)
