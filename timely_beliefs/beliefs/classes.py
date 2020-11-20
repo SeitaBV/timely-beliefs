@@ -554,6 +554,11 @@ class BeliefsDataFrame(pd.DataFrame):
                     )
                     args[0].reset_index(inplace=True)
                 args = tuple(args)
+            elif len(args) > 0 and isinstance(args[0], pd.DataFrame):
+                # Avoid inplace operations on the input DataFrame
+                args = list(args)
+                args[0] = args[0].copy()
+                args = tuple(args)
 
             super().__init__(*args, **kwargs)
 
