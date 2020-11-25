@@ -7,12 +7,37 @@ from typing import Optional, Tuple, Union
 from timely_beliefs.sensors.utils import datetime_x_days_ago_at_y_oclock
 
 
+def determine_knowledge_horizon_for_fixed_knowledge_time(
+    event_start: Optional[datetime],
+    knowledge_time: datetime,
+    get_bounds: bool = False,
+) -> Union[timedelta, Tuple[timedelta, timedelta]]:
+    """Compute the sensor's knowledge horizon to represent the event could be known since some fixed date
+    (knowledge time).
+
+    For example, can be used for a tariff, in which case the knowledge time is the contract date.
+
+    :param event_start: start of the event, used as an anchor for determining the knowledge horizon.
+    :param knowledge_time: datetime since which all events for the sensor could be known.
+    :param get_bounds: if True, this function returns bounds on the possible return value.
+    These bounds are normally useful for creating more efficient database queries when filtering by belief time.
+    In this case, the knowledge horizon is unbounded.
+    """
+    if get_bounds:
+        return timedelta.min, timedelta.max
+    return event_start - knowledge_time
+
+
 def determine_ex_post_knowledge_horizon(
-    event_resolution: timedelta, ex_post_horizon: timedelta, get_bounds: bool = False,
+    event_resolution: timedelta,
+    ex_post_horizon: timedelta,
+    get_bounds: bool = False,
 ) -> Union[timedelta, Tuple[timedelta, timedelta]]:
     """Compute the sensor's knowledge horizon to represent the event can be known some length of time after it ends.
 
-    Since we define a knowledge horizon as the time it takes before (the event starts) the event could be known,
+    For example, for most physical events, events can be known when they end.
+    Since we define a knowledge horizon as the duration from knowledge time to event start
+    (i.e. how long before the event starts could the event be known),
     the knowledge horizon in this case is equal to minus the event resolution.
 
     :param event_resolution: resolution of the event, needed to re-anchor from event_end to event_start.
@@ -27,7 +52,8 @@ def determine_ex_post_knowledge_horizon(
 
 
 def determine_ex_ante_knowledge_horizon(
-    ex_ante_horizon: timedelta, get_bounds: bool = False,
+    ex_ante_horizon: timedelta,
+    get_bounds: bool = False,
 ) -> Union[timedelta, Tuple[timedelta, timedelta]]:
     """Compute the sensor's knowledge horizon to represent the event can be known some length of time before it starts.
 

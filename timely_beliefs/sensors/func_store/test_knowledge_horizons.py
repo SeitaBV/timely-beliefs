@@ -4,7 +4,33 @@ from pytz import utc
 
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
     determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
+    determine_knowledge_horizon_for_fixed_knowledge_time,
 )
+
+
+def test_fixed_knowledge_time():
+    knowledge_time = datetime(2020, 11, 20, 0, tzinfo=utc)
+    assert (
+        determine_knowledge_horizon_for_fixed_knowledge_time(
+            event_start=datetime(2020, 11, 19, 0, tzinfo=utc),
+            knowledge_time=knowledge_time,
+        )
+        == timedelta(-1)
+    )
+    assert (
+        determine_knowledge_horizon_for_fixed_knowledge_time(
+            event_start=datetime(2020, 11, 20, 0, tzinfo=utc),
+            knowledge_time=knowledge_time,
+        )
+        == timedelta(0)
+    )
+    assert (
+        determine_knowledge_horizon_for_fixed_knowledge_time(
+            event_start=datetime(2020, 11, 21, 0, tzinfo=utc),
+            knowledge_time=knowledge_time,
+        )
+        == timedelta(1)
+    )
 
 
 def test_dst():
