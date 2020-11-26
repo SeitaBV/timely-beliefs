@@ -383,3 +383,15 @@ def test_slicing_retains_metadata(drop_level):
     print(df)
     for md in metadata:
         assert getattr(df, md) == metadata[md]
+
+
+def test_copy_series_retains_name_and_metadata():
+    # GH 41
+    df = example_df
+    sensor = df.sensor
+    s = df["event_value"]
+    assert s.sensor == sensor
+    name = s.name
+    s_copy = s.copy()
+    assert s_copy.name == name
+    assert s_copy.sensor == sensor
