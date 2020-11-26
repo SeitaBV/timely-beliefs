@@ -465,6 +465,14 @@ class BeliefsDataFrame(pd.DataFrame):
     ):  # noqa: C901 todo: refactor, e.g. by detecting initialization method
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
 
+        # Initialized with a BeliefsSeries or BeliefsDataFrame
+        if len(args) > 0 and isinstance(args[0], (BeliefsSeries, BeliefsDataFrame)):
+            super().__init__(*args, **kwargs)
+            assign_sensor_and_event_resolution(
+                self, args[0].sensor, args[0].event_resolution
+            )
+            return
+
         # Obtain parameters that are specific to our DataFrame subclass
         sensor: Sensor = kwargs.pop("sensor", None)
         event_resolution: timedelta = kwargs.pop("event_resolution", None)
@@ -545,10 +553,10 @@ class BeliefsDataFrame(pd.DataFrame):
             # Interpret initialisation with a pandas Series (preprocessing step of method 3)
             if len(args) > 0 and isinstance(args[0], pd.Series):
                 args = list(args)
+                args[0] = args[0].copy()  # avoid inplace operations
                 args[0] = args[0].to_frame(
                     name="event_value" if not args[0].name else args[0].name
                 )
-                args[0] = args[0].copy()  # avoid inplace operations
                 if isinstance(args[0].index, pd.DatetimeIndex) and event_start is None:
                     args[0].index.name = (
                         "event_start" if not args[0].index.name else args[0].index.name

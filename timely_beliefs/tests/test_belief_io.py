@@ -89,6 +89,11 @@ def test_empty_beliefs(args, kwargs):
     for name in ["event_start", "belief_time", "source", "cumulative_probability"]:
         assert name in bdf.index.names
 
+    # Check that initializing with self returns a copy of self
+    bdf_copy = bdf.copy()
+    bdf = tb.BeliefsDataFrame(bdf)
+    pd.testing.assert_frame_equal(bdf_copy, bdf)
+
 
 @pytest.mark.parametrize(
     "missing_column_name, data, present_column_names",
@@ -290,6 +295,11 @@ def test_belief_setup_with_data_frame(df_or_s, kwargs):
         pd.testing.assert_frame_equal(df_or_s, df_or_s_copy)
     elif isinstance(df_or_s, pd.Series):
         pd.testing.assert_series_equal(df_or_s, df_or_s_copy)
+
+    # Check that initializing with self returns a copy of self
+    bdf_copy = bdf.copy()
+    bdf = tb.BeliefsDataFrame(bdf)
+    pd.testing.assert_frame_equal(bdf_copy, bdf)
 
 
 @pytest.mark.parametrize(
