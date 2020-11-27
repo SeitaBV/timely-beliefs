@@ -395,6 +395,8 @@ class BeliefsSeries(pd.Series):
         """Propagate metadata from other to self."""
         for name in self._metadata:
             object.__setattr__(self, name, getattr(other, name, None))
+        if hasattr(other, "name"):
+            self.name = other.name
         return self
 
     def __init__(self, *args, **kwargs):
@@ -464,6 +466,14 @@ class BeliefsDataFrame(pd.DataFrame):
         self, *args, **kwargs
     ):  # noqa: C901 todo: refactor, e.g. by detecting initialization method
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
+
+        # Initialized with a BeliefsSeries or BeliefsDataFrame
+        if len(args) > 0 and isinstance(args[0], (BeliefsSeries, BeliefsDataFrame)):
+            super().__init__(*args, **kwargs)
+            assign_sensor_and_event_resolution(
+                self, args[0].sensor, args[0].event_resolution
+            )
+            return
 
         # Obtain parameters that are specific to our DataFrame subclass
         sensor: Sensor = kwargs.pop("sensor", None)
@@ -545,6 +555,7 @@ class BeliefsDataFrame(pd.DataFrame):
             # Interpret initialisation with a pandas Series (preprocessing step of method 3)
             if len(args) > 0 and isinstance(args[0], pd.Series):
                 args = list(args)
+                args[0] = args[0].copy()  # avoid inplace operations
                 args[0] = args[0].to_frame(
                     name="event_value" if not args[0].name else args[0].name
                 )
@@ -553,6 +564,11 @@ class BeliefsDataFrame(pd.DataFrame):
                         "event_start" if not args[0].index.name else args[0].index.name
                     )
                     args[0].reset_index(inplace=True)
+                args = tuple(args)
+            elif len(args) > 0 and isinstance(args[0], pd.DataFrame):
+                # Avoid inplace operations on the input DataFrame
+                args = list(args)
+                args[0] = args[0].copy()  # avoid inplace operations
                 args = tuple(args)
 
             super().__init__(*args, **kwargs)
