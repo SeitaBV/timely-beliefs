@@ -36,6 +36,7 @@ def test_load_beliefs(csv_file):
     assert bdf.sensor.name == "Sensor Y"
 
     # Check that input frame was not altered
+    # GH 34
     pd.testing.assert_frame_equal(df, df_copy)
 
     # No lookup should issue warning
@@ -90,6 +91,7 @@ def test_empty_beliefs(args, kwargs):
         assert name in bdf.index.names
 
     # Check that initializing with self returns a copy of self
+    # GH 34
     bdf_copy = bdf.copy()
     bdf = tb.BeliefsDataFrame(bdf)
     pd.testing.assert_frame_equal(bdf_copy, bdf)
@@ -291,12 +293,14 @@ def test_belief_setup_with_data_frame(df_or_s, kwargs):
     assert bdf.values[0] == 4
 
     # Check that input data frame or series was not altered
+    # GH 34
     if isinstance(df_or_s, pd.DataFrame):
         pd.testing.assert_frame_equal(df_or_s, df_or_s_copy)
     elif isinstance(df_or_s, pd.Series):
         pd.testing.assert_series_equal(df_or_s, df_or_s_copy)
 
     # Check that initializing with self returns a copy of self
+    # GH 34
     bdf_copy = bdf.copy()
     bdf = tb.BeliefsDataFrame(bdf)
     pd.testing.assert_frame_equal(bdf_copy, bdf)
@@ -395,3 +399,37 @@ def test_copy_series_retains_name_and_metadata():
     s_copy = s.copy()
     assert s_copy.name == name
     assert s_copy.sensor == sensor
+
+
+def test_init_from_beliefs_data_frame():
+    """ Check that input BeliefsDataFrame was not altered. """
+    # GH 34
+    df = example_df.rename(columns={"event_value": "reference_value"})
+    df_copy = df.copy()
+    tb.BeliefsDataFrame(df)
+    pd.testing.assert_frame_equal(df, df_copy)
+
+
+def test_init_from_beliefs_series():
+    """ Check that input BeliefsSeries was not altered. """
+    # GH 34
+    df = example_df.rename(columns={"event_value": "reference_value"})
+    s = df["reference_value"]
+    df_copy = df.copy()
+    s_copy = s.copy()
+
+    # check method using to_frame
+    bdf = s.to_frame()
+    pd.testing.assert_frame_equal(df, df_copy)  # original bdf was not altered
+    pd.testing.assert_frame_equal(
+        bdf, df_copy
+    )  # new bdf retains altered column of original bdf
+    pd.testing.assert_series_equal(s, s_copy)  # input BeliefsSeries was not altered
+
+    # check method using class init
+    bdf = tb.BeliefsDataFrame(s)
+    pd.testing.assert_frame_equal(df, df_copy)  # original bdf was not altered
+    pd.testing.assert_frame_equal(
+        bdf, df_copy
+    )  # new bdf retains altered column of original bdf
+    pd.testing.assert_series_equal(s, s_copy)  # input BeliefsSeries was not altered
