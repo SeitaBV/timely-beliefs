@@ -395,6 +395,8 @@ class BeliefsSeries(pd.Series):
         """Propagate metadata from other to self."""
         for name in self._metadata:
             object.__setattr__(self, name, getattr(other, name, None))
+        if hasattr(other, "name"):
+            self.name = other.name
         return self
 
     def __init__(self, *args, **kwargs):
