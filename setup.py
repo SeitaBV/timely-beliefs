@@ -14,7 +14,7 @@ setup(
         "uncertainty",
         "lineage",
     ],
-    version="0.1.2",
+    version="0.1.3",
     install_requires=[
         "pytz",
         "pandas>=0.24,<1.1",  # test_groupby_preserves_metadata fails on 1.1
