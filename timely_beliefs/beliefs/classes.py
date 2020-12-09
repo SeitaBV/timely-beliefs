@@ -1,9 +1,8 @@
 import math
 from datetime import datetime, timedelta
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import altair as alt
-import numpy as np
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, Interval
@@ -1012,24 +1011,23 @@ class BeliefsDataFrame(pd.DataFrame):
             and keep_only_most_recent_belief
             and df.lineage.number_of_sources == 1
         ):
-            df = df.reset_index(
-                level=[belief_timing_col, "source", "cumulative_probability"]
-            )
             if event_resolution > self.event_resolution:
                 # downsample
-                df = df.resample(event_resolution).agg(
-                    {
-                        "event_value": np.nanmean,
-                        "source": "first",  # keep the only source
-                        belief_timing_col: "max"
-                        if belief_timing_col == "belief_time"
-                        else "min",  # keep only most recent belief
-                        "cumulative_probability": "prod",  # assume independent variables
-                    }
-                )
+                column_functions = {
+                    "event_value": "mean",
+                    "source": "first",  # keep the only source
+                    belief_timing_col: "max"
+                    if belief_timing_col == "belief_time"
+                    else "min",  # keep only most recent belief
+                    "cumulative_probability": "prod",  # assume independent variables
+                }
+                df = resample_beliefs_data_frame(df, event_resolution, column_functions)
                 df.event_resolution = event_resolution
             else:
                 # upsample
+                df = df.reset_index(
+                    level=[belief_timing_col, "source", "cumulative_probability"]
+                )
                 new_index = pd.date_range(
                     start=df.index[0],
                     periods=len(df) * (self.event_resolution // event_resolution),
@@ -1472,3 +1470,29 @@ def assign_sensor_and_event_resolution(df, sensor, event_resolution):
         if sensor
         else None
     )
+
+
+def resample_beliefs_data_frame(
+    df: BeliefsDataFrame, event_resolution: timedelta, col_att_dict: Dict[str, str]
+) -> BeliefsDataFrame:
+    """Because df.resample().agg() doesn't behave nicely for subclassed DataFrames,
+    we aggregate each index level and column separately against the resampled event_start level,
+    and then recombine them afterwards.
+    """
+    belief_timing_col = (
+        "belief_time" if "belief_time" in df.index.names else "belief_horizon"
+    )
+    event_timing_col = "event_start" if "event_start" in df.index.names else "event_end"
+    return pd.concat(
+        [
+            getattr(
+                df.reset_index()
+                .set_index(event_timing_col)[col]
+                .to_frame()
+                .resample(event_resolution),
+                att,
+            )()
+            for col, att in col_att_dict.items()
+        ],
+        axis=1,
+    ).set_index([belief_timing_col, "source", "cumulative_probability"], append=True)
