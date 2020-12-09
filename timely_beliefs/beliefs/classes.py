@@ -1032,7 +1032,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 # upsample
                 new_index = pd.date_range(
                     start=df.index[0],
-                    periods=len(df) * self.event_resolution // event_resolution,
+                    periods=len(df) * (self.event_resolution // event_resolution),
                     freq=event_resolution,
                     name="event_start",
                 )
