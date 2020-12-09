@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
 
+import numpy as np
 import pandas as pd
 import pytest
 import pytz
@@ -391,9 +392,9 @@ def test_slicing_retains_metadata(drop_level):
 
 
 @pytest.mark.parametrize("resolution", [timedelta(minutes=30), timedelta(hours=2)])
-def test_agg_resampling_retains_metadata(resolution):
+def test_mean_resampling_retains_metadata(resolution):
     """
-    Test whether aggregate resampling retains the metadata.
+    Test whether mean resampling retains the metadata.
 
     Fails with pandas==1.0.0
     Succeeds with pandas==1.1.0
@@ -401,6 +402,34 @@ def test_agg_resampling_retains_metadata(resolution):
     df = example_df
     metadata = {md: getattr(example_df, md) for md in METADATA}
     df = df.resample(resolution, level="event_start").mean()
+    print(df)
+    assert isinstance(df, tb.BeliefsDataFrame)
+    for md in metadata:
+        # if md == "event_resolution":
+        #     assert df.event_resolution == resolution
+        # else:  # todo: the event_resolution metadata is only updated when resampling using df.resample_events(). A reason to override the original resample method, or otherwise something to document.
+        assert getattr(df, md) == metadata[md]
+
+
+@pytest.mark.parametrize("resolution", [timedelta(minutes=30), timedelta(hours=2)])
+def _test_agg_resampling_retains_metadata(resolution):
+    """
+    Test whether aggregate resampling retains the metadata.
+
+    Fails with pandas==1.1.5
+    """
+    df = example_df
+    metadata = {md: getattr(example_df, md) for md in METADATA}
+    df = df.reset_index(level=["belief_time", "source", "cumulative_probability"])
+    df = df.resample(resolution).agg(
+        {
+            "event_value": np.nanmean,
+            "source": "first",  # keep the only source
+            "belief_time": "max",  # keep the latest belief
+            "cumulative_probability": "prod",  # assume independent variables
+        }
+    )
+    df = df.set_index(["belief_time", "source", "cumulative_probability"], append=True)
     print(df)
     assert isinstance(df, tb.BeliefsDataFrame)
     for md in metadata:
@@ -479,11 +508,82 @@ def test_init_from_beliefs_series():
     pd.testing.assert_series_equal(s, s_copy)  # input BeliefsSeries was not altered
 
 
-def test_groupby_retains_attribute():
+def test_groupby_does_not_retain_temporary_attribute():
     df = pd.DataFrame([[1, 2], [3, 4]], columns=["x", "y"])
     df.a = "b"
     assert df.a == "b"
-    df = df.groupby("x").apply(lambda x: x)
+    df2 = df.groupby("x").apply(lambda x: x)
+    assert not hasattr(df2, "a")
+    df3 = df.groupby("x").sum()
+    assert not hasattr(df3, "a")
+
+
+@pytest.mark.parametrize(
+    "att, args",
+    [
+        # ("all", []),
+        # ("any", []),
+        # ("count", []),
+        ("first", []),
+        ("last", []),
+        ("max", []),
+        # ("mean", []),
+        # ("median", []),
+        ("min", []),
+        ("prod", []),
+        # ("sem", []),
+        # ("size", []),
+        # ("std", []),
+        ("sum", []),
+        # ("var", []),
+        # ("apply", [lambda x: x]),
+        # ("apply", [np.max])
+        # ("apply", [np.min])
+        # ("apply", [np.nanmean]),
+        ("agg", ["first"]),
+        ("agg", ["max"]),
+        # ("agg", ["mean"]),
+        ("agg", ["min"]),
+        ("agg", ["sum"]),
+        # ("agg", [{"y": "min"}]),
+        # ("agg", [{"x": "min", "y": "max"}]),
+    ],
+)
+def test_groupby_retains_subclass_attribute(att, args):
+    """Checks on metadata propagation for subclassed DataFrames under groupby operations.
+
+    Commented-out parameter combinations fail with pandas==1.1.5
+    """
+
+    METADATA = ["a"]
+
+    class SubclassedSeries(pd.Series):
+
+        _metadata = METADATA
+
+        @property
+        def _constructor(self):
+            return SubclassedSeries
+
+        @property
+        def _constructor_expanddim(self):
+            return SubclassedDataFrame
+
+    class SubclassedDataFrame(pd.DataFrame):
+
+        _metadata = METADATA
+
+        @property
+        def _constructor(self):
+            return SubclassedDataFrame
+
+        @property
+        def _constructor_sliced(self):
+            return SubclassedSeries
+
+    df = SubclassedDataFrame([[1, 2], [3, 4]], columns=["x", "y"])
+    df.a = "b"
     assert df.a == "b"
-    df = df.groupby("x").sum()
-    assert df.a == "b"
+    df2 = getattr(df.groupby("x"), att)(*args)
+    print(df2)
+    assert df2.a == "b"
