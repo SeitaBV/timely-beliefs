@@ -263,3 +263,18 @@ def test_upsample(time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_ev
     belief_df = belief_df.resample_events(new_resolution)
     assert belief_df.sensor.event_resolution == timedelta(minutes=15)
     assert belief_df.event_resolution == new_resolution
+
+
+def _test_empty_frame(time_slot_sensor):
+    """ pandas GH30517 """
+    bdf = DBTimedBelief.query(
+        session=session,
+        sensor=time_slot_sensor,
+        belief_before=datetime(1900, 1, 1, 13, tzinfo=utc),
+    )
+    assert len(bdf) == 0  # no data expected
+    assert pd.api.types.is_datetime64_dtype(bdf.index.get_level_values("belief_time"))
+    bdf = bdf.convert_index_from_belief_time_to_horizon()
+    assert pd.api.types.is_timedelta64_dtype(
+        bdf.index.get_level_values("belief_horizon")
+    )  # dtype of belief_horizon is timedelta64[ns], so the minimum horizon on an empty BeliefsDataFrame is NaT instead of NaN
