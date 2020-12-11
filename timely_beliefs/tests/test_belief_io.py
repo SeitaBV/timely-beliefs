@@ -570,3 +570,19 @@ def test_groupby_retains_subclass_attribute(att, args):
     df2 = getattr(df.groupby("x"), att)(*args)
     print(df2)
     assert df2.a == "b"
+
+
+@pytest.mark.parametrize("constant", [1, -1, 3.14, timedelta(hours=1), ["TiledString"]])
+def test_multiplication_with_constant_retains_metadata(constant):
+    """ Check whether the metadata is still there after multiplication. """
+    # GH 35
+    df = example_df * constant
+    assert_metadata_is_retained(df, original_df=example_df)
+
+    # Also check suggested workarounds from GH 35
+    if constant == -1:
+        df = -example_df
+        assert_metadata_is_retained(df, original_df=example_df)
+
+        df = example_df.abs()
+        assert_metadata_is_retained(df, original_df=example_df)
