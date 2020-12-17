@@ -444,7 +444,7 @@ def test_groupby_retains_metadata():
 
     Succeeds with pandas==1.0.0
     Fails with pandas==1.1.0
-    Should be fixed with https://github.com/pandas-dev/pandas/pull/37461
+    Fixed with pandas==1.1.5
     """
     df = example_df
     metadata = {md: getattr(example_df, md) for md in METADATA}
