@@ -40,6 +40,7 @@ def plot(
 
     # Set up data source
     bdf = bdf.copy()
+    bdf["event_value"] = bdf["event_value"].astype(float)
     sensor_name = bdf.sensor.name
     sensor_unit = bdf.sensor.unit if bdf.sensor.unit != "" else "a.u."  # arbitrary unit
     plottable_df, belief_horizon_unit = prepare_df_for_plotting(
