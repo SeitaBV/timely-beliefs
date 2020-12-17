@@ -1021,7 +1021,9 @@ class BeliefsDataFrame(pd.DataFrame):
                     else "min",  # keep only most recent belief
                     "cumulative_probability": "prod",  # assume independent variables
                 }
-                df = resample_beliefs_data_frame(df, event_resolution, column_functions)
+                df = downsample_beliefs_data_frame(
+                    df, event_resolution, column_functions
+                )
                 df.event_resolution = event_resolution
             else:
                 # upsample
@@ -1472,7 +1474,7 @@ def assign_sensor_and_event_resolution(df, sensor, event_resolution):
     )
 
 
-def resample_beliefs_data_frame(
+def downsample_beliefs_data_frame(
     df: BeliefsDataFrame, event_resolution: timedelta, col_att_dict: Dict[str, str]
 ) -> BeliefsDataFrame:
     """Because df.resample().agg() doesn't behave nicely for subclassed DataFrames,
