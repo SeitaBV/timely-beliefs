@@ -553,6 +553,8 @@ def test_groupby_retains_subclass_attribute(att, args):
     """Checks on metadata propagation for subclassed DataFrames under groupby operations.
 
     Commented-out parameter combinations fail with pandas==1.1.5
+    The relevant issue has to do with calling finalize after operations:
+    see https://github.com/pandas-dev/pandas/issues/28283
     """
 
     METADATA = ["a"]
