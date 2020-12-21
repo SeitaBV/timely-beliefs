@@ -148,6 +148,8 @@ This will create an interactive Vega-Lite chart like the one in the screenshot a
 
 ## Development
 
-We welcome other contributions to timely_beliefs.
+The `timely_beliefs` package runs on `pandas>=1.1.5`.
+Contact us if you need support for older versions.
+We welcome other contributions to `timely_beliefs`.
 
 [See our developer docs for details.](dev/dev.md)

@@ -1,3 +1,4 @@
+from functools import total_ordering
 from typing import Union
 
 from sqlalchemy import Column, Integer, String
@@ -5,10 +6,11 @@ from sqlalchemy import Column, Integer, String
 from timely_beliefs.db_base import Base
 
 
+@total_ordering
 class BeliefSource(object):
 
     """
-    A belief source is any data-creating entitiy such as a user, a ML model or a script.
+    A belief source is any data-creating entity such as a user, a ML model or a script.
     """
 
     name: str

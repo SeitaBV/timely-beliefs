@@ -40,6 +40,7 @@ def plot(
 
     # Set up data source
     bdf = bdf.copy()
+    bdf["event_value"] = bdf["event_value"].astype(float)
     sensor_name = bdf.sensor.name
     sensor_unit = bdf.sensor.unit if bdf.sensor.unit != "" else "a.u."  # arbitrary unit
     plottable_df, belief_horizon_unit = prepare_df_for_plotting(
@@ -250,20 +251,18 @@ def prepare_df_for_plotting(
         df["lower_value"] = df["event_value"]
     else:
         df_ci0 = (
-            df.for_each_belief(get_nth_percentile_belief, n=(1 - ci) * 100 / 2, df=df)
+            df.for_each_belief(get_nth_percentile_belief, n=(1 - ci) * 100 / 2)
             .rename(columns={"event_value": "lower_value"})
             .droplevel("cumulative_probability")
             .drop("belief_horizon", axis=1)
         )
         df_exp = (
-            df.for_each_belief(get_nth_percentile_belief, n=50, df=df)
+            df.for_each_belief(get_nth_percentile_belief, n=50)
             .rename(columns={"event_value": "expected_value"})
             .droplevel("cumulative_probability")
         )
         df_ci1 = (
-            df.for_each_belief(
-                get_nth_percentile_belief, n=100 - (1 - ci) * 100 / 2, df=df
-            )
+            df.for_each_belief(get_nth_percentile_belief, n=100 - (1 - ci) * 100 / 2)
             .rename(columns={"event_value": "upper_value"})
             .droplevel("cumulative_probability")
             .drop("belief_horizon", axis=1)

@@ -1,13 +1,14 @@
 import os
 from datetime import datetime, timedelta
 
+import numpy as np
 import pandas as pd
 import pytest
 import pytz
 
 import timely_beliefs as tb
-from timely_beliefs.beliefs.classes import METADATA
 from timely_beliefs.examples import example_df
+from timely_beliefs.tests.utils import assert_metadata_is_retained
 
 
 @pytest.fixture(scope="module")
@@ -359,21 +360,16 @@ def test_converting_between_data_frame_and_series_retains_metadata():
     Test whether expanding dimensions of a BeliefsSeries into a BeliefsDataFrame retains the metadata.
     """
     df = example_df
-    metadata = {md: getattr(example_df, md) for md in METADATA}
     series = df["event_value"]
-    for md in metadata:
-        assert getattr(series, md) == metadata[md]
+    assert_metadata_is_retained(series, original_df=example_df, is_series=True)
     df = series.to_frame()
-    for md in metadata:
-        assert getattr(df, md) == metadata[md]
+    assert_metadata_is_retained(df, original_df=example_df)
 
 
 def test_dropping_index_levels_retains_metadata():
     df = example_df.copy()
-    metadata = {md: getattr(example_df, md) for md in METADATA}
     df.index = df.index.get_level_values("event_start")  # drop all other index levels
-    for md in metadata:
-        assert getattr(df, md) == metadata[md]
+    assert_metadata_is_retained(df, original_df=example_df)
 
 
 @pytest.mark.parametrize("drop_level", [True, False])
@@ -382,11 +378,71 @@ def test_slicing_retains_metadata(drop_level):
     Test whether slicing the index of a BeliefsDataFrame retains the metadata.
     """
     df = example_df
-    metadata = {md: getattr(example_df, md) for md in METADATA}
     df = df.xs("2000-01-03 10:00:00+00:00", level="event_start", drop_level=drop_level)
     print(df)
-    for md in metadata:
-        assert getattr(df, md) == metadata[md]
+    assert_metadata_is_retained(df, original_df=example_df)
+
+
+@pytest.mark.parametrize("resolution", [timedelta(minutes=30), timedelta(hours=2)])
+def test_mean_resampling_retains_metadata(resolution):
+    """
+    Test whether mean resampling retains the metadata.
+
+    Fails with pandas==1.0.0
+    Succeeds with pandas==1.1.0
+    """
+    df = example_df
+    df = df.resample(resolution, level="event_start").mean()
+    print(df)
+    assert_metadata_is_retained(
+        df,
+        original_df=example_df,
+        event_resolution=example_df.event_resolution,
+    )  # todo: the event_resolution metadata is only updated when resampling using df.resample_events(). A reason to override the original resample method, or otherwise something to document.
+
+
+@pytest.mark.parametrize("resolution", [timedelta(minutes=30), timedelta(hours=2)])
+def _test_agg_resampling_retains_metadata(resolution):
+    """
+    Test whether aggregate resampling retains the metadata.
+
+    Fails with pandas==1.1.5
+    """
+    df = example_df
+    df = df.reset_index(level=["belief_time", "source", "cumulative_probability"])
+    df = df.resample(resolution).agg(
+        {
+            "event_value": np.nanmean,
+            "source": "first",  # keep the only source
+            "belief_time": "max",  # keep the latest belief
+            "cumulative_probability": "prod",  # assume independent variables
+        }
+    )
+    df = df.set_index(["belief_time", "source", "cumulative_probability"], append=True)
+    print(df)
+    assert_metadata_is_retained(
+        df,
+        original_df=example_df,
+        event_resolution=example_df.event_resolution,
+    )  # todo: the event_resolution metadata is only updated when resampling using df.resample_events(). A reason to override the original resample method, or otherwise something to document.
+
+
+def test_groupby_retains_metadata():
+    """Test whether grouping by index level retains the metadata.
+
+    Succeeds with pandas==1.0.0
+    Fails with pandas==1.1.0
+    Fixed with pandas==1.1.5
+    """
+    df = example_df
+
+    def assert_function(x):
+        print(x)
+        assert_metadata_is_retained(x, original_df=example_df)
+        return x
+
+    df = df.groupby(level="event_start").apply(lambda x: assert_function(x))
+    assert_metadata_is_retained(df, original_df=example_df)
 
 
 def test_copy_series_retains_name_and_metadata():
@@ -433,3 +489,102 @@ def test_init_from_beliefs_series():
         bdf, df_copy
     )  # new bdf retains altered column of original bdf
     pd.testing.assert_series_equal(s, s_copy)  # input BeliefsSeries was not altered
+
+
+def test_groupby_does_not_retain_temporary_attribute():
+    df = pd.DataFrame([[1, 2], [3, 4]], columns=["x", "y"])
+    df.a = "b"
+    assert df.a == "b"
+    df2 = df.groupby("x").apply(lambda x: x)
+    assert not hasattr(df2, "a")
+    df3 = df.groupby("x").sum()
+    assert not hasattr(df3, "a")
+
+
+@pytest.mark.parametrize(
+    "att, args",
+    [
+        # ("all", []),
+        # ("any", []),
+        # ("count", []),
+        ("first", []),
+        ("last", []),
+        ("max", []),
+        # ("mean", []),
+        # ("median", []),
+        ("min", []),
+        ("prod", []),
+        # ("sem", []),
+        # ("size", []),
+        # ("std", []),
+        ("sum", []),
+        # ("var", []),
+        # ("apply", [lambda x: x]),
+        # ("apply", [np.max])
+        # ("apply", [np.min])
+        # ("apply", [np.nanmean]),
+        ("agg", ["first"]),
+        ("agg", ["max"]),
+        # ("agg", ["mean"]),
+        ("agg", ["min"]),
+        ("agg", ["sum"]),
+        # ("agg", [{"y": "min"}]),
+        # ("agg", [{"x": "min", "y": "max"}]),
+    ],
+)
+def test_groupby_retains_subclass_attribute(att, args):
+    """Checks on metadata propagation for subclassed DataFrames under groupby operations.
+
+    Commented-out parameter combinations fail with pandas==1.1.5
+    The relevant issue has to do with calling finalize after operations:
+    see https://github.com/pandas-dev/pandas/issues/28283
+    """
+
+    METADATA = ["a"]
+
+    class SubclassedSeries(pd.Series):
+
+        _metadata = METADATA
+
+        @property
+        def _constructor(self):
+            return SubclassedSeries
+
+        @property
+        def _constructor_expanddim(self):
+            return SubclassedDataFrame
+
+    class SubclassedDataFrame(pd.DataFrame):
+
+        _metadata = METADATA
+
+        @property
+        def _constructor(self):
+            return SubclassedDataFrame
+
+        @property
+        def _constructor_sliced(self):
+            return SubclassedSeries
+
+    df = SubclassedDataFrame([[1, 2], [3, 4]], columns=["x", "y"])
+    df.a = "b"
+    assert df.a == "b"
+    df2 = getattr(df.groupby("x"), att)(*args)
+    print(df2)
+    assert df2.a == "b"
+
+
+@pytest.mark.parametrize("constant", [1, -1, 3.14, timedelta(hours=1), ["TiledString"]])
+def test_multiplication_with_constant_retains_metadata(constant):
+    """ Check whether the metadata is still there after multiplication. """
+    # GH 35
+    df = example_df * constant
+    assert_metadata_is_retained(df, original_df=example_df)
+
+    # Also check suggested workarounds from GH 35
+    if constant == -1:
+        df = -example_df
+        assert_metadata_is_retained(df, original_df=example_df)
+
+        df = example_df.abs()
+        assert_metadata_is_retained(df, original_df=example_df)
