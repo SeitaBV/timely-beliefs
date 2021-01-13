@@ -445,10 +445,13 @@ def set_reference(
     if return_expected_value is True:
         reference_df = reference_df.for_each_belief(get_expected_belief)
 
+    belief_timing_col = (
+        "belief_time" if "belief_time" in reference_df.index.names else "belief_horizon"
+    )
     reference_df = reference_df.droplevel(
-        ["event_start", "belief_time", "cumulative_probability"]
+        ["event_start", belief_timing_col, "cumulative_probability"]
         if return_expected_value is True
-        else ["event_start", "belief_time"]
+        else ["event_start", belief_timing_col]
     ).rename(columns={"event_value": "reference_value"})
 
     # Set the reference values for each belief
