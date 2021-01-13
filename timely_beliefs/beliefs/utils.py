@@ -20,27 +20,25 @@ from timely_beliefs.sources import utils as source_utils
 def select_most_recent_belief(
     df: "classes.BeliefsDataFrame",
 ) -> "classes.BeliefsDataFrame":
-    """Drop all but most recent non-NaN belief."""
+    """Drop all but most recent (non-NaN) belief."""
+
+    # Drop NaN beliefs before selecting the most recent
+    df = df.for_each_belief(
+        lambda x: x.dropna() if x.isnull().all()["event_value"] else x
+    )
+
     if "belief_horizon" in df.index.names:
-        return (
-            df.dropna(axis=0)
-            .groupby(level=["event_start", "source"], group_keys=False)
-            .apply(
-                lambda x: x.xs(
-                    min(x.lineage.belief_horizons),
-                    level="belief_horizon",
-                    drop_level=False,
-                )
+        return df.groupby(level=["event_start", "source"], group_keys=False).apply(
+            lambda x: x.xs(
+                min(x.lineage.belief_horizons),
+                level="belief_horizon",
+                drop_level=False,
             )
         )
     elif "belief_time" in df.index.names:
-        return (
-            df.dropna(axis=0)
-            .groupby(level=["event_start", "source"], group_keys=False)
-            .apply(
-                lambda x: x.xs(
-                    max(x.lineage.belief_times), level="belief_time", drop_level=False
-                )
+        return df.groupby(level=["event_start", "source"], group_keys=False).apply(
+            lambda x: x.xs(
+                max(x.lineage.belief_times), level="belief_time", drop_level=False
             )
         )
     else:
