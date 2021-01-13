@@ -20,11 +20,19 @@ from timely_beliefs.sources import utils as source_utils
 def select_most_recent_belief(
     df: "classes.BeliefsDataFrame",
 ) -> "classes.BeliefsDataFrame":
-    """Drop all but most recent belief."""
+    """Drop all but most recent (non-NaN) belief."""
+
+    # Drop NaN beliefs before selecting the most recent
+    df = df.for_each_belief(
+        lambda x: x.dropna() if x.isnull().all()["event_value"] else x
+    )
+
     if "belief_horizon" in df.index.names:
         return df.groupby(level=["event_start", "source"], group_keys=False).apply(
             lambda x: x.xs(
-                min(x.lineage.belief_horizons), level="belief_horizon", drop_level=False
+                min(x.lineage.belief_horizons),
+                level="belief_horizon",
+                drop_level=False,
             )
         )
     elif "belief_time" in df.index.names:
@@ -445,10 +453,13 @@ def set_reference(
     if return_expected_value is True:
         reference_df = reference_df.for_each_belief(get_expected_belief)
 
+    belief_timing_col = (
+        "belief_time" if "belief_time" in reference_df.index.names else "belief_horizon"
+    )
     reference_df = reference_df.droplevel(
-        ["event_start", "belief_time", "cumulative_probability"]
+        ["event_start", belief_timing_col, "cumulative_probability"]
         if return_expected_value is True
-        else ["event_start", "belief_time"]
+        else ["event_start", belief_timing_col]
     ).rename(columns={"event_value": "reference_value"})
 
     # Set the reference values for each belief

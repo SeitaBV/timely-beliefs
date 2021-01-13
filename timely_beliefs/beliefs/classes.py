@@ -706,7 +706,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(
-            self.event_starts.to_series(name="knowledge_time", keep_tz=True).apply(
+            self.event_starts.to_series(name="knowledge_time").apply(
                 lambda event_start: self.sensor.knowledge_time(
                     event_start, self.event_resolution
                 )
@@ -716,7 +716,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def knowledge_horizons(self) -> pd.TimedeltaIndex:
         return pd.TimedeltaIndex(
-            self.event_starts.to_series(name="knowledge_horizon", keep_tz=True).apply(
+            self.event_starts.to_series(name="knowledge_horizon").apply(
                 lambda event_start: self.sensor.knowledge_horizon(
                     event_start, self.event_resolution
                 )
@@ -744,7 +744,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def event_ends(self) -> pd.DatetimeIndex:
         return pd.DatetimeIndex(
-            self.event_starts.to_series(name="event_end", keep_tz=True).apply(
+            self.event_starts.to_series(name="event_end").apply(
                 lambda event_start: event_start + self.event_resolution
             )
         )
@@ -892,7 +892,7 @@ class BeliefsDataFrame(pd.DataFrame):
         >>> # Select the latest beliefs formed from June 1st to June 6th (up to June 6th 0:00 AM)
         >>> df.fixed_viewpoint(belief_time_window=(datetime(2018, 6, 1, tzinfo=utc), datetime(2018, 6, 6, tzinfo=utc)))
 
-        :param belief_time: datetime indicating the belief should be formed at least before this time
+        :param belief_time: datetime indicating the belief should be formed at least before or at this time
         :param belief_time_window: optional tuple specifying a time window within which beliefs should have been formed
         :param update_belief_times: if True, update the belief time of each belief with the given fixed viewpoint
         """
