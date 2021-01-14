@@ -52,7 +52,8 @@ class TimedBelief(object):
         self,
         sensor: Sensor,
         source: Union[BeliefSource, str, int],
-        value: float,
+        event_value: Optional[float] = None,
+        value: Optional[float] = None,
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
@@ -63,7 +64,15 @@ class TimedBelief(object):
     ):
         self.sensor = sensor
         self.source = source_utils.ensure_source_exists(source)
-        self.event_value = value
+        if event_value is None and value is None:
+            raise ValueError("Missing argument: event_value.")
+        elif event_value is not None:
+            self.event_value = event_value
+        else:
+            # todo: deprecate the 'value' argument in favor of 'event_value'
+            import warnings
+            warnings.warn("Argument 'value' will be replaced by 'event_value'. Replace 'value' with 'event_value' to suppress this warning.", FutureWarning)
+            self.event_value = value
 
         if [cumulative_probability, cp, sigma].count(None) not in (2, 3):
             raise ValueError(
