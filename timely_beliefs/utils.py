@@ -1,10 +1,36 @@
-from datetime import datetime
-from typing import Optional, Sequence
+from datetime import datetime, timedelta
+from typing import Optional, Sequence, Union
 
 import pandas as pd
 
 
+def parse_timedelta_like(
+    td: Union[timedelta, str, pd.Timedelta],
+) -> timedelta:
+    """Parse timedelta like objects as a datetime.timedelta object."""
+    if isinstance(td, str):
+        td = pd.Timedelta(td)
+    if isinstance(td, pd.Timedelta):
+        td = td.to_pytimedelta()
+    return td
+
+
+def parse_datetime_like(
+    dt: Union[datetime, str, pd.Timestamp], name: Optional[str]
+) -> datetime:
+    """Parse datetime like objects as a datetime.datetime object."""
+    if isinstance(dt, str):
+        dt = pd.Timestamp(dt)
+    if isinstance(dt, pd.Timestamp):
+        dt = dt.to_pydatetime()
+    return enforce_tz(dt, name)
+
+
 def enforce_tz(dt: datetime, name: Optional[str]) -> datetime:
+    if not hasattr(dt, "tzinfo"):
+        raise TypeError(
+            f"The timely-beliefs package works with timezone-aware datetimes. Please use a localized {name if name else 'datetime'} {dt}."
+        )
     if dt.tzinfo is None:
         raise TypeError(
             f"The timely-beliefs package does not work with timezone-naive datetimes. Please localize your {name if name else 'datetime'} {dt}."

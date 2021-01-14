@@ -23,6 +23,8 @@ from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 from timely_beliefs.visualization import utils as visualization_utils
 
 METADATA = ["sensor", "event_resolution"]
+DatetimeLike = Union[datetime, str, pd.Timestamp]
+TimedeltaLike = Union[timedelta, str, pd.Timedelta]
 
 
 class TimedBelief(object):
@@ -57,10 +59,10 @@ class TimedBelief(object):
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
-        event_start: Optional[datetime] = None,
-        event_time: Optional[datetime] = None,
-        belief_horizon: Optional[timedelta] = None,
-        belief_time: Optional[datetime] = None,
+        event_start: Optional[DatetimeLike] = None,
+        event_time: Optional[DatetimeLike] = None,
+        belief_horizon: Optional[TimedeltaLike] = None,
+        belief_time: Optional[DatetimeLike] = None,
     ):
         self.sensor = sensor
         self.source = source_utils.ensure_source_exists(source)
@@ -90,21 +92,21 @@ class TimedBelief(object):
         if [event_start, event_time].count(None) != 1:
             raise ValueError("Must specify either an event_start or an event_time.")
         elif event_start is not None:
-            self.event_start = tb_utils.enforce_tz(event_start, "event_start")
+            self.event_start = tb_utils.parse_datetime_like(event_start, "event_start")
         elif event_time is not None:
             if self.sensor.event_resolution != timedelta():
                 raise KeyError(
                     "Sensor has a non-zero resolution, so it doesn't measure instantaneous events. "
                     "Use event_start instead of event_time."
                 )
-            self.event_start = tb_utils.enforce_tz(event_time, "event_time")
+            self.event_start = tb_utils.parse_datetime_like(event_time, "event_time")
 
         if [belief_horizon, belief_time].count(None) != 1:
             raise ValueError("Must specify either a belief_horizon or a belief_time.")
         elif belief_horizon is not None:
-            self.belief_horizon = belief_horizon
+            self.belief_horizon = tb_utils.parse_timedelta_like(belief_horizon)
         elif belief_time is not None:
-            belief_time = tb_utils.enforce_tz(belief_time, "belief_time")
+            belief_time = tb_utils.parse_datetime_like(belief_time, "belief_time")
             self.belief_horizon = (
                 self.sensor.knowledge_time(self.event_start, self.event_resolution)
                 - belief_time
@@ -193,10 +195,10 @@ class TimedBeliefDBMixin(TimedBelief):
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
-        event_start: Optional[datetime] = None,
-        event_time: Optional[datetime] = None,
-        belief_horizon: Optional[timedelta] = None,
-        belief_time: Optional[datetime] = None,
+        event_start: Optional[DatetimeLike] = None,
+        event_time: Optional[DatetimeLike] = None,
+        belief_horizon: Optional[TimedeltaLike] = None,
+        belief_time: Optional[DatetimeLike] = None,
     ):
         self.sensor_id = sensor.id
         self.source_id = source.id
@@ -240,13 +242,15 @@ class TimedBeliefDBMixin(TimedBelief):
 
         # Check for timezone-aware datetime input
         if event_before is not None:
-            event_before = tb_utils.enforce_tz(event_before, "event_before")
+            event_before = tb_utils.parse_datetime_like(event_before, "event_before")
         if event_not_before is not None:
-            event_not_before = tb_utils.enforce_tz(event_not_before, "event_not_before")
+            event_not_before = tb_utils.parse_datetime_like(
+                event_not_before, "event_not_before"
+            )
         if belief_before is not None:
-            belief_before = tb_utils.enforce_tz(belief_before, "belief_before")
+            belief_before = tb_utils.parse_datetime_like(belief_before, "belief_before")
         if belief_not_before is not None:
-            belief_not_before = tb_utils.enforce_tz(
+            belief_not_before = tb_utils.parse_datetime_like(
                 belief_not_before, "belief_not_before"
             )
 
@@ -355,10 +359,10 @@ class DBTimedBelief(Base, TimedBeliefDBMixin):
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
-        event_start: Optional[datetime] = None,
-        event_time: Optional[datetime] = None,
-        belief_horizon: Optional[timedelta] = None,
-        belief_time: Optional[datetime] = None,
+        event_start: Optional[DatetimeLike] = None,
+        event_time: Optional[DatetimeLike] = None,
+        belief_horizon: Optional[TimedeltaLike] = None,
+        belief_time: Optional[DatetimeLike] = None,
     ):
         TimedBeliefDBMixin.__init__(
             self,
@@ -495,13 +499,13 @@ class BeliefsDataFrame(pd.DataFrame):
 
         # Obtain parameters that are specific to our DataFrame subclass
         sensor: Sensor = kwargs.pop("sensor", None)
-        event_resolution: timedelta = kwargs.pop("event_resolution", None)
+        event_resolution: TimedeltaLike = kwargs.pop("event_resolution", None)
         source: Union[BeliefSource, str, int] = kwargs.pop("source", None)
         source: BeliefSource = source_utils.ensure_source_exists(
             source, allow_none=True
         )
-        event_start: datetime = kwargs.pop("event_start", None)
-        belief_time: datetime = kwargs.pop("belief_time", None)
+        event_start: DatetimeLike = kwargs.pop("event_start", None)
+        belief_time: DatetimeLike = kwargs.pop("belief_time", None)
         belief_horizon: datetime = kwargs.pop("belief_horizon", None)
         cumulative_probability: float = kwargs.pop("cumulative_probability", None)
         beliefs: List[TimedBelief] = kwargs.pop("beliefs", None)
@@ -606,7 +610,7 @@ class BeliefsDataFrame(pd.DataFrame):
                         source_utils.ensure_source_exists
                     )
                 if event_start is not None:
-                    self["event_start"] = tb_utils.enforce_tz(
+                    self["event_start"] = tb_utils.parse_datetime_like(
                         event_start, "event_start"
                     )
                 elif "event_start" not in self and "event_end" not in self:
@@ -615,10 +619,10 @@ class BeliefsDataFrame(pd.DataFrame):
                     )
                 else:
                     self["event_start"] = self["event_start"].apply(
-                        lambda x: tb_utils.enforce_tz(pd.to_datetime(x), "event_start")
+                        lambda x: tb_utils.parse_datetime_like(x, "event_start")
                     )
                 if belief_time is not None:
-                    self["belief_time"] = tb_utils.enforce_tz(
+                    self["belief_time"] = tb_utils.parse_datetime_like(
                         belief_time, "belief_time"
                     )
                 elif belief_horizon is not None:
@@ -629,7 +633,7 @@ class BeliefsDataFrame(pd.DataFrame):
                     )
                 elif "belief_time" in self:
                     self["belief_time"] = self["belief_time"].apply(
-                        lambda x: tb_utils.enforce_tz(pd.to_datetime(x), "belief_time")
+                        lambda x: tb_utils.parse_datetime_like(x, "belief_time")
                     )
                 elif not pd.api.types.is_timedelta64_dtype(
                     self["belief_horizon"]
@@ -665,7 +669,9 @@ class BeliefsDataFrame(pd.DataFrame):
                     ]
                 self.set_index(indices, inplace=True)
 
-        assign_sensor_and_event_resolution(self, sensor, event_resolution)
+        assign_sensor_and_event_resolution(
+            self, sensor, tb_utils.parse_timedelta_like(event_resolution)
+        )
 
     def append_from_time_series(
         self,
@@ -813,12 +819,14 @@ class BeliefsDataFrame(pd.DataFrame):
     @hybrid_method
     def belief_history(
         self,
-        event_start: datetime,
-        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (
+        event_start: DatetimeLike,
+        belief_time_window: Tuple[Optional[DatetimeLike], Optional[DatetimeLike]] = (
             None,
             None,
         ),
-        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+        belief_horizon_window: Tuple[
+            Optional[TimedeltaLike], Optional[TimedeltaLike]
+        ] = (
             None,
             None,
         ),
@@ -848,14 +856,20 @@ class BeliefsDataFrame(pd.DataFrame):
             return self
 
         df = self.xs(
-            tb_utils.enforce_tz(event_start, "event_start"),
+            tb_utils.parse_datetime_like(event_start, "event_start"),
             level="event_start",
             drop_level=False,
         ).sort_index()
         if belief_time_window[0] is not None:
-            df = df[df.index.get_level_values("belief_time") >= belief_time_window[0]]
+            df = df[
+                df.index.get_level_values("belief_time")
+                >= tb_utils.parse_datetime_like(belief_time_window[0], "belief_time")
+            ]
         if belief_time_window[1] is not None:
-            df = df[df.index.get_level_values("belief_time") <= belief_time_window[1]]
+            df = df[
+                df.index.get_level_values("belief_time")
+                <= tb_utils.parse_datetime_like(belief_time_window[1], "belief_time")
+            ]
         if belief_horizon_window != (None, None):
             if belief_time_window != (None, None):
                 raise ValueError(
@@ -865,12 +879,12 @@ class BeliefsDataFrame(pd.DataFrame):
             if belief_horizon_window[0] is not None:
                 df = df[
                     df.index.get_level_values("belief_horizon")
-                    >= belief_horizon_window[0]
+                    >= tb_utils.parse_timedelta_like(belief_horizon_window[0])
                 ]
             if belief_horizon_window[1] is not None:
                 df = df[
                     df.index.get_level_values("belief_horizon")
-                    <= belief_horizon_window[1]
+                    <= tb_utils.parse_timedelta_like(belief_horizon_window[1])
                 ]
             df = df.convert_index_from_belief_horizon_to_time()
         if not keep_event_start:
@@ -880,8 +894,8 @@ class BeliefsDataFrame(pd.DataFrame):
     @hybrid_method
     def fixed_viewpoint(
         self,
-        belief_time: datetime = None,
-        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (
+        belief_time: DatetimeLike = None,
+        belief_time_window: Tuple[Optional[DatetimeLike], Optional[DatetimeLike]] = (
             None,
             None,
         ),
@@ -921,12 +935,12 @@ class BeliefsDataFrame(pd.DataFrame):
         if belief_time_window[0] is not None:
             df = df[
                 df.index.get_level_values("belief_time")
-                >= tb_utils.enforce_tz(belief_time_window[0], "belief_time")
+                >= tb_utils.parse_datetime_like(belief_time_window[0], "belief_time")
             ]
         if belief_time_window[1] is not None:
             df = df[
                 df.index.get_level_values("belief_time")
-                <= tb_utils.enforce_tz(belief_time_window[1], "belief_time")
+                <= tb_utils.parse_datetime_like(belief_time_window[1], "belief_time")
             ]
         df = belief_utils.select_most_recent_belief(df)
         if update_belief_times is True:
@@ -941,8 +955,10 @@ class BeliefsDataFrame(pd.DataFrame):
     @hybrid_method
     def rolling_viewpoint(
         self,
-        belief_horizon: timedelta = None,
-        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+        belief_horizon: TimedeltaLike = None,
+        belief_horizon_window: Tuple[
+            Optional[TimedeltaLike], Optional[TimedeltaLike]
+        ] = (
             None,
             None,
         ),
@@ -983,18 +999,20 @@ class BeliefsDataFrame(pd.DataFrame):
             df = df.convert_index_from_belief_time_to_horizon()
         if belief_horizon_window[0] is not None:
             df = df[
-                df.index.get_level_values("belief_horizon") >= belief_horizon_window[0]
+                df.index.get_level_values("belief_horizon")
+                >= tb_utils.parse_timedelta_like(belief_horizon_window[0])
             ]
         if belief_horizon_window[1] is not None:
             df = df[
-                df.index.get_level_values("belief_horizon") <= belief_horizon_window[1]
+                df.index.get_level_values("belief_horizon")
+                <= tb_utils.parse_timedelta_like(belief_horizon_window[1])
             ]
         return belief_utils.select_most_recent_belief(df)
 
     @hybrid_method
     def resample_events(
         self,
-        event_resolution: timedelta,
+        event_resolution: TimedeltaLike,
         distribution: Optional[str] = None,
         keep_only_most_recent_belief: bool = False,
     ) -> "BeliefsDataFrame":
@@ -1006,6 +1024,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
         if self.empty:
             return self
+        event_resolution = tb_utils.parse_timedelta_like(event_resolution)
         if event_resolution == self.event_resolution:
             return self
         df = self
