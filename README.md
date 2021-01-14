@@ -16,6 +16,15 @@ The data model is an extended [pandas](https://pandas.pydata.org/) DataFrame tha
 - [When the data was created](timely_beliefs/docs/timing.md/#beliefs-in-physics)
 - [How certain they were](timely_beliefs/docs/confidence.md)
 
+Getting started (or try one of the [other ways to create a BeliefsDataFrame](timely_beliefs/docs/init.md)):
+
+    >>> import timely_beliefs as tb
+    >>> bdf = tb.BeliefsDataFrame([tb.Belief(tb.Sensor("Indoor temperature", "°C"), tb.BeliefSource("Thermometer"), 21, event_time="2000-03-05 11:00Z", belief_horizon="0H")])
+    >>> print(bdf)
+                                                                                            event_value
+    event_start               belief_time               source      cumulative_probability             
+    2000-03-05 11:00:00+00:00 2000-03-05 11:00:00+00:00 Thermometer 0.5                              21
+
 The package contains the following functionality:
 
 - [A model for time series data](#the-data-model), suitable for a notebook or a [database-backed](#database-storage) program (using [sqlalchemy](https://sqlalche.me))
@@ -89,6 +98,7 @@ _For a future release we are considering adding the sensor as another index leve
 to offer out-of-the-box support for aggregating over multiple sensors._
 
 
+- [Read more about how to create a BeliefsDataFrame.](timely_beliefs/docs/init.md)
 - [Read more about how the DataFrame is keeping track of time.](timely_beliefs/docs/timing.md)
 - [Read more about how the DataFrame is keeping track of confidence.](timely_beliefs/docs/confidence.md)
 - [Discover convenient slicing methods (e.g. to show a rolling horizon forecast).](timely_beliefs/docs/slicing.md)

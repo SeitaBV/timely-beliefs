@@ -7,6 +7,7 @@ from timely_beliefs.sources.classes import (  # isort:skip
     DBBeliefSource,
 )
 from timely_beliefs.beliefs.classes import (
+    Belief,
     BeliefsDataFrame,
     BeliefsSeries,
     DBTimedBelief,

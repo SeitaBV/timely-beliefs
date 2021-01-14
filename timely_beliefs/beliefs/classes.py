@@ -432,8 +432,7 @@ class BeliefsDataFrame(pd.DataFrame):
         Method 2:   pass a pandas DataFrame with columns ["event_start", "belief_time", "source", "event_value"]
                     - Optional column: "cumulative_probability" (the default is 0.5)
                     - Alternatively, use keyword arguments to replace columns containing unique values for each belief
-        Method 3:   pass a pandas Series with DatetimeIndex and keyword arguments for "source"
-                    - Optional keyword argument: "belief_horizon" (the default is sensor.event_resolution)
+        Method 3:   pass a pandas Series with DatetimeIndex and keyword arguments for "belief_time" or "belief_horizon", and "source"
                     - Alternatively, use the "event_start" keyword argument to ignore the index
 
     In addition to the standard DataFrame constructor arguments,
@@ -1526,3 +1525,6 @@ def downsample_beliefs_data_frame(
         ],
         axis=1,
     ).set_index([belief_timing_col, "source", "cumulative_probability"], append=True)
+
+
+Belief = TimedBelief
