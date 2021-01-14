@@ -73,7 +73,11 @@ class TimedBelief(object):
         else:
             # todo: deprecate the 'value' argument in favor of 'event_value'
             import warnings
-            warnings.warn("Argument 'value' will be replaced by 'event_value'. Replace 'value' with 'event_value' to suppress this warning.", FutureWarning)
+
+            warnings.warn(
+                "Argument 'value' will be replaced by 'event_value'. Replace 'value' with 'event_value' to suppress this warning.",
+                FutureWarning,
+            )
             self.event_value = value
 
         if [cumulative_probability, cp, sigma].count(None) not in (2, 3):
