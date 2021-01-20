@@ -64,7 +64,7 @@ A ridgeline plot of a belief history (e.g. of temperature forecasts) can be crea
         )
     >>> chart.serve()
 
-![Ridgeline fixed viewpoint](timely_beliefs/docs/fixed_viewpoint_ridgeline.png "Fixed viewpoint")
+![Ridgeline fixed viewpoint](fixed_viewpoint_ridgeline.png "Fixed viewpoint")
 
 ### Fixed viewpoint
 
@@ -80,7 +80,7 @@ A ridgeline plot of beliefs (e.g. temperature forecasts) with a fixed viewpoint 
         )
     >>> chart.serve()
     
-![Ridgeline belief history](timely_beliefs/docs/belief_history_ridgeline.png "Belief history")
+![Ridgeline belief history](belief_history_ridgeline.png "Belief history")
 
 ## References
 
