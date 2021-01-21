@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
 
+import pandas as pd
 import pytest
 from pytz import utc
 
-from timely_beliefs import BeliefSource, Sensor, TimedBelief
+from timely_beliefs import BeliefSource, Sensor, TimedBelief, utils
 
 
 @pytest.fixture(scope="function")
@@ -87,3 +88,30 @@ def test_day_ahead_belief_about_ex_post_time_slot_event(
     ) - day_ahead_belief_about_ex_post_time_slot_event.sensor.knowledge_horizon(
         day_ahead_belief_about_ex_post_time_slot_event.event_start
     )
+
+
+@pytest.mark.parametrize(
+    "dt, ErrorType, match",
+    [
+        ("someday", ValueError, "not parse"),
+        ("2003-01-05", TypeError, "timezone-naive"),
+        (pd.Timestamp("2003-01-05").to_datetime64(), TypeError, "timezone-naive"),
+    ],
+)
+def test_datetime_parsing(dt, ErrorType, match):
+    with pytest.raises(ErrorType, match=match):
+        utils.parse_datetime_like(dt)
+
+
+@pytest.mark.parametrize(
+    "td, ErrorType, match",
+    [
+        ("a while", ValueError, "not parse"),
+        ("1M", ValueError, "not parse"),
+        ("1Y", ValueError, "not parse"),
+        ("1y", ValueError, "not parse"),
+    ],
+)
+def test_timedelta_parsing(td, ErrorType, match):
+    with pytest.raises(ErrorType, match=match):
+        utils.parse_timedelta_like(td)

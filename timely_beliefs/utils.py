@@ -1,39 +1,70 @@
 from datetime import datetime, timedelta
 from typing import Optional, Sequence, Union
+import warnings
 
 import pandas as pd
 
 
 def parse_timedelta_like(
     td: Union[timedelta, str, pd.Timedelta],
+    variable_name: Optional[str] = None,
 ) -> timedelta:
-    """Parse timedelta like objects as a datetime.timedelta object."""
-    if isinstance(td, str):
-        td = pd.Timedelta(td)
-    if isinstance(td, pd.Timedelta):
-        td = td.to_pytimedelta()
+    """Parse timedelta like objects as a datetime.timedelta object.
+
+    The interpretation of M (month), Y and y (year) units as a timedelta is ambiguous (e.g. td="1Y").
+    For these cases, Pandas (since 0.25) gives a FutureWarning, warning that support for these units will be removed.
+    This function throws a ValueError in case Pandas gives a FutureWarning.
+    https://pandas.pydata.org/docs/whatsnew/v0.25.0.html#deprecations
+
+    :param td: timedelta-like object
+    :param variable_name: used to give a better error message in case the variable failed to parse
+    :return: timedelta
+    """
+    try:
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("error")
+            if isinstance(td, str):
+                td = pd.Timedelta(td)
+            if isinstance(td, pd.Timedelta):
+                td = td.to_pytimedelta()
+    except (ValueError, FutureWarning) as e:
+        raise ValueError(
+            f"Could not parse {variable_name if variable_name else 'timedelta'} {td}, because {e}"
+        )
     return td
 
 
 def parse_datetime_like(
-    dt: Union[datetime, str, pd.Timestamp], name: Optional[str]
+    dt: Union[datetime, str, pd.Timestamp], variable_name: Optional[str] = None
 ) -> datetime:
-    """Parse datetime like objects as a datetime.datetime object."""
-    if isinstance(dt, str):
-        dt = pd.Timestamp(dt)
-    if isinstance(dt, pd.Timestamp):
-        dt = dt.to_pydatetime()
-    return enforce_tz(dt, name)
+    """Parse datetime-like objects as a datetime.datetime object.
 
-
-def enforce_tz(dt: datetime, name: Optional[str]) -> datetime:
-    if not hasattr(dt, "tzinfo"):
-        raise TypeError(
-            f"The timely-beliefs package works with timezone-aware datetimes. Please use a localized {name if name else 'datetime'} {dt}."
+    :param dt: datetime-like object
+    :param variable_name: used to give a better error message in case the variable failed to parse
+    :return: timezone-aware datetime
+    """
+    try:
+        if isinstance(dt, str):
+            dt = pd.Timestamp(dt)
+        if isinstance(dt, pd.Timestamp):
+            dt = dt.to_pydatetime()
+    except ValueError as e:
+        raise ValueError(
+            f"Could not parse {variable_name if variable_name else 'datetime'} {dt}, because {e}"
         )
-    if dt.tzinfo is None:
+    return enforce_tz(dt, variable_name)
+
+
+def enforce_tz(dt: datetime, variable_name: Optional[str] = None) -> datetime:
+    """Raise exception in case of a timezone-naive datetime.
+
+    :param dt: datetime
+    :param variable_name: used to give a better error message in case the variable contained a timezone-naive datetime
+    :return: timezone-aware datetime
+    """
+    if not hasattr(dt, "tzinfo") or dt.tzinfo is None:
         raise TypeError(
-            f"The timely-beliefs package does not work with timezone-naive datetimes. Please localize your {name if name else 'datetime'} {dt}."
+            f"The timely-beliefs package does not work with timezone-naive datetimes. Please localize your {variable_name if variable_name else 'datetime'} {dt}."
         )
     return dt
 
