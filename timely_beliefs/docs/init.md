@@ -16,18 +16,21 @@ Each belief requires a `Sensor` and a `BeliefSource`. For example:
     >>> sensor = tb.Sensor("EPEX SPOT day-ahead price", event_resolution=timedelta(hours=1), unit="EUR/MWh")
     >>> source = tb.BeliefSource("EPEX")
 
-When creating a `BeliefsDataFrame`, a sensor always needs to be passes.
+When creating a `BeliefsDataFrame`, a sensor always needs to be passed.
+A `BeliefsDataFrame` can only refer to a single sensor.
 A source can be passed once for the entire frame, or per belief.
 
 ## From a Pandas Series
 
-Create a BeliefsDataFrame from a conventional time series (Pandas Series with DatetimeIndex) together with keyword arguments.
+Create a BeliefsDataFrame from a conventional time series (a Pandas Series with a DatetimeIndex) together with keyword arguments.
 
 Required arguments:
 
-- either `belief_time` or `belief_horizon`
-- `source` (only a single source can be provided)
-- `sensor`
+- either:
+  - `belief_time` (one moment at which all beliefs were formed), or
+  - `belief_horizon` (each belief was formed the same duration before or after)
+- `source` (one source for all beliefs)
+- `sensor` (one sensor to which all beliefs refer)
 
 
     >>> import pandas as pd
@@ -51,7 +54,7 @@ Pass a Pandas DataFrame with columns ["event_start", "belief_time", "source", "c
     2000-01-03 09:00:00+00:00 0 days         EPEX   0.5                              63
     2000-01-03 10:00:00+00:00 0 days         EPEX   0.5                              60
 
-Alternatively, keyword arguments can be used to replace columns that contain unique values for each belief.
+Alternatively, a keyword argument can be used to replace a column that contains the same value for each belief.
 
     >>> df = pd.DataFrame([[63, datetime(2000, 1, 3, 9, tzinfo=pytz.utc)], [60, datetime(2000, 1, 3, 10, tzinfo=pytz.utc)]], columns=["event_value", "event_start"])
     >>> bdf = tb.BeliefsDataFrame(df, belief_horizon=timedelta(hours=0), source=source, sensor=sensor)
@@ -63,8 +66,17 @@ Alternatively, keyword arguments can be used to replace columns that contain uni
 
 ## From a CSV file
 
-The utility function `tb.read_csv` lets you load a BeliefsDataFrame from a csv file (e.g. example/temperature.csv).
+The utility function `tb.read_csv` lets you load a BeliefsDataFrame from a csv file.
 You still need to set the source and sensor for the BeliefsDataFrame; the csv file only contains their names.
+
+An example, adapted from `timely_beliefs/example/__init__.py`:
+
+    temperature_df = tb.read_csv(
+        "temperature.csv",
+        sensor=tb.Sensor("Thermometer A", unit="°C", event_resolution=timedelta(hours=1)),
+        source=tb.BeliefSource("Source X"),
+    )
+
 In case the csv file contains multiple source names, you can pass a list of sources.
 Each source name will then be replaced by the actual `Source` object from the list you provided.
 To write a BeliefsDataFrame to a csv file, just use the pandas way:
@@ -75,8 +87,6 @@ To write a BeliefsDataFrame to a csv file, just use the pandas way:
 ## From a list of TimedBeliefs
 
 Create a list of `TimedBelief` or `DBTimedBelief` objects and use it to initialize a BeliefsDataFrame.
-
-_This method is meant for applications with a database._
 
     >>> from datetime import datetime, timedelta
     >>> import pytz
