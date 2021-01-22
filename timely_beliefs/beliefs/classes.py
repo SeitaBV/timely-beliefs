@@ -1529,6 +1529,3 @@ def downsample_beliefs_data_frame(
         ],
         axis=1,
     ).set_index([belief_timing_col, "source", "cumulative_probability"], append=True)
-
-
-Belief = TimedBelief
