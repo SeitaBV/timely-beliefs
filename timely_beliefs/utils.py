@@ -27,7 +27,7 @@ def parse_timedelta_like(
                 td = pd.Timedelta(td)
             if isinstance(td, pd.Timedelta):
                 td = td.to_pytimedelta()
-    except (ValueError, TypeError, DeprecationWarning, FutureWarning) as e:
+    except (ValueError, FutureWarning) as e:
         raise ValueError(
             f"Could not parse {variable_name if variable_name else 'timedelta'} {td}, because {e}"
         )
