@@ -1,4 +1,5 @@
 from datetime import timedelta
+import sys
 
 import pytest
 
@@ -8,6 +9,11 @@ from timely_beliefs.sensors.func_store.knowledge_horizons import (
     determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
 )
 from timely_beliefs.tests import engine, session
+
+
+if sys.version_info[0] == 3 and sys.version_info[1] == 6:
+    # Ignore these tests for python==3.6
+    collect_ignore = ["test_ignore_36.py"]
 
 
 @pytest.fixture(scope="function")
