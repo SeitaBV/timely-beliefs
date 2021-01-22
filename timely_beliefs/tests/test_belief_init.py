@@ -107,9 +107,6 @@ def test_datetime_parsing(dt, ErrorType, match):
     "td, ErrorType, match",
     [
         ("a while", ValueError, "not parse"),
-        ("1M", ValueError, "not parse"),
-        ("1Y", ValueError, "not parse"),
-        ("1y", ValueError, "not parse"),
     ],
 )
 def test_timedelta_parsing(td, ErrorType, match):
