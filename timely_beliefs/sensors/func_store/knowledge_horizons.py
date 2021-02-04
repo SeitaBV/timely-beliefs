@@ -90,3 +90,12 @@ def determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock(
             timedelta(days=x + 1, hours=-y + 2),
         )  # The 2's account for possible hour differences for double daylight saving time w.r.t. standard time
     return event_start - datetime_x_days_ago_at_y_oclock(event_start, x, y, z)
+
+
+# Define some shorthands
+shorthands = {
+    "AT_DATE": determine_knowledge_horizon_for_fixed_knowledge_time,
+    "EX_POST": determine_ex_post_knowledge_horizon,
+    "EX_ANTE": determine_ex_ante_knowledge_horizon,
+    "EX_ANTE_X_DAYS_AT_Y_OCLOCK": determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
+}
