@@ -110,8 +110,20 @@ class SensorDBMixin(Sensor):
     unit = Column(String(80), nullable=False, default="")
     timezone = Column(String(80), nullable=False, default="UTC")
     event_resolution = Column(Interval(), nullable=False, default=timedelta(hours=0))
-    knowledge_horizon_fnc = Column(String(80), nullable=False)
-    knowledge_horizon_par = Column(JSON(), default={}, nullable=False)
+    knowledge_horizon_fnc = Column(
+        String(80), nullable=False, default=determine_ex_post_knowledge_horizon.__name__
+    )
+    knowledge_horizon_par = Column(
+        JSON(),
+        nullable=False,
+        default=jsonify_time_dict(
+            {
+                determine_ex_post_knowledge_horizon.__code__.co_varnames[1]: timedelta(
+                    hours=0
+                )
+            }
+        ),
+    )
 
     def __init__(
         self,
