@@ -68,7 +68,7 @@ def unjsonify_time_dict(d: dict) -> dict:
     return d2
 
 
-def func_store_list() -> dict:
+def get_func_store() -> dict:
     """Returns a dictionary with function names (incl. shorthands) and Callable objects supported in our function store."""
     functions_dict = {
         o[0]: o[1] for o in getmembers(knowledge_horizons) if isfunction(o[1])
@@ -88,7 +88,7 @@ def eval_verified_knowledge_horizon_fnc(
     Only function names that represent Callable objects in our function store can be evaluated.
     If get_bounds is True, a tuple is returned with bounds on the possible return value.
     """
-    for verified_fnc_name, verified_fnc in func_store_list().items():
+    for verified_fnc_name, verified_fnc in get_func_store().items():
         if verified_fnc_name == requested_fnc_name:
             if {"event_start", "event_resolution"} < set(
                 getfullargspec(verified_fnc).args
