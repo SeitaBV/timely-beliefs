@@ -69,12 +69,9 @@ def unjsonify_time_dict(d: dict) -> dict:
 
 
 def get_func_store() -> dict:
-    """Returns a dictionary with function names (incl. shorthands) and Callable objects supported in our function store."""
-    functions_dict = {
-        o[0]: o[1] for o in getmembers(knowledge_horizons) if isfunction(o[1])
-    }
-    functions_dict = {**functions_dict, **knowledge_horizons.shorthands}
-    return functions_dict
+    """Returns a dictionary with Callable objects supported in our function store,
+    indexed by their function names."""
+    return {o[0]: o[1] for o in getmembers(knowledge_horizons) if isfunction(o[1])}
 
 
 def eval_verified_knowledge_horizon_fnc(

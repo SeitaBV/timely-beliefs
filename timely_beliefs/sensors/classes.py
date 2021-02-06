@@ -47,18 +47,14 @@ class Sensor(object):
         self.event_resolution = event_resolution
         if knowledge_horizon is None:
             # Set an appropriate knowledge horizon for physical sensors, representing ex-post knowledge time.
-            self.knowledge_horizon_fnc = "EX_POST"
+            self.knowledge_horizon_fnc = knowledge_horizons.ex_post.__name__
             knowledge_horizon_par = {
-                knowledge_horizons.shorthands["EX_POST"].__code__.co_varnames[
-                    1
-                ]: timedelta(hours=0)
+                knowledge_horizons.ex_post.__code__.co_varnames[1]: timedelta(hours=0)
             }
         elif isinstance(knowledge_horizon, timedelta):
-            self.knowledge_horizon_fnc = "EX_ANTE"
+            self.knowledge_horizon_fnc = knowledge_horizons.ex_ante.__name__
             knowledge_horizon_par = {
-                knowledge_horizons.shorthands["EX_ANTE"].__code__.co_varnames[
-                    0
-                ]: knowledge_horizon
+                knowledge_horizons.ex_ante.__code__.co_varnames[0]: knowledge_horizon
             }
         elif isinstance(knowledge_horizon, Tuple):
             self.knowledge_horizon_fnc = knowledge_horizon[0].__name__
@@ -107,16 +103,14 @@ class SensorDBMixin(Sensor):
     unit = Column(String(80), nullable=False, default="")
     timezone = Column(String(80), nullable=False, default="UTC")
     event_resolution = Column(Interval(), nullable=False, default=timedelta(hours=0))
-    knowledge_horizon_fnc = Column(String(80), nullable=False, default="EX_POST")
+    knowledge_horizon_fnc = Column(
+        String(80), nullable=False, default=knowledge_horizons.ex_post.__name__
+    )
     knowledge_horizon_par = Column(
         JSON(),
         nullable=False,
         default=jsonify_time_dict(
-            {
-                knowledge_horizons.shorthands["EX_POST"].__code__.co_varnames[
-                    1
-                ]: timedelta(hours=0)
-            }
+            {knowledge_horizons.ex_post.__code__.co_varnames[1]: timedelta(hours=0)}
         ),
     )
 
