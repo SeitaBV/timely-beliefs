@@ -1,7 +1,5 @@
-from typing import Union
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
-from datetime import timedelta
 from typing import Optional, Union
 
 import numpy as np

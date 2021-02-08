@@ -4,6 +4,8 @@ import warnings
 
 import pandas as pd
 
+from timely_beliefs.beliefs import classes  # noqa: F401
+
 
 def parse_timedelta_like(
     td: Union[timedelta, str, pd.Timedelta],
