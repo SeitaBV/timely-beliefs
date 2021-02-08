@@ -29,12 +29,22 @@ def select_most_recent_belief(
 
     if "belief_horizon" in df.index.names:
         df = df.reset_index()
-        df = df.loc[df["belief_horizon"] == df.groupby(["event_start", "source"])["belief_horizon"].transform(min)]
-        return df.set_index(["event_start", "belief_horizon", "source", "cumulative_probability"])
+        df = df.loc[
+            df["belief_horizon"]
+            == df.groupby(["event_start", "source"])["belief_horizon"].transform(min)
+        ]
+        return df.set_index(
+            ["event_start", "belief_horizon", "source", "cumulative_probability"]
+        )
     elif "belief_time" in df.index.names:
         df = df.reset_index()
-        df = df.loc[df["belief_time"] == df.groupby(["event_start", "source"])["belief_time"].transform(max)]
-        return df.set_index(["event_start", "belief_time", "source", "cumulative_probability"])
+        df = df.loc[
+            df["belief_time"]
+            == df.groupby(["event_start", "source"])["belief_time"].transform(max)
+        ]
+        return df.set_index(
+            ["event_start", "belief_time", "source", "cumulative_probability"]
+        )
     else:
         raise KeyError(
             "No belief_horizon or belief_time index level found in DataFrame."

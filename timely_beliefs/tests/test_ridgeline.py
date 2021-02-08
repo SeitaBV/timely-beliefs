@@ -30,7 +30,7 @@ def test_ridgeline_example():
     [
         pytest.param("normal", {}),
         pytest.param("gmm", {"standard_deviation": 0.1}),
-    ]
+    ],
 )
 def test_ridgeline_temperature(distribution, distribution_params):
     df = temperature_df

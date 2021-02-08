@@ -81,16 +81,34 @@ def interpolate_cdf(
     if callable(method):
         f = method(v, cp)
     elif method in ("step", "discrete"):
-        f = interpolate.interp1d(v, cp, kind='previous', bounds_error=False, fill_value=np.nan, assume_sorted=True)
+        f = interpolate.interp1d(
+            v,
+            cp,
+            kind="previous",
+            bounds_error=False,
+            fill_value=np.nan,
+            assume_sorted=True,
+        )
     elif method in ("linear", "uniform"):
-        f = interpolate.interp1d(v, cp, kind='linear', bounds_error=False, fill_value=np.nan, assume_sorted=True)
+        f = interpolate.interp1d(
+            v,
+            cp,
+            kind="linear",
+            bounds_error=False,
+            fill_value=np.nan,
+            assume_sorted=True,
+        )
     elif method == "pchip":
 
         # Handle possible duplicate values v (pchip is not suitable for jumps in the cdf)
         v, indices = np.unique(v, return_inverse=True)
         if indices[-1] + 1 != len(cp):
-            print("Warning: CDF describes discrete jumps in probability. PCHIP interpolation assumes the upper cumulative probability at these jumps.")
-        cp = np.array(list(cp[np.max(np.where(indices == i))] for i in range(indices[-1] + 1)))
+            print(
+                "Warning: CDF describes discrete jumps in probability. PCHIP interpolation assumes the upper cumulative probability at these jumps."
+            )
+        cp = np.array(
+            list(cp[np.max(np.where(indices == i))] for i in range(indices[-1] + 1))
+        )
 
         # We add some logic to force nice starting and final slopes of f(x)
         if cp[0] != 0 and cp[-1] != cp[0]:
@@ -98,7 +116,7 @@ def interpolate_cdf(
             # use the slope between the first and last point to determine x-coordinate of the new point
             a = (cp[-1] - cp[0]) / (v[-1] - v[0])
             b = cp[0] - a * v[0]
-            v0 = - b / a
+            v0 = -b / a
         else:
             # add another point just to the left at cp=0: we'll have a flat starting derivative in cp[0]
             v0 = v[0] - 1
@@ -116,12 +134,14 @@ def interpolate_cdf(
         f = interpolate.PchipInterpolator(
             np.concatenate([[v0], v, [vn]]),
             np.concatenate([[0], cp, [1]]),
-            extrapolate=False
+            extrapolate=False,
         )
     else:
         raise NotImplementedError
     y = np.empty(len(x))  # Start with empty array having the length of x
-    x_mask = (v[0] <= x) * (x <= v[-1])  # Part of the x values that come from interpolating the cdf
+    x_mask = (v[0] <= x) * (
+        x <= v[-1]
+    )  # Part of the x values that come from interpolating the cdf
     y[x_mask] = f(x[x_mask])
 
     if cp[0] != 0 or cp[-1] != 1:
@@ -139,7 +159,9 @@ def interpolate_cdf(
             # Derive derivatives of f at the first and last points
             if hasattr(f, "derivative"):
                 if method == "pchip":
-                    d0 = f.derivative(1)(v[1])  # We ignore v[0] because we added that ourselves to influence the slope
+                    d0 = f.derivative(1)(
+                        v[1]
+                    )  # We ignore v[0] because we added that ourselves to influence the slope
                     dn = f.derivative(1)(v[-2])  # Similarly, we ignore v[-1]
                 else:
                     d0 = f.derivative(1)(v[0])
@@ -152,7 +174,7 @@ def interpolate_cdf(
             else:
                 d0 = 1
             if dn == 0 and cp[-1] != cp[0]:
-                dn = (cp[-1] - cp[0])
+                dn = cp[-1] - cp[0]
             else:
                 dn = 1
             if extrapolate in ("linear", "uniform"):
@@ -160,14 +182,18 @@ def interpolate_cdf(
                 y[x > v[-1]] = np.clip(cp[-1] + dn * (x[x > v[-1]] - v[-1]), None, 1)
             elif extrapolate in ("exp", "exponential"):
                 y[x < v[0]] = cp[0] * np.exp(-(v[0] - x[x < v[0]]) * d0 / cp[0])
-                y[x > v[-1]] = 1 - (1 - cp[-1]) * np.exp(-(x[x > v[-1]] - v[-1]) * dn / cp[-1])
+                y[x > v[-1]] = 1 - (1 - cp[-1]) * np.exp(
+                    -(x[x > v[-1]] - v[-1]) * dn / cp[-1]
+                )
             else:
                 raise NotImplementedError
     if check_valid_cdf is True:
         assert len(y) == len(x)
         assert all(np.diff(x) >= 0)  # CDF x values should be sorted
         assert all(np.diff(y) >= 0)  # CDF y values should be sorted
-        assert all(0 <= y) and all(y <= 1)  # normalised CDF should lie in the range [0, 1]
+        assert all(0 <= y) and all(
+            y <= 1
+        )  # normalised CDF should lie in the range [0, 1]
         # assert y[(y >= 0).all(axis=0) & (y <= 1).all(axis=0)]  # normalised CDF should lie in the range [0, 1]
     return y
 
@@ -206,11 +232,18 @@ def interpret_complete_cdf(
         if distribution_params is None:
             distribution_params = {}
         if "standard_deviation" not in distribution_params:
-            raise ValueError("Please set a standard deviation for the Gaussian Mixture Model, using distribution_params['standard_deviation'] = <some number>.")
+            raise ValueError(
+                "Please set a standard deviation for the Gaussian Mixture Model, using distribution_params['standard_deviation'] = <some number>."
+            )
         for cdf_p, cdf_v in zip(cdfs_p, cdfs_v):
             cdf_p[-1] = 1  # Last value is the highest
             if len(cdf_v) > 1:
-                coll = [ot.Normal(float(cdf_v[i]), distribution_params["standard_deviation"]) for i in range(len(cdf_v))]
+                coll = [
+                    ot.Normal(
+                        float(cdf_v[i]), distribution_params["standard_deviation"]
+                    )
+                    for i in range(len(cdf_v))
+                ]
                 weights = cp_to_p(cdf_p)
                 cdfs.append(ot.Mixture(coll, weights))
     elif distribution in ["normal", "gaussian"]:
@@ -237,7 +270,9 @@ def interpret_complete_cdf(
                 coll = (
                     [ot.UserDefined([[cdf_v[0]]])]
                     + [
-                        ot.Uniform(float(cdf_v[i]), float(cdf_v[i + 1])) if float(cdf_v[i]) < float(cdf_v[i + 1]) else ot.UserDefined([[cdf_v[i]]])
+                        ot.Uniform(float(cdf_v[i]), float(cdf_v[i + 1]))
+                        if float(cdf_v[i]) < float(cdf_v[i + 1])
+                        else ot.UserDefined([[cdf_v[i]]])
                         for i in range(len(cdf_v) - 1)
                     ]
                     + [ot.UserDefined([[cdf_v[-1]]])]
@@ -280,7 +315,12 @@ def probabilistic_nan_mean(
             cdf_p, cdf_v, agg_function=np.nanmean
         )
     else:
-        cdfs = interpret_complete_cdf(cdf_p, cdf_v, distribution=distribution, distribution_params=distribution_params)
+        cdfs = interpret_complete_cdf(
+            cdf_p,
+            cdf_v,
+            distribution=distribution,
+            distribution_params=distribution_params,
+        )
         # Todo: allow passing a copula to this function
         cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(
             cdfs, agg_function=np.nanmean

@@ -15,7 +15,9 @@ def test_belief_most_recent():
     df = example_df
     df = df.reset_index()
     df["cumulative_probability"].iloc[0] = 0.2
-    df = df.set_index(["event_start", "belief_time", "source", "cumulative_probability"])
+    df = df.set_index(
+        ["event_start", "belief_time", "source", "cumulative_probability"]
+    )
     df = utils.select_most_recent_belief(df)
     assert datetime(2000, 1, 1, 1, tzinfo=pytz.utc) in df.lineage.belief_times
     assert datetime(2000, 1, 1, 0, tzinfo=pytz.utc) not in df.lineage.belief_times

@@ -481,7 +481,11 @@ class BeliefsDataFrame(pd.DataFrame):
             sources = []
             for df in other.objs:
                 if "source" in df.index:
-                    sources.extend(df.index.get_level_values(level="source").unique().to_numpy(dtype="object"))
+                    sources.extend(
+                        df.index.get_level_values(level="source")
+                        .unique()
+                        .to_numpy(dtype="object")
+                    )
             sources = set(sources)
             source_names = set(source.name for source in sources)
             if len(source_names) != len(sources):
