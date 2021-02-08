@@ -301,29 +301,21 @@ def source_vs_hour_chart(
 
 
 def deterministic_chart(probability_scale_range: Tuple[float, float]):
-    return alt.Chart().mark_circle(color="red").transform_calculate(
-        zero=alt.datum.probability * 0
-    ).encode(
-        x=alt.X(
-            "event_value:Q",
-            aggregate={
-                "argmax": "probability"
-            },  # Todo: this is the mode, rename in code and use "most likely value (mode)" in tooltips
-            bin="binned",
-            scale=alt.Scale(padding=0),
-        ),
-        y=alt.Y("zero:Q", scale=alt.Scale(range=probability_scale_range), axis=None),
-    ) + alt.Chart().mark_circle(
-        color="blue"
-    ).transform_calculate(
-        zero=alt.datum.probability * 0
-    ).encode(
-        x=alt.X(
-            "median:Q",  # Todo: this is the median, rename in code and use ??? in tooltips? Alternatively, calculate the arithmetic mean
-            bin="binned",
-            scale=alt.Scale(padding=0),
-        ),
-        y=alt.Y("zero:Q", scale=alt.Scale(range=probability_scale_range), axis=None),
+    return (
+        alt.Chart()
+        .mark_circle(color="red")
+        .transform_calculate(zero=alt.datum.probability * 0)
+        .encode(
+            x=alt.X(
+                "event_value:Q",
+                aggregate={"argmax": "probability"},
+                bin="binned",
+                scale=alt.Scale(padding=0),
+            ),
+            y=alt.Y(
+                "zero:Q", scale=alt.Scale(range=probability_scale_range), axis=None
+            ),
+        )
     )
 
 

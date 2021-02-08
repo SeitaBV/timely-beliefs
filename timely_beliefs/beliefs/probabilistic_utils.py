@@ -8,201 +8,15 @@ import pandas as pd
 import properscoring as ps
 import pyerf
 from pandas.core.groupby import DataFrameGroupBy
-from scipy import interpolate
 
 from timely_beliefs import utils as tb_utils
 from timely_beliefs.beliefs import classes  # noqa: F401
 
 
-def interpolate_cdf(
-    x: Union[List[float], np.ndarray],
-    cp: Union[List[float], np.ndarray],
-    v: Union[List[float], np.ndarray],
-    method: Union[str, Callable] = "pchip",
-    extrapolate: Union[bool, str] = True,
-    check_valid_cdf: bool = True,
-) -> Union[List[float], np.ndarray]:
-    """Interpolate the cumulative distribution function described by cp(v) as y(v) and return values y(x).
-
-    Parameters
-    ----------
-    :param x: list or numpy array
-        array with values at which cumulative probabilities are needed
-    :param cp: list or numpy array
-        array with cumulative probabilities at known values v
-    :param v: list or numpy array
-        array with values (at least 2, otherwise a step function is returned with one step at x=v)
-    :param method: method or str
-        Custom interpolation method f(v, cp) or one of the following shorthands for specific methods:
-        - "step": interpolated value is equal to previous value, which results in a discrete distribution
-        - "discrete": alias for step
-        - "linear": interpolated values follow the line between previous and next value,
-                    which results in a (piecewise) uniform distribution
-        - "uniform": alias for linear
-        - "pchip": interpolated values follow a monotonic spline
-                   (Piecewise Cubic Hermite Interpolating Polynomial)
-    :param extrapolate: bool or str
-        One of the following shorthands for specific extrapolation methods:
-        - "exponential": exponentially decaying tails
-        - "exp": alias for "exponential
-        - "linear": linearly decaying tails, which results in a uniform tail distribution
-        - "uniform": alias for "linear"
-        - "discrete": no tails, which result in a discrete jump at v[0] to cp = 0 and at v[-1] to cp = 1
-        - False: defaults to "discrete"
-        - None: defaults to "discrete"
-    :param check_valid_cdf: bool
-        If True, results are checked on whether they are:
-        - an array with equal length to that of input array x
-        - sorted
-        - normalised
-        Can be set to False for speed enhancement (avoid computation deemed unnecessary).
-    :return: list or numpy array
-        Array with cumulative probabilities at values x
-    """
-
-    # Convert lists to numpy arrays
-    if isinstance(x, list):
-        x = np.array(x)
-    if isinstance(cp, list):
-        cp = np.array(cp)
-    if isinstance(v, list):
-        v = np.array(v)
-
-    # Handle empty CDF
-    if len(v) == 0:
-        raise ValueError("Cannot interpolate empty CDF.")
-
-    # Return simple step function if interpolation is not possible
-    if len(v) == 1 or v[-1] == v[0]:
-        y = np.zeros(len(x))
-        y[x >= v[0]] = 1
-        return y
-
-    if callable(method):
-        f = method(v, cp)
-    elif method in ("step", "discrete"):
-        f = interpolate.interp1d(
-            v,
-            cp,
-            kind="previous",
-            bounds_error=False,
-            fill_value=np.nan,
-            assume_sorted=True,
-        )
-    elif method in ("linear", "uniform"):
-        f = interpolate.interp1d(
-            v,
-            cp,
-            kind="linear",
-            bounds_error=False,
-            fill_value=np.nan,
-            assume_sorted=True,
-        )
-    elif method == "pchip":
-
-        # Handle possible duplicate values v (pchip is not suitable for jumps in the cdf)
-        v, indices = np.unique(v, return_inverse=True)
-        if indices[-1] + 1 != len(cp):
-            print(
-                "Warning: CDF describes discrete jumps in probability. PCHIP interpolation assumes the upper cumulative probability at these jumps."
-            )
-        cp = np.array(
-            list(cp[np.max(np.where(indices == i))] for i in range(indices[-1] + 1))
-        )
-
-        # We add some logic to force nice starting and final slopes of f(x)
-        if cp[0] != 0 and cp[-1] != cp[0]:
-            # add another point just to the bottom left at cp=0 to enforce positive starting derivative in cp[0]
-            # use the slope between the first and last point to determine x-coordinate of the new point
-            a = (cp[-1] - cp[0]) / (v[-1] - v[0])
-            b = cp[0] - a * v[0]
-            v0 = -b / a
-        else:
-            # add another point just to the left at cp=0: we'll have a flat starting derivative in cp[0]
-            v0 = v[0] - 1
-
-        if cp[-1] != 1 and cp[-1] != cp[0]:
-            # add another point just to the top right at cp=1 to enforce positive final derivative in cp[-1]
-            # use the slope between the first and last point to determine x-coordinate of the new point
-            a = (cp[-1] - cp[0]) / (v[-1] - v[0])
-            b = cp[0] - a * v[0]
-            vn = (1 - b) / a
-        else:
-            # add another point just to the right at cp=1: we'll have a flat final derivative in cp[-1]
-            vn = v[-1] + 1
-
-        f = interpolate.PchipInterpolator(
-            np.concatenate([[v0], v, [vn]]),
-            np.concatenate([[0], cp, [1]]),
-            extrapolate=False,
-        )
-    else:
-        raise NotImplementedError
-    y = np.empty(len(x))  # Start with empty array having the length of x
-    x_mask = (v[0] <= x) * (
-        x <= v[-1]
-    )  # Part of the x values that come from interpolating the cdf
-    y[x_mask] = f(x[x_mask])
-
-    if cp[0] != 0 or cp[-1] != 1:
-        # Set defaults if needed
-        if extrapolate is True and method == "pchip":
-            extrapolate = "exponential"
-        elif extrapolate is True and method in ("linear", "uniform"):
-            extrapolate = "linear"
-        else:
-            extrapolate = "discrete"
-        if extrapolate == "discrete":
-            y[(x < v[0])] = 0
-            y[x > v[-1]] = 1
-        else:
-            # Derive derivatives of f at the first and last points
-            if hasattr(f, "derivative"):
-                if method == "pchip":
-                    d0 = f.derivative(1)(
-                        v[1]
-                    )  # We ignore v[0] because we added that ourselves to influence the slope
-                    dn = f.derivative(1)(v[-2])  # Similarly, we ignore v[-1]
-                else:
-                    d0 = f.derivative(1)(v[0])
-                    dn = f.derivative(1)(v[-1])
-            else:
-                d0 = (cp[1] - cp[0]) / (v[1] - v[0])
-                dn = (cp[-1] - cp[-2]) / (v[-1] - v[-2])
-            if d0 == 0 and cp[-1] != cp[0]:
-                d0 = (cp[-1] - cp[0]) / (v[1] - v[0])
-            else:
-                d0 = 1
-            if dn == 0 and cp[-1] != cp[0]:
-                dn = cp[-1] - cp[0]
-            else:
-                dn = 1
-            if extrapolate in ("linear", "uniform"):
-                y[x < v[0]] = np.clip(cp[0] - d0 * (v[0] - x[x < v[0]]), 0, None)
-                y[x > v[-1]] = np.clip(cp[-1] + dn * (x[x > v[-1]] - v[-1]), None, 1)
-            elif extrapolate in ("exp", "exponential"):
-                y[x < v[0]] = cp[0] * np.exp(-(v[0] - x[x < v[0]]) * d0 / cp[0])
-                y[x > v[-1]] = 1 - (1 - cp[-1]) * np.exp(
-                    -(x[x > v[-1]] - v[-1]) * dn / cp[-1]
-                )
-            else:
-                raise NotImplementedError
-    if check_valid_cdf is True:
-        assert len(y) == len(x)
-        assert all(np.diff(x) >= 0)  # CDF x values should be sorted
-        assert all(np.diff(y) >= 0)  # CDF y values should be sorted
-        assert all(0 <= y) and all(
-            y <= 1
-        )  # normalised CDF should lie in the range [0, 1]
-        # assert y[(y >= 0).all(axis=0) & (y <= 1).all(axis=0)]  # normalised CDF should lie in the range [0, 1]
-    return y
-
-
 def interpret_complete_cdf(
     cdfs_p: List[Union[list, np.ndarray]],
     cdfs_v: List[Union[list, np.ndarray]],
-    distribution: Optional[str] = None,
-    distribution_params: Optional[dict] = None,
+    distribution: str = None,
 ) -> Union[
     List[Union[list, np.ndarray]],
     Tuple[List[Union[list, np.ndarray]], List[Union[list, np.ndarray]]],
@@ -213,7 +27,6 @@ def interpret_complete_cdf(
     If a distribution name is specified, the CDF is returned as an openturns distribution object.
     Supported openturns distributions are the following:
     - discrete: all residual probability is attributed to the highest given value
-    - gmm: Gaussian Mixture Model, which draws a normal distribution around each point (must set a standard deviation)
     - normal or gaussian: derived from the first two point only
     - uniform: interpolates linearly between points, with residual probability attributed to the min and max values
     """
@@ -228,24 +41,6 @@ def interpret_complete_cdf(
         for cdf_p, cdf_v in zip(cdfs_p, cdfs_v):
             cdf_p[-1] = 1  # Last value is the highest
             cdfs.append(ot.UserDefined([[v] for v in cdf_v], cp_to_p(cdf_p)))
-    elif distribution == "gmm":
-        if distribution_params is None:
-            distribution_params = {}
-        if "standard_deviation" not in distribution_params:
-            raise ValueError(
-                "Please set a standard deviation for the Gaussian Mixture Model, using distribution_params['standard_deviation'] = <some number>."
-            )
-        for cdf_p, cdf_v in zip(cdfs_p, cdfs_v):
-            cdf_p[-1] = 1  # Last value is the highest
-            if len(cdf_v) > 1:
-                coll = [
-                    ot.Normal(
-                        float(cdf_v[i]), distribution_params["standard_deviation"]
-                    )
-                    for i in range(len(cdf_v))
-                ]
-                weights = cp_to_p(cdf_p)
-                cdfs.append(ot.Mixture(coll, weights))
     elif distribution in ["normal", "gaussian"]:
         for cdf_p, cdf_v in zip(cdfs_p, cdfs_v):
             if len(cdf_v) > 1:
@@ -271,8 +66,6 @@ def interpret_complete_cdf(
                     [ot.UserDefined([[cdf_v[0]]])]
                     + [
                         ot.Uniform(float(cdf_v[i]), float(cdf_v[i + 1]))
-                        if float(cdf_v[i]) < float(cdf_v[i + 1])
-                        else ot.UserDefined([[cdf_v[i]]])
                         for i in range(len(cdf_v) - 1)
                     ]
                     + [ot.UserDefined([[cdf_v[-1]]])]
@@ -289,7 +82,6 @@ def probabilistic_nan_mean(
     output_resolution,
     input_resolution,
     distribution: Optional[str] = None,
-    distribution_params: Optional[dict] = None,
 ) -> "classes.BeliefsDataFrame":
     """Calculate the mean value while ignoring nan values."""
 
@@ -315,12 +107,7 @@ def probabilistic_nan_mean(
             cdf_p, cdf_v, agg_function=np.nanmean
         )
     else:
-        cdfs = interpret_complete_cdf(
-            cdf_p,
-            cdf_v,
-            distribution=distribution,
-            distribution_params=distribution_params,
-        )
+        cdfs = interpret_complete_cdf(cdf_p, cdf_v, distribution=distribution)
         # Todo: allow passing a copula to this function
         cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(
             cdfs, agg_function=np.nanmean
@@ -752,20 +539,14 @@ def get_belief_at_cumulative_probability(
 
 def get_mean_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
     """Convenience function to select the expected value."""
-    # Todo: this actually gives the median rather than the arithmetic mean (i.e. the expected value)
-    return get_belief_at_cumulative_probability(df, 0.5)
-
-
-def get_median_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
-    """Convenience function to select the median value."""
-    return get_belief_at_cumulative_probability(df, 0.5)
+    return get_belief_at_cumulative_probability(df, 0.5) if len(df) > 1 else df
 
 
 def get_nth_percentile_belief(
     df: "classes.BeliefsDataFrame", n: float
 ) -> "classes.BeliefsDataFrame":
     """Convenience function to select the value at the nth percentile."""
-    return get_belief_at_cumulative_probability(df, n / 100)
+    return get_belief_at_cumulative_probability(df, n / 100) if len(df) > 1 else df
 
 
 get_expected_belief = get_mean_belief  # Define alias

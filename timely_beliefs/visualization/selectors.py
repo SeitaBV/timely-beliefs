@@ -226,7 +226,7 @@ def ridgeline_selector(
                     "event_value:Q",
                     aggregate={"argmax": "probability"},
                     bin="binned",
-                    title="Most likely value",
+                    title="Expected value",
                     format=".2f",
                 ),
                 alt.Tooltip("max(probability):Q", title="Probability", format=".2f"),

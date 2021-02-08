@@ -28,22 +28,18 @@ def select_most_recent_belief(
     )
 
     if "belief_horizon" in df.index.names:
-        df = df.reset_index()
-        df = df.loc[
-            df["belief_horizon"]
-            == df.groupby(["event_start", "source"])["belief_horizon"].transform(min)
-        ]
-        return df.set_index(
-            ["event_start", "belief_horizon", "source", "cumulative_probability"]
+        return df.groupby(level=["event_start", "source"], group_keys=False).apply(
+            lambda x: x.xs(
+                min(x.lineage.belief_horizons),
+                level="belief_horizon",
+                drop_level=False,
+            )
         )
     elif "belief_time" in df.index.names:
-        df = df.reset_index()
-        df = df.loc[
-            df["belief_time"]
-            == df.groupby(["event_start", "source"])["belief_time"].transform(max)
-        ]
-        return df.set_index(
-            ["event_start", "belief_time", "source", "cumulative_probability"]
+        return df.groupby(level=["event_start", "source"], group_keys=False).apply(
+            lambda x: x.xs(
+                max(x.lineage.belief_times), level="belief_time", drop_level=False
+            )
         )
     else:
         raise KeyError(
