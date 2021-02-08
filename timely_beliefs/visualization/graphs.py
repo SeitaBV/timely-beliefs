@@ -300,7 +300,7 @@ def source_vs_hour_chart(
     )
 
 
-def deterministic_chart(probability_scale_range: Tuple[float, float],):
+def deterministic_chart(probability_scale_range: Tuple[float, float]):
     return (
         alt.Chart()
         .mark_circle(color="red")

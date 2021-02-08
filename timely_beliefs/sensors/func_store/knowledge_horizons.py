@@ -7,7 +7,7 @@ from typing import Optional, Tuple, Union
 from timely_beliefs.sensors.utils import datetime_x_days_ago_at_y_oclock
 
 
-def determine_knowledge_horizon_for_fixed_knowledge_time(
+def at_date(
     event_start: Optional[datetime],
     knowledge_time: datetime,
     get_bounds: bool = False,
@@ -28,7 +28,7 @@ def determine_knowledge_horizon_for_fixed_knowledge_time(
     return event_start - knowledge_time
 
 
-def determine_ex_post_knowledge_horizon(
+def ex_post(
     event_resolution: timedelta,
     ex_post_horizon: timedelta,
     get_bounds: bool = False,
@@ -51,7 +51,7 @@ def determine_ex_post_knowledge_horizon(
     return -event_resolution - ex_post_horizon
 
 
-def determine_ex_ante_knowledge_horizon(
+def ex_ante(
     ex_ante_horizon: timedelta,
     get_bounds: bool = False,
 ) -> Union[timedelta, Tuple[timedelta, timedelta]]:
@@ -67,7 +67,7 @@ def determine_ex_ante_knowledge_horizon(
     return ex_ante_horizon
 
 
-def determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock(
+def x_days_ago_at_y_oclock(
     event_start: Optional[datetime],
     x: int,
     y: Union[int, float],
@@ -90,3 +90,62 @@ def determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock(
             timedelta(days=x + 1, hours=-y + 2),
         )  # The 2's account for possible hour differences for double daylight saving time w.r.t. standard time
     return event_start - datetime_x_days_ago_at_y_oclock(event_start, x, y, z)
+
+
+# todo: deprecate this function
+def determine_knowledge_horizon_for_fixed_knowledge_time(
+    event_start: Optional[datetime],
+    *args,
+    **kwargs,
+):
+    import warnings
+
+    warnings.warn(
+        "Function name will be replaced by shorthand. Replace with 'at_date' to suppress this warning.",
+        FutureWarning,
+    )
+    return at_date(event_start, *args, **kwargs)
+
+
+# todo: deprecate this function
+def determine_ex_post_knowledge_horizon(
+    event_resolution: timedelta,
+    *args,
+    **kwargs,
+):
+    import warnings
+
+    warnings.warn(
+        "Function name will be replaced by shorthand. Replace with 'ex_post' to suppress this warning.",
+        FutureWarning,
+    )
+    return ex_post(event_resolution, *args, **kwargs)
+
+
+# todo: deprecate this function
+def determine_ex_ante_knowledge_horizon(
+    *args,
+    **kwargs,
+):
+    import warnings
+
+    warnings.warn(
+        "Function name will be replaced by shorthand. Replace with 'ex_ante' to suppress this warning.",
+        FutureWarning,
+    )
+    return ex_ante(*args, **kwargs)
+
+
+# todo: deprecate this function
+def determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock(
+    event_start: Optional[datetime],
+    *args,
+    **kwargs,
+):
+    import warnings
+
+    warnings.warn(
+        "Function name will be replaced by shorthand. Replace with 'x_days_ago_at_y_oclock' to suppress this warning.",
+        FutureWarning,
+    )
+    return x_days_ago_at_y_oclock(event_start, *args, **kwargs)

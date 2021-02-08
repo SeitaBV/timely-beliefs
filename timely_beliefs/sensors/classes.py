@@ -5,10 +5,7 @@ from sqlalchemy import JSON, Column, Integer, Interval, String
 from sqlalchemy.ext.hybrid import hybrid_method
 
 from timely_beliefs.db_base import Base
-from timely_beliefs.sensors.func_store.knowledge_horizons import (
-    determine_ex_ante_knowledge_horizon,
-    determine_ex_post_knowledge_horizon,
-)
+from timely_beliefs.sensors.func_store import knowledge_horizons
 from timely_beliefs.sensors.utils import (
     eval_verified_knowledge_horizon_fnc,
     jsonify_time_dict,
@@ -50,18 +47,14 @@ class Sensor(object):
         self.event_resolution = event_resolution
         if knowledge_horizon is None:
             # Set an appropriate knowledge horizon for physical sensors, representing ex-post knowledge time.
-            self.knowledge_horizon_fnc = determine_ex_post_knowledge_horizon.__name__
+            self.knowledge_horizon_fnc = knowledge_horizons.ex_post.__name__
             knowledge_horizon_par = {
-                determine_ex_post_knowledge_horizon.__code__.co_varnames[1]: timedelta(
-                    hours=0
-                )
+                knowledge_horizons.ex_post.__code__.co_varnames[1]: timedelta(hours=0)
             }
         elif isinstance(knowledge_horizon, timedelta):
-            self.knowledge_horizon_fnc = determine_ex_ante_knowledge_horizon.__name__
+            self.knowledge_horizon_fnc = knowledge_horizons.ex_ante.__name__
             knowledge_horizon_par = {
-                determine_ex_ante_knowledge_horizon.__code__.co_varnames[
-                    0
-                ]: knowledge_horizon
+                knowledge_horizons.ex_ante.__code__.co_varnames[0]: knowledge_horizon
             }
         elif isinstance(knowledge_horizon, Tuple):
             self.knowledge_horizon_fnc = knowledge_horizon[0].__name__
@@ -111,17 +104,13 @@ class SensorDBMixin(Sensor):
     timezone = Column(String(80), nullable=False, default="UTC")
     event_resolution = Column(Interval(), nullable=False, default=timedelta(hours=0))
     knowledge_horizon_fnc = Column(
-        String(80), nullable=False, default=determine_ex_post_knowledge_horizon.__name__
+        String(80), nullable=False, default=knowledge_horizons.ex_post.__name__
     )
     knowledge_horizon_par = Column(
         JSON(),
         nullable=False,
         default=jsonify_time_dict(
-            {
-                determine_ex_post_knowledge_horizon.__code__.co_varnames[1]: timedelta(
-                    hours=0
-                )
-            }
+            {knowledge_horizons.ex_post.__code__.co_varnames[1]: timedelta(hours=0)}
         ),
     )
 
