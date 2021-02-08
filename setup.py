@@ -5,6 +5,7 @@ setup(
     description="Data modelled as beliefs (at a certain time) about events (at a certain time).",
     author="Seita BV",
     author_email="felix@seita.nl",
+    url="https://github.com/seitabv/timely-beliefs",
     keywords=[
         "time series",
         "forecasting",
@@ -13,10 +14,10 @@ setup(
         "uncertainty",
         "lineage",
     ],
-    version="0.0.7",
+    version="1.2.0",
     install_requires=[
         "pytz",
-        "pandas>=0.24",
+        "pandas>=1.1.5",
         "numpy",
         "pyerf",
         "SQLAlchemy",

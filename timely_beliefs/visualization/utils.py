@@ -7,10 +7,10 @@ import pandas as pd
 
 from timely_beliefs.beliefs import classes  # noqa: F401
 from timely_beliefs.beliefs.probabilistic_utils import (
-    interpret_complete_cdf,
     get_nth_percentile_belief,
     get_mean_belief,
     get_median_belief,
+    interpret_complete_cdf,
 )
 from timely_beliefs.visualization import graphs, selectors
 
@@ -42,6 +42,7 @@ def plot(
 
     # Set up data source
     bdf = bdf.copy()
+    bdf["event_value"] = bdf["event_value"].astype(float)
     sensor_name = bdf.sensor.name
     sensor_unit = bdf.sensor.unit if bdf.sensor.unit != "" else "a.u."  # arbitrary unit
     plottable_df, belief_horizon_unit = prepare_df_for_plotting(
@@ -230,6 +231,7 @@ def prepare_df_for_plotting(
     - a string representing the time unit for the horizons
     """
     event_resolution = df.event_resolution
+    df = df.convert_index_from_belief_horizon_to_time()
     if show_accuracy is True:
         reference_df = df.groupby(level="event_start").apply(
             lambda x: x.accuracy(reference_source=reference_source, lite_metrics=True)
@@ -252,20 +254,18 @@ def prepare_df_for_plotting(
         df["lower_value"] = df["event_value"]
     else:
         df_ci0 = (
-            df.for_each_belief(get_nth_percentile_belief, n=(1 - ci) * 100 / 2, df=df)
+            df.for_each_belief(get_nth_percentile_belief, n=(1 - ci) * 100 / 2)
             .rename(columns={"event_value": "lower_value"})
             .droplevel("cumulative_probability")
             .drop("belief_horizon", axis=1)
         )
         df_exp = (
-            df.for_each_belief(get_nth_percentile_belief, n=50, df=df)
+            df.for_each_belief(get_nth_percentile_belief, n=50)
             .rename(columns={"event_value": "expected_value"})
             .droplevel("cumulative_probability")
         )
         df_ci1 = (
-            df.for_each_belief(
-                get_nth_percentile_belief, n=100 - (1 - ci) * 100 / 2, df=df
-            )
+            df.for_each_belief(get_nth_percentile_belief, n=100 - (1 - ci) * 100 / 2)
             .rename(columns={"event_value": "upper_value"})
             .droplevel("cumulative_probability")
             .drop("belief_horizon", axis=1)
@@ -307,9 +307,7 @@ def align_belief_horizons(
             if previous_slice_with_existing_belief_horizon is not None:
                 previous_slice_with_existing_belief_horizon[
                     "belief_horizon"
-                ] = (
-                    ubh
-                )  # Update belief horizon to reflect propagation of beliefs over time
+                ] = ubh  # Update belief horizon to reflect propagation of beliefs over time
                 data.extend(previous_slice_with_existing_belief_horizon.values.tolist())
         else:
             # If already present, copy the row (may be multiple rows in case of a probabilistic belief)

@@ -1,17 +1,17 @@
 import math
 from itertools import product
-from typing import Union, List, Callable, Optional, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
-import pyerf
 import openturns as ot
-import properscoring as ps
 import pandas as pd
+import properscoring as ps
+import pyerf
 from pandas.core.groupby import DataFrameGroupBy
 from scipy import interpolate
 
-from timely_beliefs.beliefs import classes  # noqa: F401
 from timely_beliefs import utils as tb_utils
+from timely_beliefs.beliefs import classes  # noqa: F401
 
 
 def interpolate_cdf(
@@ -132,7 +132,7 @@ def interpolate_cdf(
             extrapolate = "linear"
         else:
             extrapolate = "discrete"
-        if extrapolate is "discrete":
+        if extrapolate == "discrete":
             y[(x < v[0])] = 0
             y[x > v[-1]] = 1
         else:
@@ -333,9 +333,7 @@ def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
     """
 
     dim = len(marginal_cdfs_p)
-    n_outcomes = (
-        99
-    )  # Todo: refactor to avoid having to set this above our threshold for computing exact probabilities
+    n_outcomes = 99  # Todo: refactor to avoid having to set this above our threshold for computing exact probabilities
 
     # Set up marginal distributions
     empirical_method_possible = True
@@ -413,8 +411,8 @@ def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
             )
         else:
             smallest_marginal_point_distance = (
-                1
-            )  # With just 1 point, an arbitrary positive distance suffices (e.g. 1)
+                1  # With just 1 point, an arbitrary positive distance suffices (e.g. 1)
+            )
         margin = smallest_marginal_point_distance / 2
 
         # Construct an n-dimensional matrix with all possible points (i.e. combinations of outcomes of our random variables)
@@ -531,9 +529,10 @@ def equalize_bins(
     if equal_bin_size is False:
         values = np.unique(cdf_values)  # Also flattens and sorts
     else:
-        import Fraction
         import functools
         import math
+
+        import Fraction
 
         values = np.array(cdf_values).flatten()
         v_min = np.min(values)
@@ -665,7 +664,7 @@ def partial_cdf(cdf_p: np.ndarray, cdf_v: np.ndarray, cp_range: Tuple[float, flo
 
 
 def get_cdfs_from_beliefsdataframe(
-    df: "classes.BeliefsDataFrame"
+    df: "classes.BeliefsDataFrame",
 ) -> Tuple[np.ndarray, np.ndarray]:
     """From a BeliefsDataFrame with a single belief, get the cumulative distribution functions."""
     if df.empty:
@@ -680,7 +679,7 @@ def get_cdfs_from_beliefsdataframe(
 
 
 def get_pdfs_from_beliefsdataframe(
-    df: "classes.BeliefsDataFrame"
+    df: "classes.BeliefsDataFrame",
 ) -> Tuple[np.ndarray, np.ndarray]:
     """From a BeliefsDataFrame with a single belief, get the probability distribution functions."""
     cdf_p, pdf_v = get_cdfs_from_beliefsdataframe(df)

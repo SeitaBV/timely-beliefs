@@ -1,32 +1,88 @@
-from typing import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Optional, Sequence, Union
+import warnings
 
-from pytz import utc
 import pandas as pd
 
 
-def enforce_utc(dt: datetime) -> pd.Timestamp:
-    if dt.tzinfo is None:
-        raise Exception(
-            "The timely-beliefs package does not work with timezone-naive datetimes. Please localize your datetime."
+def parse_timedelta_like(
+    td: Union[timedelta, str, pd.Timedelta],
+    variable_name: Optional[str] = None,
+) -> timedelta:
+    """Parse timedelta like objects as a datetime.timedelta object.
+
+    The interpretation of M (month), Y and y (year) units as a timedelta is ambiguous (e.g. td="1Y").
+    For these cases, Pandas (since 0.25) gives a FutureWarning, warning that support for these units will be removed.
+    This function throws a ValueError in case Pandas gives a FutureWarning.
+    https://pandas.pydata.org/docs/whatsnew/v0.25.0.html#deprecations
+
+    :param td: timedelta-like object
+    :param variable_name: used to give a better error message in case the variable failed to parse
+    :return: timedelta
+    """
+    try:
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("error")
+            if isinstance(td, str):
+                td = pd.Timedelta(td)
+            if isinstance(td, pd.Timedelta):
+                td = td.to_pytimedelta()
+    except (ValueError, FutureWarning) as e:
+        raise ValueError(
+            f"Could not parse {variable_name if variable_name else 'timedelta'} {td}, because {e}"
         )
-    return pd.Timestamp(dt.astimezone(utc))
+    return td
 
 
-def all_of_type(l: Sequence, element_type) -> bool:
+def parse_datetime_like(
+    dt: Union[datetime, str, pd.Timestamp], variable_name: Optional[str] = None
+) -> datetime:
+    """Parse datetime-like objects as a datetime.datetime object.
+
+    :param dt: datetime-like object
+    :param variable_name: used to give a better error message in case the variable failed to parse
+    :return: timezone-aware datetime
+    """
+    try:
+        if isinstance(dt, str):
+            dt = pd.Timestamp(dt)
+        if isinstance(dt, pd.Timestamp):
+            dt = dt.to_pydatetime()
+    except ValueError as e:
+        raise ValueError(
+            f"Could not parse {variable_name if variable_name else 'datetime'} {dt}, because {e}"
+        )
+    return enforce_tz(dt, variable_name)
+
+
+def enforce_tz(dt: datetime, variable_name: Optional[str] = None) -> datetime:
+    """Raise exception in case of a timezone-naive datetime.
+
+    :param dt: datetime
+    :param variable_name: used to give a better error message in case the variable contained a timezone-naive datetime
+    :return: timezone-aware datetime
+    """
+    if not hasattr(dt, "tzinfo") or dt.tzinfo is None:
+        raise TypeError(
+            f"The timely-beliefs package does not work with timezone-naive datetimes. Please localize your {variable_name if variable_name else 'datetime'} {dt}."
+        )
+    return dt
+
+
+def all_of_type(seq: Sequence, element_type) -> bool:
     """Return true if all elements in sequence are of the same type."""
-    for item in l:
+    for item in seq:
         if type(item) != element_type:
             return False
     return True
 
 
 def replace_multi_index_level(
-    df: "classes.BeliefsDataFrame",  # noqa: F821
+    df: "classes.BeliefsDataFrame",
     level: str,
     index: pd.Index,
-    intersection: bool = False,
-) -> "classes.BeliefsDataFrame":  # noqa: F821
+    intersection: bool = False,  # noqa: F821
+) -> "classes.BeliefsDataFrame":
     """Replace one of the index levels of the multi-indexed DataFrame. Returns a new DataFrame object.
     :param df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
     :param level: the name of the index level to replace.

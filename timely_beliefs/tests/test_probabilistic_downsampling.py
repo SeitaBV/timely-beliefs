@@ -1,13 +1,13 @@
-import pytest
-from pytest import approx
 from typing import Tuple
 
 import numpy as np
 import openturns as ot
+import pytest
+from pytest import approx
 
 from timely_beliefs.beliefs.probabilistic_utils import (
-    multivariate_marginal_to_univariate_joint_cdf,
     equalize_bins,
+    multivariate_marginal_to_univariate_joint_cdf,
 )
 from timely_beliefs.tests.utils import equal_lists
 
@@ -220,7 +220,7 @@ def test_multivariate_aggregation_with_unmatched_bins(multivariate_test_cdfs):
 
 
 def test_multivariate_aggregation_with_unmatched_bins_and_dependence(
-    multivariate_test_cdfs
+    multivariate_test_cdfs,
 ):
     """Check multivariate aggregation where the outcomes of each variable are completely different,
     and the variables are correlated."""

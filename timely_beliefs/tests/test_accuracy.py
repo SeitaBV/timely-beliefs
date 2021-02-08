@@ -4,9 +4,9 @@ import numpy as np
 from pytz import utc
 
 from timely_beliefs import BeliefsDataFrame
+from timely_beliefs.beliefs.probabilistic_utils import partial_cdf
 from timely_beliefs.examples import example_df
 from timely_beliefs.tests.utils import equal_lists
-from timely_beliefs.beliefs.probabilistic_utils import partial_cdf
 
 
 def test_setting_reference():

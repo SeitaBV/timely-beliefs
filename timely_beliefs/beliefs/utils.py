@@ -1,26 +1,32 @@
-from typing import List, Optional
-from datetime import datetime, timedelta
 import warnings
+from datetime import datetime, timedelta
+from typing import List, Optional, Union
 
-import pandas as pd
 import numpy as np
-from pandas.tseries.frequencies import to_offset
+import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy
 
+from timely_beliefs import BeliefSource, Sensor
+from timely_beliefs import utils as tb_utils
 from timely_beliefs.beliefs import classes
 from timely_beliefs.beliefs.probabilistic_utils import (
     calculate_crps,
     get_expected_belief,
     probabilistic_nan_mean,
 )
-from timely_beliefs import BeliefSource, Sensor
-from timely_beliefs import utils as tb_utils
+from timely_beliefs.sources import utils as source_utils
 
 
 def select_most_recent_belief(
-    df: "classes.BeliefsDataFrame"
+    df: "classes.BeliefsDataFrame",
 ) -> "classes.BeliefsDataFrame":
-    """Drop all but most recent belief."""
+    """Drop all but most recent (non-NaN) belief."""
+
+    # Drop NaN beliefs before selecting the most recent
+    df = df.for_each_belief(
+        lambda x: x.dropna() if x.isnull().all()["event_value"] else x
+    )
+
     if "belief_horizon" in df.index.names:
         df = df.reset_index()
         df = df.loc[df["belief_horizon"] == df.groupby(["event_start", "source"])["belief_horizon"].transform(min)]
@@ -59,7 +65,7 @@ def upsample_event_start(
     lvl0 = pd.date_range(
         start=df.index.get_level_values(0)[0],
         periods=input_resolution // output_resolution,
-        freq=to_offset(output_resolution).freqstr,
+        freq=output_resolution,
     )
     new_index_values = [lvl0]
     if df.index.nlevels > 0:
@@ -118,7 +124,7 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
             lvl0 = pd.date_range(
                 start=bin_start,
                 end=bin_end,
-                freq=to_offset(resolution).freqstr,
+                freq=resolution,
                 closed="left",
                 name="event_start",
             )
@@ -171,9 +177,7 @@ def align_belief_times(
                 ps = previous_slice_with_existing_belief_time.reset_index()
                 ps[
                     "belief_time"
-                ] = (
-                    ubt
-                )  # Update belief time to reflect propagation of beliefs over time
+                ] = ubt  # Update belief time to reflect propagation of beliefs over time
                 data.extend(ps.values.tolist())
             else:
                 data.append([event_start, ubt, source, np.nan, np.nan])
@@ -235,11 +239,14 @@ def join_beliefs(
     if output_resolution > input_resolution:
 
         # Create new BeliefsDataFrame with downsampled event_start
+        if output_resolution % input_resolution != timedelta(0):
+            raise NotImplementedError(
+                "Cannot downsample from resolution %s to %s."
+                % (input_resolution, output_resolution)
+            )
         df = slice.groupby(
             [
-                pd.Grouper(
-                    freq=to_offset(output_resolution).freqstr, level="event_start"
-                ),
+                pd.Grouper(freq=output_resolution, level="event_start"),
                 "belief_time",
                 "source",
             ],
@@ -258,9 +265,7 @@ def join_beliefs(
             )
         df = slice.groupby(
             [
-                pd.Grouper(
-                    freq=to_offset(output_resolution).freqstr, level="event_start"
-                ),
+                pd.Grouper(freq=output_resolution, level="event_start"),
                 "belief_time",
                 "source",
                 "cumulative_probability",
@@ -275,18 +280,29 @@ def resample_event_start(
     output_resolution: timedelta,
     input_resolution: timedelta,
     distribution: Optional[str] = None,
+    keep_only_most_recent_belief: bool = False,
 ) -> "classes.BeliefsDataFrame":
-    """For a unique source."""
+    """For a unique source. Also assumes belief_time is one of the index levels."""
+
+    if input_resolution == output_resolution:
+        return df
 
     # Determine unique set of belief times
     unique_belief_times = np.sort(
         df.reset_index()["belief_time"].unique()
     )  # Sorted from past to present
 
-    # Propagate beliefs so that each event has the same set of unique belief times
-    df = df.groupby(["event_start"], group_keys=False).apply(
-        lambda x: align_belief_times(x, unique_belief_times)
-    )
+    if keep_only_most_recent_belief:
+        # faster
+        df = tb_utils.replace_multi_index_level(
+            df, "belief_time", pd.Index([unique_belief_times[-1]] * len(df))
+        )
+    else:
+        # slower
+        # Propagate beliefs so that each event has the same set of unique belief times
+        df = df.groupby(["event_start"], group_keys=False).apply(
+            lambda x: align_belief_times(x, unique_belief_times)
+        )
 
     # Resample to make sure the df slice contains events with the same frequency as the input_resolution
     # (make nan rows if you have to)
@@ -309,20 +325,35 @@ def resample_event_start(
 def load_time_series(
     event_value_series: pd.Series,
     sensor: Sensor,
-    source: BeliefSource,
-    belief_horizon: timedelta,
+    source: Union[BeliefSource, pd.Series],
+    belief_horizon: Union[timedelta, pd.Series],
     cumulative_probability: float = 0.5,
 ) -> List["classes.TimedBelief"]:
     """Turn series entries into TimedBelief objects."""
     beliefs = []
-    for time, value in event_value_series.items():
+    if isinstance(belief_horizon, timedelta):
+        belief_horizon_series = pd.Series(
+            belief_horizon, index=event_value_series.index
+        )
+    else:
+        belief_horizon_series = belief_horizon
+    if isinstance(source, BeliefSource):
+        source_series = pd.Series(BeliefSource, index=event_value_series.index)
+    else:
+        source_series = source
+    for time, value, h, s in zip(
+        pd.to_datetime(event_value_series.index),
+        event_value_series.values,
+        belief_horizon_series.values,
+        source_series.values,
+    ):
         beliefs.append(
             classes.TimedBelief(
                 sensor=sensor,
-                source=source,
+                source=s,
                 value=value,
                 event_start=time,
-                belief_horizon=belief_horizon,
+                belief_horizon=h,
                 cumulative_probability=cumulative_probability,
             )
         )
@@ -332,7 +363,7 @@ def load_time_series(
 def compute_accuracy_scores(
     df: "classes.BeliefsDataFrame", lite_metrics: bool = False
 ) -> "classes.BeliefsDataFrame":
-    """ Compute the following accuracy scores:
+    """Compute the following accuracy scores:
     - mean absolute error (mae)
     - mean absolute percentage error (mape)
     - weighted absolute percentage error (wape)
@@ -416,10 +447,13 @@ def set_reference(
     if return_expected_value is True:
         reference_df = reference_df.for_each_belief(get_expected_belief)
 
+    belief_timing_col = (
+        "belief_time" if "belief_time" in reference_df.index.names else "belief_horizon"
+    )
     reference_df = reference_df.droplevel(
-        ["event_start", "belief_time", "cumulative_probability"]
+        ["event_start", belief_timing_col, "cumulative_probability"]
         if return_expected_value is True
-        else ["event_start", "belief_time"]
+        else ["event_start", belief_timing_col]
     ).rename(columns={"event_value": "reference_value"})
 
     # Set the reference values for each belief
@@ -451,7 +485,7 @@ def read_csv(
     """
     df = pd.read_csv(path)
     if source is not None:
-        df["source"] = source
+        df["source"] = source_utils.ensure_source_exists(source)
     elif "source" in df.columns:
         if look_up_sources is not None:
             source_names = df["source"].unique()
@@ -466,3 +500,11 @@ def read_csv(
     else:
         raise Exception("No source specified in csv, please set a source.")
     return classes.BeliefsDataFrame(df, sensor=sensor)
+
+
+def is_pandas_structure(x):
+    return isinstance(x, (pd.DataFrame, pd.Series))
+
+
+def is_tb_structure(x):
+    return isinstance(x, (classes.BeliefsDataFrame, classes.BeliefsSeries))

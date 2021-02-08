@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+
 from pytz import utc
 
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief
@@ -28,7 +29,7 @@ def sixteen_probabilistic_beliefs() -> BeliefsDataFrame:
         TimedBelief(
             source=sources[s],
             sensor=example_sensor,
-            value=int(
+            event_value=int(
                 1
                 * (e + 1)
                 * (

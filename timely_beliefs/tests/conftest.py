@@ -1,12 +1,19 @@
-import pytest
 from datetime import timedelta
+import sys
 
-from timely_beliefs.db_base import Base
-from timely_beliefs.tests import engine, session
+import pytest
+
 from timely_beliefs import DBBeliefSource, DBSensor
+from timely_beliefs.db_base import Base
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
-    timedelta_x_days_ago_at_y_oclock,
+    determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
 )
+from timely_beliefs.tests import engine, session
+
+
+if sys.version_info[0] == 3 and sys.version_info[1] == 6:
+    # Ignore these tests for python==3.6
+    collect_ignore = ["test_ignore_36.py"]
 
 
 @pytest.fixture(scope="function")
@@ -53,7 +60,7 @@ def ex_post_time_slot_sensor(db):
         name="ExPostSensor",
         event_resolution=timedelta(minutes=15),
         knowledge_horizon=(
-            timedelta_x_days_ago_at_y_oclock,
+            determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
             dict(x=1, y=12, z="Europe/Amsterdam"),
         ),
     )
@@ -63,7 +70,7 @@ def ex_post_time_slot_sensor(db):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def test_source_a():
+def test_source_a(db):
     """Define source for test beliefs."""
     source = DBBeliefSource("Source A")
     session.add(source)
@@ -71,7 +78,7 @@ def test_source_a():
 
 
 @pytest.fixture(scope="function", autouse=True)
-def test_source_b():
+def test_source_b(db):
     """Define source for test beliefs."""
     source = DBBeliefSource("Source B")
     session.add(source)

@@ -1,9 +1,8 @@
 import os
 from datetime import timedelta
 
-from timely_beliefs.examples.beliefs_data_frames import sixteen_probabilistic_beliefs
 import timely_beliefs as tb
-
+from timely_beliefs.examples.beliefs_data_frames import sixteen_probabilistic_beliefs
 
 example_df = sixteen_probabilistic_beliefs()
 temperature_df = tb.read_csv(
