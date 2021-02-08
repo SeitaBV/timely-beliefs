@@ -60,7 +60,7 @@ def df_4323(
     probabilistic values.
     Note that the event resolution of the sensor is 15 minutes.
     """
-    start = pytz.timezone("utc").localize(datetime(2000, 1, 3, 9,))
+    start = pytz.timezone("utc").localize(datetime(2000, 1, 3, 9))
     return df_wxyz(4, 3, 2, 3, start)
 
 
