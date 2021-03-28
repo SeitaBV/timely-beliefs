@@ -1,6 +1,6 @@
 import math
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import altair as alt
 import pandas as pd
@@ -17,9 +17,13 @@ from timely_beliefs.beliefs import utils as belief_utils
 from timely_beliefs.beliefs.utils import is_pandas_structure, is_tb_structure
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors import utils as sensor_utils
-from timely_beliefs.sensors.classes import DBSensor, Sensor
+from timely_beliefs.sensors.classes import DBSensor, Sensor, SensorDBMixin
 from timely_beliefs.sources import utils as source_utils
-from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
+from timely_beliefs.sources.classes import (
+    BeliefSource,
+    BeliefSourceDBMixin,
+    DBBeliefSource,
+)
 from timely_beliefs.visualization import utils as visualization_utils
 
 METADATA = ["sensor", "event_resolution"]
@@ -225,11 +229,13 @@ class TimedBeliefDBMixin(TimedBelief):
         cls,
         session: Session,
         sensor: DBSensor,
-        event_before: datetime = None,
-        event_not_before: datetime = None,
-        belief_before: datetime = None,
-        belief_not_before: datetime = None,
-        source: Union[int, List[int], str, List[str]] = None,
+        event_before: Optional[datetime] = None,
+        event_not_before: Optional[datetime] = None,
+        belief_before: Optional[datetime] = None,
+        belief_not_before: Optional[datetime] = None,
+        source: Optional[Union[int, List[int], str, List[str]]] = None,
+        sensor_cls: Type[SensorDBMixin] = DBSensor,
+        source_cls: Type[BeliefSourceDBMixin] = DBBeliefSource,
     ) -> "BeliefsDataFrame":
         """Query beliefs about sensor events.
         :param session: the database session to use
@@ -239,6 +245,8 @@ class TimedBeliefDBMixin(TimedBelief):
         :param belief_before: only return beliefs formed before this datetime (inclusive)
         :param belief_not_before: only return beliefs formed after this datetime (inclusive)
         :param source: only return beliefs formed by the given source or list of sources (pass their id or name)
+        :param sensor_cls: set to your own DBSensor class implementation if it uses a different table name
+        :param source_cls: set to your own DBBeliefSource class implementation if it uses a different table name
         :returns: a multi-index DataFrame with all relevant beliefs
 
         TODO: rename params for clarity: event_finished_before, event_starts_not_before (or similar), same for beliefs
@@ -261,11 +269,11 @@ class TimedBeliefDBMixin(TimedBelief):
         # Query sensor for relevant timing properties
         event_resolution, knowledge_horizon_fnc, knowledge_horizon_par = (
             session.query(
-                DBSensor.event_resolution,
-                DBSensor.knowledge_horizon_fnc,
-                DBSensor.knowledge_horizon_par,
+                sensor_cls.event_resolution,
+                sensor_cls.knowledge_horizon_fnc,
+                sensor_cls.knowledge_horizon_par,
             )
-            .filter(DBSensor.id == sensor.id)
+            .filter(sensor_cls.id == sensor.id)
             .one_or_none()
         )
 
@@ -317,8 +325,8 @@ class TimedBeliefDBMixin(TimedBelief):
                     % unidentifiable_list
                 )
             else:
-                q = q.join(DBBeliefSource).filter(
-                    (cls.source_id.in_(id_list)) | (DBBeliefSource.name.in_(name_list))
+                q = q.join(source_cls).filter(
+                    (cls.source_id.in_(id_list)) | (source_cls.name.in_(name_list))
                 )
 
         # Build our DataFrame of beliefs
