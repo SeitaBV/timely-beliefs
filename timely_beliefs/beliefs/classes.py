@@ -180,7 +180,7 @@ class TimedBeliefDBMixin(TimedBelief):
             )
         return None
 
-    event_start = Column(DateTime(timezone=True), primary_key=True)
+    event_start = Column(DateTime(timezone=True), primary_key=True, index=True)
     belief_horizon = Column(Interval(), nullable=False, primary_key=True)
     cumulative_probability = Column(Float, nullable=False, primary_key=True)
     event_value = Column(Float, nullable=False)
@@ -188,7 +188,10 @@ class TimedBeliefDBMixin(TimedBelief):
     @declared_attr
     def sensor_id(cls):
         return Column(
-            Integer(), ForeignKey("sensor.id", ondelete="CASCADE"), primary_key=True
+            Integer(),
+            ForeignKey("sensor.id", ondelete="CASCADE"),
+            primary_key=True,
+            index=True,
         )
 
     @declared_attr
