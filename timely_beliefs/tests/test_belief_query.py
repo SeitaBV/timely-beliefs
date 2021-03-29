@@ -90,7 +90,7 @@ def test_query_belief_by_belief_time(
     ex_post_time_slot_sensor: DBSensor,
     day_ahead_belief_about_ex_post_time_slot_event: DBTimedBelief,
 ):
-    belief_df = DBTimedBelief.query(
+    belief_df = DBTimedBelief.query_all(
         session=session,
         sensor=ex_post_time_slot_sensor,
         belief_before=datetime(2018, 1, 1, 13, tzinfo=utc),
@@ -112,7 +112,7 @@ def test_query_belief_by_belief_time(
     # No beliefs a year earlier
     assert (
         len(
-            DBTimedBelief.query(
+            DBTimedBelief.query_all(
                 session=session,
                 sensor=ex_post_time_slot_sensor,
                 belief_before=datetime(2017, 1, 1, 10, tzinfo=utc),
@@ -124,7 +124,7 @@ def test_query_belief_by_belief_time(
     # No beliefs 2 months later
     assert (
         len(
-            DBTimedBelief.query(
+            DBTimedBelief.query_all(
                 session=session,
                 sensor=ex_post_time_slot_sensor,
                 belief_not_before=datetime(2018, 1, 3, 10, tzinfo=utc),
@@ -136,7 +136,7 @@ def test_query_belief_by_belief_time(
     # One belief after 10am UTC
     assert (
         len(
-            DBTimedBelief.query(
+            DBTimedBelief.query_all(
                 session=session,
                 sensor=ex_post_time_slot_sensor,
                 belief_not_before=datetime(2018, 1, 1, 10, tzinfo=utc),
@@ -148,7 +148,7 @@ def test_query_belief_by_belief_time(
     # No beliefs an hour earlier
     assert (
         len(
-            DBTimedBelief.query(
+            DBTimedBelief.query_all(
                 session=session,
                 sensor=ex_post_time_slot_sensor,
                 belief_before=datetime(2018, 1, 1, 9, tzinfo=utc),
@@ -160,7 +160,7 @@ def test_query_belief_by_belief_time(
     # No beliefs after 1pm UTC
     assert (
         len(
-            DBTimedBelief.query(
+            DBTimedBelief.query_all(
                 session=session,
                 sensor=ex_post_time_slot_sensor,
                 belief_not_before=datetime(2018, 1, 1, 13, tzinfo=utc),
@@ -174,7 +174,7 @@ def test_query_belief_history(
     ex_post_time_slot_sensor: DBSensor,
     multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
 ):
-    df = DBTimedBelief.query(session=session, sensor=ex_post_time_slot_sensor)
+    df = DBTimedBelief.query_all(session=session, sensor=ex_post_time_slot_sensor)
     event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
     df2 = df.belief_history(event_start).sort_index(
         level="belief_time", ascending=False
@@ -199,7 +199,7 @@ def test_query_rolling_horizon(
     time_slot_sensor: DBSensor, rolling_day_ahead_beliefs_about_time_slot_events
 ):
     # belief db selects all beliefs but one recent one (made exactly at 15h)
-    belief_df = DBTimedBelief.query(
+    belief_df = DBTimedBelief.query_all(
         session=session,
         sensor=time_slot_sensor,
         belief_before=datetime(2050, 1, 1, 15, tzinfo=utc),
@@ -222,7 +222,7 @@ def test_query_fixed_horizon(
     time_slot_sensor: DBSensor, rolling_day_ahead_beliefs_about_time_slot_events
 ):
     belief_time = datetime(2050, 1, 1, 11, tzinfo=utc)
-    df = DBTimedBelief.query(
+    df = DBTimedBelief.query_all(
         session=session,
         sensor=time_slot_sensor,
         belief_before=datetime(2050, 1, 1, 15, tzinfo=utc),
@@ -242,7 +242,7 @@ def test_query_fixed_horizon(
 def test_downsample(time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_events):
     """Downsample from 15 minutes to 2 hours."""
     new_resolution = timedelta(hours=2)
-    belief_df = DBTimedBelief.query(
+    belief_df = DBTimedBelief.query_all(
         session=session,
         sensor=time_slot_sensor,
         belief_before=datetime(2100, 1, 1, 13, tzinfo=utc),
@@ -255,7 +255,7 @@ def test_downsample(time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_
 def test_upsample(time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_events):
     """Upsample from 15 minutes to 5 minutes."""
     new_resolution = timedelta(minutes=5)
-    belief_df = DBTimedBelief.query(
+    belief_df = DBTimedBelief.query_all(
         session=session,
         sensor=time_slot_sensor,
         belief_before=datetime(2100, 1, 1, 13, tzinfo=utc),
@@ -267,7 +267,7 @@ def test_upsample(time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_ev
 
 def _test_empty_frame(time_slot_sensor):
     """ pandas GH30517 """
-    bdf = DBTimedBelief.query(
+    bdf = DBTimedBelief.query_all(
         session=session,
         sensor=time_slot_sensor,
         belief_before=datetime(1900, 1, 1, 13, tzinfo=utc),

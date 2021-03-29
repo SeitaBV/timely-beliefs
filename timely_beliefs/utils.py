@@ -1,6 +1,6 @@
+import warnings
 from datetime import datetime, timedelta
 from typing import Optional, Sequence, Union
-import warnings
 
 import pandas as pd
 
@@ -153,3 +153,14 @@ def replace_multi_index_level(
         # Replace the index
         df.index = mux
     return df.sort_index()
+
+
+def append_doc_of(fun):
+    def decorator(f):
+        if f.__doc__:
+            f.__doc__ += fun.__doc__
+        else:
+            f.__doc__ = fun.__doc__
+        return f
+
+    return decorator

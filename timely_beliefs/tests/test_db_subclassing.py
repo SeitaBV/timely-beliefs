@@ -136,3 +136,6 @@ def test_custom_source_and_beliefs_with_mixin(db):
 
     assert "my_belief_source" in db.tables.keys()
     assert "my_timed_belief" in db.tables.keys()
+
+    bdf = JoyfulBeliefInCustomTable.query(session, sensor)
+    assert len(bdf) == 1

@@ -225,7 +225,20 @@ class TimedBeliefDBMixin(TimedBelief):
         )
 
     @classmethod
-    def query(
+    @tb_utils.append_doc_of("TimedBeliefDBMixin.query_all")
+    def query(cls, *args, **kwargs):
+        """Function will be deprecated. Please switch to using query_all."""
+        # todo: deprecate this function, which can clash with SQLAlchemy's Model.query()
+        import warnings
+
+        warnings.warn(
+            "Function 'query' will be replaced by 'query_all'.",
+            FutureWarning,
+        )
+        return cls.query_all(*args, **kwargs)
+
+    @classmethod
+    def query_all(
         cls,
         session: Session,
         sensor: DBSensor,
