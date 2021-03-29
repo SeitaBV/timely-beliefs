@@ -182,7 +182,9 @@ class TimedBeliefDBMixin(TimedBelief):
 
     event_start = Column(DateTime(timezone=True), primary_key=True, index=True)
     belief_horizon = Column(Interval(), nullable=False, primary_key=True)
-    cumulative_probability = Column(Float, nullable=False, primary_key=True)
+    cumulative_probability = Column(
+        Float, nullable=False, primary_key=True, default=0.5
+    )
     event_value = Column(Float, nullable=False)
 
     @declared_attr
