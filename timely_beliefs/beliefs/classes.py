@@ -228,6 +228,32 @@ class TimedBeliefDBMixin(TimedBelief):
         )
 
     @classmethod
+    def add_all(
+        cls,
+        session: Session,
+        beliefs_data_frame: "BeliefsDataFrame",
+        commit_transaction: bool = False,
+    ):
+        """Add a BeliefsDataFrame as timed beliefs to the database session.
+
+        :param session: the database session to use
+        :param beliefs_data_frame: the BeliefsDataFrame to be persisted
+        :param commit_transaction: if False, you can add still other data to the session
+                                   and commit it all within an atomic transaction
+        """
+        belief_records = (
+            beliefs_data_frame.convert_index_from_belief_time_to_horizon()
+            .reset_index()
+            .to_dict("records")
+        )
+        beliefs = [
+            cls(**dict(**d, sensor=beliefs_data_frame.sensor)) for d in belief_records
+        ]
+        session.add_all(beliefs)
+        if commit_transaction:
+            session.commit()
+
+    @classmethod
     @tb_utils.append_doc_of("TimedBeliefDBMixin.query_all")
     def query(cls, *args, **kwargs):
         """Function will be deprecated. Please switch to using query_all."""
