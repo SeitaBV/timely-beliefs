@@ -66,19 +66,10 @@ class TimedBelief(object):
     ):
         self.sensor = sensor
         self.source = source_utils.ensure_source_exists(source)
-        if event_value is None and value is None:
-            raise ValueError("Missing argument: event_value.")
-        elif event_value is not None:
-            self.event_value = event_value
-        else:
-            # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.1.0)
-            import warnings
-
-            warnings.warn(
-                "Argument 'value' will be replaced by 'event_value'. Replace 'value' with 'event_value' to suppress this warning.",
-                FutureWarning,
-            )
-            self.event_value = value
+        # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.1.0)
+        self.event_value = tb_utils.replace_deprecated_argument(
+            "value", value, "event_value", event_value
+        )
 
         if [cumulative_probability, cp, sigma].count(None) not in (2, 3):
             raise ValueError(
@@ -200,7 +191,8 @@ class TimedBeliefDBMixin(TimedBelief):
         self,
         sensor: DBSensor,
         source: DBBeliefSource,
-        value: float,
+        event_value: Optional[float] = None,
+        value: Optional[float] = None,
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
@@ -209,13 +201,17 @@ class TimedBeliefDBMixin(TimedBelief):
         belief_horizon: Optional[TimedeltaLike] = None,
         belief_time: Optional[DatetimeLike] = None,
     ):
+        # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.3.0)
+        event_value = tb_utils.replace_deprecated_argument(
+            "value", value, "event_value", event_value
+        )
         self.sensor_id = sensor.id
         self.source_id = source.id
         TimedBelief.__init__(
             self,
             sensor=sensor,
             source=source,
-            value=value,
+            event_value=event_value,
             cumulative_probability=cumulative_probability,
             cp=cp,
             sigma=sigma,
@@ -389,7 +385,8 @@ class DBTimedBelief(Base, TimedBeliefDBMixin):
         self,
         sensor: DBSensor,
         source: DBBeliefSource,
-        value: float,
+        event_value: Optional[float] = None,
+        value: Optional[float] = None,
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
@@ -398,18 +395,22 @@ class DBTimedBelief(Base, TimedBeliefDBMixin):
         belief_horizon: Optional[TimedeltaLike] = None,
         belief_time: Optional[DatetimeLike] = None,
     ):
+        # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.3.0)
+        event_value = tb_utils.replace_deprecated_argument(
+            "value", value, "event_value", event_value
+        )
         TimedBeliefDBMixin.__init__(
             self,
-            sensor,
-            source,
-            value,
-            cumulative_probability,
-            cp,
-            sigma,
-            event_start,
-            event_time,
-            belief_horizon,
-            belief_time,
+            sensor=sensor,
+            source=source,
+            event_value=event_value,
+            cumulative_probability=cumulative_probability,
+            cp=cp,
+            sigma=sigma,
+            event_start=event_start,
+            event_time=event_time,
+            belief_horizon=belief_horizon,
+            belief_time=belief_time,
         )
         Base.__init__(self)
 
