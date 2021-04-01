@@ -75,7 +75,7 @@ class TimedBelief(object):
         elif event_value is not None:
             self.event_value = event_value
         else:
-            # todo: deprecate the 'value' argument in favor of 'event_value'
+            # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.1.0)
             import warnings
 
             warnings.warn(
@@ -259,7 +259,7 @@ class TimedBeliefDBMixin(TimedBelief):
     @tb_utils.append_doc_of("TimedBeliefDBMixin.query_all")
     def query(cls, *args, **kwargs):
         """Function will be deprecated. Please switch to using query_all."""
-        # todo: deprecate this function, which can clash with SQLAlchemy's Model.query()
+        # todo: deprecate this function (announced v1.3.0), which can clash with SQLAlchemy's Model.query()
         import warnings
 
         warnings.warn(
