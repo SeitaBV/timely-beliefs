@@ -5,7 +5,7 @@ from sqlalchemy import Column, Float, ForeignKey, Integer
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import backref, relationship
 
-from timely_beliefs import DBBeliefSource, DBSensor
+from timely_beliefs import BeliefsDataFrame, DBBeliefSource, DBSensor
 from timely_beliefs.beliefs.classes import TimedBeliefDBMixin
 from timely_beliefs.db_base import Base
 from timely_beliefs.sources.classes import BeliefSourceDBMixin
@@ -137,5 +137,7 @@ def test_custom_source_and_beliefs_with_mixin(db):
     assert "my_belief_source" in db.tables.keys()
     assert "my_timed_belief" in db.tables.keys()
 
+    # todo: adjust test for deprecated query method
     bdf = JoyfulBeliefInCustomTable.query(session, sensor)
+    assert isinstance(bdf, BeliefsDataFrame)
     assert len(bdf) == 1
