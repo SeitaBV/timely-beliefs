@@ -54,7 +54,7 @@ class TimedBelief(object):
     source: BeliefSource
     cumulative_probability: float
 
-    def __init__(
+    def __init__(  # noqa: C901 todo: the noqa can probably be removed when we deprecate the value argument
         self,
         sensor: Sensor,
         source: Union[BeliefSource, str, int],
@@ -250,28 +250,26 @@ class TimedBeliefDBMixin(TimedBelief):
             .reset_index()
             .to_dict("records")
         )
-        beliefs = [
-            cls(**dict(**d, sensor=beliefs_data_frame.sensor)) for d in belief_records
-        ]
+        beliefs = [cls(sensor=beliefs_data_frame.sensor, **d) for d in belief_records]
         session.add_all(beliefs)
         if commit_transaction:
             session.commit()
 
     @classmethod
-    @tb_utils.append_doc_of("TimedBeliefDBMixin.query_all")
+    @tb_utils.append_doc_of("TimedBeliefDBMixin.search_session")
     def query(cls, *args, **kwargs):
-        """Function will be deprecated. Please switch to using query_all."""
+        """Function will be deprecated. Please switch to using search_session."""
         # todo: deprecate this function (announced v1.3.0), which can clash with SQLAlchemy's Model.query()
         import warnings
 
         warnings.warn(
-            "Function 'query' will be replaced by 'query_all'.",
+            "Function 'query' will be replaced by 'search_session'.",
             FutureWarning,
         )
-        return cls.query_all(*args, **kwargs)
+        return cls.search_session(*args, **kwargs)
 
     @classmethod
-    def query_all(
+    def search_session(
         cls,
         session: Session,
         sensor: DBSensor,
@@ -283,7 +281,7 @@ class TimedBeliefDBMixin(TimedBelief):
         sensor_cls: Type[SensorDBMixin] = DBSensor,
         source_cls: Type[BeliefSourceDBMixin] = DBBeliefSource,
     ) -> "BeliefsDataFrame":
-        """Query beliefs about sensor events.
+        """Search a database session for beliefs about sensor events.
         :param session: the database session to use
         :param sensor: sensor to which the beliefs pertain
         :param event_before: only return beliefs about events that end before this datetime (inclusive)
@@ -367,7 +365,7 @@ class TimedBeliefDBMixin(TimedBelief):
                     if not isinstance(s, int) and not isinstance(s, str)
                 ]
                 raise ValueError(
-                    "Query by source failed: query only possible by integer id or string name. Failed sources: %s"
+                    "Search by source failed: search only possible by integer id or string name. Failed sources: %s"
                     % unidentifiable_list
                 )
             else:
@@ -541,9 +539,9 @@ class BeliefsDataFrame(pd.DataFrame):
                 object.__setattr__(self, name, getattr(other, name, None))
         return self
 
-    def __init__(  # noqa: C901
+    def __init__(  # noqa: C901 todo: refactor, e.g. by detecting initialization method
         self, *args, **kwargs
-    ):  # noqa: C901 todo: refactor, e.g. by detecting initialization method
+    ):
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
 
         # Initialized with a BeliefsSeries or BeliefsDataFrame
