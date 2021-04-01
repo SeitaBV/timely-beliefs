@@ -240,9 +240,11 @@ class TimedBeliefDBMixin(TimedBelief):
 
         :param session: the database session to use
         :param beliefs_data_frame: the BeliefsDataFrame to be persisted
-        :param commit_transaction: if False, you can add still other data to the session
+        :param commit_transaction: if True, the session is committed
+                                   if False, you can add still other data to the session
                                    and commit it all within an atomic transaction
         """
+        # Belief timing is stored as the belief horizon rather than as the belief time
         belief_records = (
             beliefs_data_frame.convert_index_from_belief_time_to_horizon()
             .reset_index()
