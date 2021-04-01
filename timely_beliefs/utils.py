@@ -188,3 +188,12 @@ def replace_deprecated_argument(
         )
         new_arg_val = deprecated_arg_val
     return new_arg_val
+
+
+def remove_class_init_kwargs(cls, kwargs: dict) -> dict:
+    """Remove kwargs used to initialize the given class."""
+    params = list(cls.__init__.__code__.co_varnames)
+    params.remove("self")
+    for param in params:
+        kwargs.pop(param, None)
+    return kwargs
