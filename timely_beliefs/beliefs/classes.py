@@ -230,18 +230,18 @@ class TimedBeliefDBMixin(TimedBelief):
         )
 
     @classmethod
-    def add_all(
+    def add_to_session(
         cls,
         session: Session,
         beliefs_data_frame: "BeliefsDataFrame",
         commit_transaction: bool = False,
     ):
-        """Add a BeliefsDataFrame as timed beliefs to the database session.
+        """Add a BeliefsDataFrame as timed beliefs to a database session.
 
         :param session: the database session to use
         :param beliefs_data_frame: the BeliefsDataFrame to be persisted
         :param commit_transaction: if True, the session is committed
-                                   if False, you can add still other data to the session
+                                   if False, you can still add other data to the session
                                    and commit it all within an atomic transaction
         """
         # Belief timing is stored as the belief horizon rather than as the belief time
