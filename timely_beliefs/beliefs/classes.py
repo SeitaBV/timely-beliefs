@@ -1,6 +1,6 @@
 import math
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import altair as alt
 import pandas as pd
@@ -19,11 +19,7 @@ from timely_beliefs.db_base import Base
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.sensors.classes import DBSensor, Sensor, SensorDBMixin
 from timely_beliefs.sources import utils as source_utils
-from timely_beliefs.sources.classes import (
-    BeliefSource,
-    BeliefSourceDBMixin,
-    DBBeliefSource,
-)
+from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 from timely_beliefs.visualization import utils as visualization_utils
 
 METADATA = ["sensor", "event_resolution"]
@@ -272,14 +268,12 @@ class TimedBeliefDBMixin(TimedBelief):
     def search_session(
         cls,
         session: Session,
-        sensor: DBSensor,
+        sensor: SensorDBMixin,
         event_before: Optional[datetime] = None,
         event_not_before: Optional[datetime] = None,
         belief_before: Optional[datetime] = None,
         belief_not_before: Optional[datetime] = None,
         source: Optional[Union[int, List[int], str, List[str]]] = None,
-        sensor_cls: Type[SensorDBMixin] = DBSensor,
-        source_cls: Type[BeliefSourceDBMixin] = DBBeliefSource,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
         :param session: the database session to use
@@ -289,8 +283,6 @@ class TimedBeliefDBMixin(TimedBelief):
         :param belief_before: only return beliefs formed before this datetime (inclusive)
         :param belief_not_before: only return beliefs formed after this datetime (inclusive)
         :param source: only return beliefs formed by the given source or list of sources (pass their id or name)
-        :param sensor_cls: set to your own DBSensor class implementation if it uses a different table name
-        :param source_cls: set to your own DBBeliefSource class implementation if it uses a different table name
         :returns: a multi-index DataFrame with all relevant beliefs
 
         TODO: rename params for clarity: event_finished_before, event_starts_not_before (or similar), same for beliefs
@@ -313,11 +305,11 @@ class TimedBeliefDBMixin(TimedBelief):
         # Query sensor for relevant timing properties
         event_resolution, knowledge_horizon_fnc, knowledge_horizon_par = (
             session.query(
-                sensor_cls.event_resolution,
-                sensor_cls.knowledge_horizon_fnc,
-                sensor_cls.knowledge_horizon_par,
+                sensor.__class__.event_resolution,
+                sensor.__class__.knowledge_horizon_fnc,
+                sensor.__class__.knowledge_horizon_par,
             )
-            .filter(sensor_cls.id == sensor.id)
+            .filter(sensor.__class__.id == sensor.id)
             .one_or_none()
         )
 
@@ -355,23 +347,9 @@ class TimedBeliefDBMixin(TimedBelief):
 
         # Apply source filter
         if source is not None:
-            source_list = [source] if not isinstance(source, list) else source
-            id_list = [s for s in source_list if isinstance(s, int)]
-            name_list = [s for s in source_list if isinstance(s, str)]
-            if len(id_list) + len(name_list) < len(source_list):
-                unidentifiable_list = [
-                    s
-                    for s in source_list
-                    if not isinstance(s, int) and not isinstance(s, str)
-                ]
-                raise ValueError(
-                    "Search by source failed: search only possible by integer id or string name. Failed sources: %s"
-                    % unidentifiable_list
-                )
-            else:
-                q = q.join(source_cls).filter(
-                    (cls.source_id.in_(id_list)) | (source_cls.name.in_(name_list))
-                )
+            sources: list = [source] if not isinstance(source, list) else source
+            source_cls = sources[0].__class__
+            q = q.join(source_cls).filter(cls.source_id.in_([s.id for s in sources]))
 
         # Build our DataFrame of beliefs
         df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())

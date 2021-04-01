@@ -219,14 +219,17 @@ def test_query_rolling_horizon(
 
 
 def test_query_fixed_horizon(
-    time_slot_sensor: DBSensor, rolling_day_ahead_beliefs_about_time_slot_events
+    time_slot_sensor: DBSensor,
+    rolling_day_ahead_beliefs_about_time_slot_events,
+    test_source_a,
+    test_source_b,
 ):
     belief_time = datetime(2050, 1, 1, 11, tzinfo=utc)
     df = DBTimedBelief.search_session(
         session=session,
         sensor=time_slot_sensor,
         belief_before=datetime(2050, 1, 1, 15, tzinfo=utc),
-        source=[1, 2],
+        source=[test_source_a, test_source_b],
     )
     df2 = df.fixed_viewpoint(belief_time=belief_time)
     assert len(df2) == 2
