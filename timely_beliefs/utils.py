@@ -1,6 +1,6 @@
+import warnings
 from datetime import datetime, timedelta
 from typing import Optional, Sequence, Union
-import warnings
 
 import pandas as pd
 
@@ -78,11 +78,11 @@ def all_of_type(seq: Sequence, element_type) -> bool:
 
 
 def replace_multi_index_level(
-    df: "classes.BeliefsDataFrame",
+    df: "classes.BeliefsDataFrame",  # noqa: F821
     level: str,
     index: pd.Index,
-    intersection: bool = False,  # noqa: F821
-) -> "classes.BeliefsDataFrame":
+    intersection: bool = False,
+) -> "classes.BeliefsDataFrame":  # noqa: F821
     """Replace one of the index levels of the multi-indexed DataFrame. Returns a new DataFrame object.
     :param df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
     :param level: the name of the index level to replace.
@@ -153,3 +153,47 @@ def replace_multi_index_level(
         # Replace the index
         df.index = mux
     return df.sort_index()
+
+
+def append_doc_of(fun):
+    def decorator(f):
+        if f.__doc__:
+            f.__doc__ += fun.__doc__
+        else:
+            f.__doc__ = fun.__doc__
+        return f
+
+    return decorator
+
+
+def replace_deprecated_argument(
+    deprecated_arg_name: str,
+    deprecated_arg_val: any,
+    new_arg_name: str,
+    new_arg_val: any,
+) -> any:
+    """Util function for replacing a deprecated argument in favour of a new argument.
+    If new_arg_val was not already set, it is set to deprecated_arg_val together with a FutureWarning.
+    """
+    if new_arg_val is None and deprecated_arg_val is None:
+        raise ValueError(f"Missing argument: {new_arg_name}.")
+    elif new_arg_val is not None:
+        pass
+    else:
+        import warnings
+
+        warnings.warn(
+            f"Argument '{deprecated_arg_name}' will be replaced by '{new_arg_name}'. Replace '{deprecated_arg_name}' with '{new_arg_name}' to suppress this warning.",
+            FutureWarning,
+        )
+        new_arg_val = deprecated_arg_val
+    return new_arg_val
+
+
+def remove_class_init_kwargs(cls, kwargs: dict) -> dict:
+    """Remove kwargs used to initialize the given class."""
+    params = list(cls.__init__.__code__.co_varnames)
+    params.remove("self")
+    for param in params:
+        kwargs.pop(param, None)
+    return kwargs
