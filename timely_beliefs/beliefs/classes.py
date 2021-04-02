@@ -269,7 +269,7 @@ class TimedBeliefDBMixin(TimedBelief):
         event_not_before: Optional[datetime] = None,
         belief_before: Optional[datetime] = None,
         belief_not_before: Optional[datetime] = None,
-        source: Optional[Union[int, List[int], str, List[str]]] = None,
+        source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
         :param session: the database session to use
@@ -278,7 +278,7 @@ class TimedBeliefDBMixin(TimedBelief):
         :param event_not_before: only return beliefs about events that start after this datetime (inclusive)
         :param belief_before: only return beliefs formed before this datetime (inclusive)
         :param belief_not_before: only return beliefs formed after this datetime (inclusive)
-        :param source: only return beliefs formed by the given source or list of sources (pass their id or name)
+        :param source: only return beliefs formed by the given source or list of sources
         :returns: a multi-index DataFrame with all relevant beliefs
 
         TODO: rename params for clarity: event_finished_before, event_starts_not_before (or similar), same for beliefs
