@@ -477,6 +477,9 @@ def read_csv(
     sensor: "classes.Sensor",
     source: "classes.BeliefSource" = None,
     look_up_sources: List["classes.BeliefSource"] = None,
+    belief_horizon: timedelta = None,
+    belief_time: datetime = None,
+    cumulative_probability: float = None,
     **kwargs,
 ) -> "classes.BeliefsDataFrame":
     """Utility function to load a BeliefsDataFrame from a csv file (see example/temperature.csv).
@@ -491,6 +494,23 @@ def read_csv(
 
     """
     df = pd.read_csv(path, **kwargs)
+
+    # Special case for simple time series (UTC datetime in 1st column and value in 2nd column)
+    if len(df.columns) == 2:
+        df.columns = ["event_start", "event_value"]
+        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
+            sensor.timezone
+        )
+
+    # Apply optionally set belief timing
+    if belief_horizon is not None and belief_time is not None:
+        raise ValueError("Cannot set both a belief horizon and a belief time.")
+    elif belief_horizon is not None:
+        df["belief_horizon"] = belief_horizon
+    elif belief_time is not None:
+        df["belief_time"] = belief_time
+
+    # Apply optionally set source
     if source is not None:
         df["source"] = source_utils.ensure_source_exists(source)
     elif "source" in df.columns:
@@ -506,6 +526,11 @@ def read_csv(
             )
     else:
         raise Exception("No source specified in csv, please set a source.")
+
+    # Apply optionally set cumulative probability
+    if cumulative_probability is not None:
+        df["cumulative_probability"] = cumulative_probability
+
     return classes.BeliefsDataFrame(df, sensor=sensor)
 
 
