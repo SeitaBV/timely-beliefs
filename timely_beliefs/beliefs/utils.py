@@ -477,6 +477,7 @@ def read_csv(
     sensor: "classes.Sensor",
     source: "classes.BeliefSource" = None,
     look_up_sources: List["classes.BeliefSource"] = None,
+    **kwargs,
 ) -> "classes.BeliefsDataFrame":
     """Utility function to load a BeliefsDataFrame from a csv file (see example/temperature.csv).
 
@@ -489,7 +490,7 @@ def read_csv(
     >>> df.to_csv()
 
     """
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, **kwargs)
     if source is not None:
         df["source"] = source_utils.ensure_source_exists(source)
     elif "source" in df.columns:
