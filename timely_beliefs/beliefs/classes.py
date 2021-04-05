@@ -226,6 +226,7 @@ class TimedBeliefDBMixin(TimedBelief):
         cls,
         session: Session,
         beliefs_data_frame: "BeliefsDataFrame",
+        allow_overwrite: bool = False,
         commit_transaction: bool = False,
     ):
         """Add a BeliefsDataFrame as timed beliefs to a database session.
@@ -243,7 +244,12 @@ class TimedBeliefDBMixin(TimedBelief):
             .to_dict("records")
         )
         beliefs = [cls(sensor=beliefs_data_frame.sensor, **d) for d in belief_records]
-        session.add_all(beliefs)
+        if not allow_overwrite:
+            session.bulk_save_objects(beliefs)
+            # session.add_all(beliefs)
+        else:
+            for belief in beliefs:
+                session.merge(belief)
         if commit_transaction:
             session.commit()
 
