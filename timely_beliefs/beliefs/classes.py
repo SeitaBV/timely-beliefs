@@ -248,6 +248,9 @@ class TimedBeliefDBMixin(TimedBelief):
             session.bulk_save_objects(beliefs)
             # session.add_all(beliefs)
         else:
+            # Objects got probably added in incomplete state earlier
+            session.expunge_all()
+            # We're adding them fresh, from the top
             for belief in beliefs:
                 session.merge(belief)
         if commit_transaction:
