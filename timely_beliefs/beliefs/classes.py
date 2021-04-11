@@ -231,8 +231,11 @@ class TimedBeliefDBMixin(TimedBelief):
     ):
         """Add a BeliefsDataFrame as timed beliefs to a database session.
 
-        :param session: the database session to use
+        :param session:            the database session to use
         :param beliefs_data_frame: the BeliefsDataFrame to be persisted
+        :param allow_overwrite:    if True, all instances are removed from the session and the new objects are merged,
+                                   (use with commit_transaction=True and make sure you flush any other new objects)
+                                   if False, objects are added to the session
         :param commit_transaction: if True, the session is committed
                                    if False, you can still add other data to the session
                                    and commit it all within an atomic transaction
@@ -245,8 +248,11 @@ class TimedBeliefDBMixin(TimedBelief):
         )
         beliefs = [cls(sensor=beliefs_data_frame.sensor, **d) for d in belief_records]
         if not allow_overwrite:
-            session.bulk_save_objects(beliefs)
-            # session.add_all(beliefs)
+            session.add_all(beliefs)
+        elif not commit_transaction:
+            raise ValueError(
+                "Incompatible options: allow_overwrite=True can only be used with commit_transaction=True"
+            )
         else:
             # Objects got probably added in incomplete state earlier
             session.expunge_all()
