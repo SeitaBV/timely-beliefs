@@ -67,9 +67,7 @@ def plot(
     # Construct selectors
     time_window_selector = selectors.time_window_selector(base, interpolate)
     if show_accuracy is True:
-        horizon_selection_brush = selectors.horizon_selection_brush(
-            init_belief_horizon=unique_belief_horizons[0]
-        )
+        horizon_selection_brush = selectors.horizon_selection_brush()
         horizon_selector = selectors.horizon_selector(
             base.properties(width=1300),
             horizon_selection_brush,
