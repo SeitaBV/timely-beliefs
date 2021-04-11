@@ -365,7 +365,7 @@ def ridgeline_plot(
                 title=("Upcoming " if fixed_viewpoint else "Previous ")
                 + belief_horizon_unit,
                 header=alt.Header(
-                    labelAngle=0, labelAlign="right", format="%B"
+                    labelAngle=0, labelAlign="left"
                 ),  # todo: set conditional labels once labelExpr finds its way from vega-lite to altair,
                 #      so then we can choose to print e.g. 0, 6, 12, 18, 24 hours instead of all of 0 to 24 hours.
                 #      See https://github.com/vega/vega-lite/issues/5310
