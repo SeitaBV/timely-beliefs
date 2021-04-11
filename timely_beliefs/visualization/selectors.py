@@ -41,7 +41,7 @@ def horizon_selection_brush(init_belief_horizon=None) -> alt.MultiSelection:
             encodings=["x"],
             name="horizon_select",
             empty="all",
-            init={"belief_horizon": init_belief_horizon},
+            init=[{"belief_horizon": init_belief_horizon}],
         )
 
 
@@ -67,7 +67,7 @@ def fixed_viewpoint_selector(
             )
         ]
         if active_fixed_viewpoint_selector is True
-        else None,
+        else [],
     )
     return selector.add_selection(nearest_x_select_brush).add_selection(
         nearest_x_hover_brush

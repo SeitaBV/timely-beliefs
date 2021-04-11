@@ -25,7 +25,7 @@ setup(
         "isodate",
         "openturns",
         "properscoring",
-        "altair==3.0.0",
+        "altair>=3.2.0",
         "selenium",
     ],
     setup_requires=["pytest-runner"],
