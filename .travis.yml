@@ -6,8 +6,7 @@ python:
 services:
   - postgresql
 install:
-  - pip install pip-tools
-  - pip-sync dev/requirements.txt
+  - python setup.py install  # testing a non-pinned install, suitable for a library
   - pip install pytest
   - pip install .
 before_script:
