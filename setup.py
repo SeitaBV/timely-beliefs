@@ -24,6 +24,8 @@ setup(
         "pandas>=1.1.5,<1.2" if sys.version_info[:2] == (3, 6) else "pandas>=1.1.5",
         "numpy",
         "scipy",
+        # https://github.com/scipy/scipy/releases/tag/v1.6.0
+        "scipy<1.6" if sys.version_info[:2] == (3, 6) else "scipy",
         "SQLAlchemy",
         "psycopg2-binary",
         "isodate",
