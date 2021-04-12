@@ -259,7 +259,7 @@ def source_vs_hour_chart(
                 "event_start:O",
                 timeUnit="hours",
                 axis=alt.Axis(domain=False, ticks=False, labelAngle=0),
-                scale=alt.Scale(domain=list(range(24))),
+                # scale=alt.Scale(domain=list(range(24))),
                 title="Hour of day",  # "UTC hour of day"
             ),
             color=alt.condition(
