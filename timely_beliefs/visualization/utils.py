@@ -97,6 +97,9 @@ def plot(
         ci,
         event_value_range,
     )
+    # Initialize belief time to (roughly) the middle of the event time window
+    event_starts = bdf.event_starts
+    init_value = event_starts[len(event_starts) // 2] if len(event_starts) > 0 else None
     if show_accuracy is True:
         ha_chart = graphs.accuracy_vs_horizon_chart(
             base.properties(width=1300),
@@ -115,6 +118,7 @@ def plot(
                     & selectors.fixed_viewpoint_selector(
                         base,
                         active_fixed_viewpoint_selector=active_fixed_viewpoint_selector,
+                        init_value=init_value,
                     )
                     + ts_chart
                     | hd_chart
@@ -129,7 +133,8 @@ def plot(
             (
                 (
                     time_window_selector
-                    & selectors.fixed_viewpoint_selector(base) + ts_chart
+                    & selectors.fixed_viewpoint_selector(base, init_value=init_value)
+                    + ts_chart
                 )
                 | selectors.source_selector(plottable_df)
             )

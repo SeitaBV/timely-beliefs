@@ -1,6 +1,8 @@
+from datetime import datetime
 from typing import Optional, Tuple
 
 import altair as alt
+import pandas as pd
 
 idle_color = "lightgray"
 
@@ -17,12 +19,9 @@ ridgeline_hover_brush = alt.selection_single(
     name="ridgeline_hover",
 )
 
-# Create selection brushes that choose the nearest point & selects based on x-value
+# Create selection brush that chooses the x-value nearest to the cursor on hover
 nearest_x_hover_brush = alt.selection_single(
     nearest=True, on="mouseover", encodings=["x"], empty="none", name="nearest_x_hover"
-)
-nearest_x_select_brush = alt.selection_single(
-    nearest=True, encodings=["x"], empty="all", name="nearest_x_select"
 )
 
 
@@ -46,12 +45,15 @@ def horizon_selection_brush(init_belief_horizon=None) -> alt.MultiSelection:
 
 
 def fixed_viewpoint_selector(
-    base: alt.Chart, active_fixed_viewpoint_selector: bool = False
+    base: alt.Chart,
+    active_fixed_viewpoint_selector: bool = False,
+    init_value: datetime = None,
 ) -> alt.Chart:
     """Transparent selectors across the chart (visible on hover).
     This is what tells us the belief time for a given x-value of the cursor.
 
     :param active_fixed_viewpoint_selector: if False, return an idle colored version without tooltip
+    :param init_value:                      initialize viewpoint to this datetime
     """
     selector = base.mark_rule().encode(
         x=alt.X("belief_time:T", scale={"domain": time_selection_brush.ref()}),
@@ -68,6 +70,14 @@ def fixed_viewpoint_selector(
         ]
         if active_fixed_viewpoint_selector is True
         else [],
+    )
+    # Create selection brush that chooses the x-value nearest to the cursor on selection
+    nearest_x_select_brush = alt.selection_single(
+        nearest=True,
+        encodings=["x"],
+        empty="all",
+        name="nearest_x_select",
+        init={"belief_time": timestamp(init_value)} if init_value is not None else {},
     )
     return selector.add_selection(nearest_x_select_brush).add_selection(
         nearest_x_hover_brush
@@ -238,3 +248,8 @@ def ridgeline_selector(
         )
     )
     return selector.add_selection(ridgeline_hover_brush)
+
+
+def timestamp(t):
+    """Datetime like to timestamp."""
+    return pd.to_datetime(t).timestamp() * 1000
