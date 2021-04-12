@@ -1,4 +1,6 @@
+import sys
 from setuptools import setup
+
 
 setup(
     name="timely-beliefs",
@@ -15,9 +17,11 @@ setup(
         "lineage",
     ],
     version="1.3.0",
+    python_requires=">=3.6.1",  # not enforced, just info
     install_requires=[
         "pytz",
-        "pandas>=1.1.5",
+        # https://pandas.pydata.org/pandas-docs/stable/whatsnew/v1.2.0.html#increased-minimum-version-for-python
+        "pandas>=1.1.5,<1.2" if sys.version_info[:2] == (3, 6) else "pandas>=1.1.5",
         "numpy",
         "scipy",
         "SQLAlchemy",
@@ -43,6 +47,7 @@ setup(
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3 :: 6",
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
