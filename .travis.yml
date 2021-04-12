@@ -6,6 +6,7 @@ python:
 services:
   - postgresql
 install:
+  - pip install --upgrade pip  # latest resolver
   - python setup.py install  # testing a non-pinned install, suitable for a library
   - pip install pytest
   - pip install .
