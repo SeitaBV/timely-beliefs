@@ -488,6 +488,13 @@ def read_csv(
     In case the csv file contains multiple source names, you can pass a list of sources.
     Each source name will be replaced by the actual source.
 
+    Also supports the case of a csv file with just 2 columns and 1 header row (a quite common time series format).
+    In this case no special header names are required, but the first column has to contain the UTC event starts,
+    and the second column has to contain the event values.
+    You also need to pass explicit values for the belief horizon/time and cumulative probability,
+    in addition to the sensor and source.
+    Useful ddditional kwargs passed to pandas are parse_dates=True and infer_datetime_format=True.
+
     To write a BeliefsDataFrame to a csv file, just use the pandas way:
 
     >>> df.to_csv()
