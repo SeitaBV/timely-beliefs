@@ -6,8 +6,10 @@ from timely_beliefs.tests import session
 
 
 @pytest.mark.parametrize("replace_source", [False, True])
+@pytest.mark.parametrize("bulk_save_objects", [False, True])
 def test_adding_to_session(
     replace_source: bool,
+    bulk_save_objects: bool,
     time_slot_sensor: DBSensor,
     rolling_day_ahead_beliefs_about_time_slot_events,
     test_source_a,
@@ -36,6 +38,7 @@ def test_adding_to_session(
         bdf,
         expunge_session=True,
         allow_overwrite=True,
+        bulk_save_objects=bulk_save_objects,
         commit_transaction=True,
     )
     new_bdf = DBTimedBelief.search_session(
@@ -46,7 +49,9 @@ def test_adding_to_session(
     assert len(bdf) == len(new_bdf)
 
 
+@pytest.mark.parametrize("bulk_save_objects", [False, True])
 def test_fail_adding_to_session(
+    bulk_save_objects: bool,
     time_slot_sensor: DBSensor,
     rolling_day_ahead_beliefs_about_time_slot_events,
 ):
@@ -60,5 +65,9 @@ def test_fail_adding_to_session(
     # Attempting to save the same data should fail, even if we expunge everything from the session
     with pytest.raises(IntegrityError):
         DBTimedBelief.add_to_session(
-            session, bdf, expunge_session=True, commit_transaction=True
+            session,
+            bdf,
+            expunge_session=True,
+            bulk_save_objects=bulk_save_objects,
+            commit_transaction=True,
         )
