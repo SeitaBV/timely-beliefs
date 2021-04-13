@@ -1,15 +1,15 @@
-from datetime import timedelta
 import sys
+from datetime import datetime, timedelta
 
 import pytest
+from pytz import utc
 
-from timely_beliefs import DBBeliefSource, DBSensor
+from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
     determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
 )
 from timely_beliefs.tests import engine, session
-
 
 if sys.version_info[0] == 3 and sys.version_info[1] == 6:
     # Ignore these tests for python==3.6
@@ -83,3 +83,49 @@ def test_source_b(db):
     source = DBBeliefSource("Source B")
     session.add(source)
     return source
+
+
+@pytest.fixture(scope="function", autouse=True)
+def test_source_without_initial_data(db):
+    """Define source without initial test beliefs."""
+    source = DBBeliefSource("Source without initial data")
+    session.add(source)
+    return source
+
+
+@pytest.fixture(scope="function", params=[1, 2])
+def rolling_day_ahead_beliefs_about_time_slot_events(
+    request, time_slot_sensor: DBSensor
+):
+    """Define multiple day-ahead beliefs about an ex post time slot event."""
+    source = (
+        session.query(DBBeliefSource)
+        .filter(DBBeliefSource.id == request.param)
+        .one_or_none()
+    )
+
+    beliefs = []
+    for i in range(1, 11):  # ten events
+
+        # Recent belief (horizon 48 hours)
+        belief = DBTimedBelief(
+            sensor=time_slot_sensor,
+            source=source,
+            value=10 + i,
+            belief_time=datetime(2050, 1, 1, 10, tzinfo=utc) + timedelta(hours=i),
+            event_start=datetime(2050, 1, 3, 10, tzinfo=utc) + timedelta(hours=i),
+        )
+        session.add(belief)
+        beliefs.append(belief)
+
+        # Slightly older beliefs (belief_time an hour earlier)
+        belief = DBTimedBelief(
+            sensor=time_slot_sensor,
+            source=source,
+            value=100 + i,
+            belief_time=datetime(2050, 1, 1, 10, tzinfo=utc) + timedelta(hours=i - 1),
+            event_start=datetime(2050, 1, 3, 10, tzinfo=utc) + timedelta(hours=i),
+        )
+        session.add(belief)
+        beliefs.append(belief)
+    return beliefs

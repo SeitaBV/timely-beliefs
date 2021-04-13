@@ -36,8 +36,8 @@ def test_subclassing_source(db):
 
     assert session.query(RatedSource).filter(RatedSource.rating == 5).count() == 1
 
-    # We made one with default rating (0) and in conftest two are made in advance
-    assert session.query(RatedSource).filter(RatedSource.rating == 0).count() == 3
+    # We made one with default rating (0) and in conftest three are made in advance
+    assert session.query(RatedSource).filter(RatedSource.rating == 0).count() == 4
 
 
 class RatedSourceInCustomTable(Base, BeliefSourceDBMixin):

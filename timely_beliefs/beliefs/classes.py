@@ -226,15 +226,30 @@ class TimedBeliefDBMixin(TimedBelief):
         cls,
         session: Session,
         beliefs_data_frame: "BeliefsDataFrame",
+        expunge_session: bool = False,
+        allow_overwrite: bool = False,
+        bulk_save_objects: bool = False,
         commit_transaction: bool = False,
     ):
         """Add a BeliefsDataFrame as timed beliefs to a database session.
 
-        :param session: the database session to use
-        :param beliefs_data_frame: the BeliefsDataFrame to be persisted
-        :param commit_transaction: if True, the session is committed
-                                   if False, you can still add other data to the session
-                                   and commit it all within an atomic transaction
+        If you are adding lots of beliefs, it's most efficient to use expunge_session=True and allow_overwrite=False
+
+        :param session:             the database session to use
+        :param beliefs_data_frame:  the BeliefsDataFrame to be persisted
+        :param expunge_session:     if True, all non-flushed instances are removed from the session before adding beliefs.
+                                    Expunging can resolve problems you might encounter with states of objects in your session.
+                                    When using this option, you might want to flush newly-created objects which are not beliefs
+                                    (e.g. a sensor or data source object).
+        :param allow_overwrite:     if True, new objects are merged
+                                    if False, objects are added to the session or bulk saved
+        :param bulk_save_objects:   if True, objects are bulk saved with session.bulk_save_objects(),
+                                    which is quite fast but has several caveats, see:
+                                    https://docs.sqlalchemy.org/orm/persistence_techniques.html#bulk-operations-caveats
+                                    if False, objects are added to the session with session.add_all()
+        :param commit_transaction:  if True, the session is committed
+                                    if False, you can still add other data to the session
+                                    and commit it all within an atomic transaction
         """
         # Belief timing is stored as the belief horizon rather than as the belief time
         belief_records = (
@@ -243,7 +258,16 @@ class TimedBeliefDBMixin(TimedBelief):
             .to_dict("records")
         )
         beliefs = [cls(sensor=beliefs_data_frame.sensor, **d) for d in belief_records]
-        session.add_all(beliefs)
+        if expunge_session:
+            session.expunge_all()
+        if not allow_overwrite:
+            if bulk_save_objects:
+                session.bulk_save_objects(beliefs)
+            else:
+                session.add_all(beliefs)
+        else:
+            for belief in beliefs:
+                session.merge(belief)
         if commit_transaction:
             session.commit()
 
