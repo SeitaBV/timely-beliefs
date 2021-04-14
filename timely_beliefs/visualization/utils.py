@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import altair as alt
 import numpy as np
@@ -21,6 +21,7 @@ def plot(
     ci: float = 0.9,
     intuitive_forecast_horizon: bool = True,
     interpolate: bool = True,
+    event_value_range: Tuple[Optional[float], Optional[float]] = (None, None),
 ) -> alt.LayerChart:
     """Plot the BeliefsDataFrame with the Altair visualization library.
 
@@ -31,6 +32,7 @@ def plot(
     :param ci: The confidence interval to highlight in the time series graph
     :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
     :param interpolate: If True, the time series chart shows a user-friendly interpolated line rather than more accurate stripes indicating average values
+    :param event_value_range: Optionally set explicit limits on the range of event values (for axis scaling).
     :return: Altair LayerChart
     """
 
@@ -51,7 +53,18 @@ def plot(
         intuitive_forecast_horizon=intuitive_forecast_horizon,
     )
     unique_belief_horizons = plottable_df["belief_horizon"].unique()
-    event_value_range = (bdf.min()[0], bdf.max()[0])
+
+    # Set range of event values
+    if None in event_value_range:
+        event_value_range = list(event_value_range)
+        if event_value_range[0] is None:
+            # Infer minimum from data
+            event_value_range[0] = bdf["event_value"].min()
+        if event_value_range[-1] is None:
+            # Infer maximum from data
+            event_value_range[-1] = bdf["event_value"].max()
+        event_value_range = tuple(event_value_range)
+
     plottable_df = plottable_df.groupby(
         ["event_start", "source"], group_keys=False
     ).apply(
