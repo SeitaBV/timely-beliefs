@@ -1376,6 +1376,7 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_source: BeliefSource = None,
         intuitive_forecast_horizon: bool = True,
         interpolate: bool = True,
+        event_value_range: Tuple[Optional[float], Optional[float]] = (None, None),
     ) -> alt.LayerChart:
         """Visualize the BeliefsDataFrame in an interactive Altair chart.
 
@@ -1386,6 +1387,13 @@ class BeliefsDataFrame(pd.DataFrame):
         :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
         :param interpolate: If True, the time series chart shows a user-friendly interpolated line
                rather than more accurate stripes indicating average values
+        :param event_value_range: Optionally set explicit limits on the range of event values (for axis scaling).
+               For example:
+               (0, 3)  # lower limit is 0, upper limit is 3
+               (None, 3)  # lower limit is taken from the plotted data, upper limit is 3
+               (0, None)  # lower limit is 0, upper limit is taken from the plotted data
+               (bdf["event_value"].min(), bdf["event_value"].max())  # limits are taken from the event value range of bdf
+               (None, None)  # default, limits are taken from the plotted data
         :returns: Altair chart object with a vega-lite representation (for more information, see reference below).
 
         >>> chart = df.plot(df.lineage.sources[0])
@@ -1404,6 +1412,7 @@ class BeliefsDataFrame(pd.DataFrame):
             reference_source=reference_source,
             intuitive_forecast_horizon=intuitive_forecast_horizon,
             interpolate=interpolate,
+            event_value_range=event_value_range,
         )
 
     @staticmethod
