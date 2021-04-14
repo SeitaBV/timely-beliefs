@@ -55,7 +55,7 @@ def test_query_belief_by_belief_time(
     belief_df = DBTimedBelief.search_session(
         session=session,
         sensor=ex_post_time_slot_sensor,
-        belief_before=datetime(2018, 1, 1, 13, tzinfo=utc),
+        beliefs_before=datetime(2018, 1, 1, 13, tzinfo=utc),
     )
 
     # By calling a pandas Series for its values we lose the timezone (a pandas bug still present in version 0.23.4)
@@ -77,7 +77,7 @@ def test_query_belief_by_belief_time(
             DBTimedBelief.search_session(
                 session=session,
                 sensor=ex_post_time_slot_sensor,
-                belief_before=datetime(2017, 1, 1, 10, tzinfo=utc),
+                beliefs_before=datetime(2017, 1, 1, 10, tzinfo=utc),
             ).index
         )
         == 0
@@ -89,7 +89,7 @@ def test_query_belief_by_belief_time(
             DBTimedBelief.search_session(
                 session=session,
                 sensor=ex_post_time_slot_sensor,
-                belief_not_before=datetime(2018, 1, 3, 10, tzinfo=utc),
+                beliefs_after=datetime(2018, 1, 3, 10, tzinfo=utc),
             ).index
         )
         == 0
@@ -101,7 +101,7 @@ def test_query_belief_by_belief_time(
             DBTimedBelief.search_session(
                 session=session,
                 sensor=ex_post_time_slot_sensor,
-                belief_not_before=datetime(2018, 1, 1, 10, tzinfo=utc),
+                beliefs_after=datetime(2018, 1, 1, 10, tzinfo=utc),
             ).index
         )
         == 1
@@ -113,7 +113,7 @@ def test_query_belief_by_belief_time(
             DBTimedBelief.search_session(
                 session=session,
                 sensor=ex_post_time_slot_sensor,
-                belief_before=datetime(2018, 1, 1, 9, tzinfo=utc),
+                beliefs_before=datetime(2018, 1, 1, 9, tzinfo=utc),
             ).index
         )
         == 0
@@ -125,7 +125,7 @@ def test_query_belief_by_belief_time(
             DBTimedBelief.search_session(
                 session=session,
                 sensor=ex_post_time_slot_sensor,
-                belief_not_before=datetime(2018, 1, 1, 13, tzinfo=utc),
+                beliefs_after=datetime(2018, 1, 1, 13, tzinfo=utc),
             ).index
         )
         == 0
@@ -164,7 +164,7 @@ def test_query_rolling_horizon(
     belief_df = DBTimedBelief.search_session(
         session=session,
         sensor=time_slot_sensor,
-        belief_before=datetime(2050, 1, 1, 15, tzinfo=utc),
+        beliefs_before=datetime(2050, 1, 1, 15, tzinfo=utc),
     )
     rolling_df = belief_df.rolling_viewpoint(
         belief_horizon=timedelta(hours=49)
@@ -190,7 +190,7 @@ def test_query_fixed_horizon(
     df = DBTimedBelief.search_session(
         session=session,
         sensor=time_slot_sensor,
-        belief_before=datetime(2050, 1, 1, 15, tzinfo=utc),
+        beliefs_before=datetime(2050, 1, 1, 15, tzinfo=utc),
         source=[test_source_a, test_source_b],
     )
     df2 = df.fixed_viewpoint(belief_time=belief_time)
@@ -210,7 +210,7 @@ def test_downsample(time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_
     belief_df = DBTimedBelief.search_session(
         session=session,
         sensor=time_slot_sensor,
-        belief_before=datetime(2100, 1, 1, 13, tzinfo=utc),
+        beliefs_before=datetime(2100, 1, 1, 13, tzinfo=utc),
     )
     belief_df = belief_df.resample_events(new_resolution)
     assert belief_df.sensor.event_resolution == timedelta(minutes=15)
@@ -223,7 +223,7 @@ def test_upsample(time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_ev
     belief_df = DBTimedBelief.search_session(
         session=session,
         sensor=time_slot_sensor,
-        belief_before=datetime(2100, 1, 1, 13, tzinfo=utc),
+        beliefs_before=datetime(2100, 1, 1, 13, tzinfo=utc),
     )
     belief_df = belief_df.resample_events(new_resolution)
     assert belief_df.sensor.event_resolution == timedelta(minutes=15)
@@ -235,7 +235,7 @@ def _test_empty_frame(time_slot_sensor):
     bdf = DBTimedBelief.search_session(
         session=session,
         sensor=time_slot_sensor,
-        belief_before=datetime(1900, 1, 1, 13, tzinfo=utc),
+        beliefs_before=datetime(1900, 1, 1, 13, tzinfo=utc),
     )
     assert len(bdf) == 0  # no data expected
     assert pd.api.types.is_datetime64_dtype(bdf.index.get_level_values("belief_time"))
