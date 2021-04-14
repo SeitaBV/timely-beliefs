@@ -55,7 +55,7 @@ class TimedBelief(object):
         sensor: Sensor,
         source: Union[BeliefSource, str, int],
         event_value: Optional[float] = None,
-        value: Optional[float] = None,
+        value: Optional[float] = None,  # deprecated
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
@@ -192,7 +192,7 @@ class TimedBeliefDBMixin(TimedBelief):
         sensor: DBSensor,
         source: DBBeliefSource,
         event_value: Optional[float] = None,
-        value: Optional[float] = None,
+        value: Optional[float] = None,  # deprecated
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
@@ -289,37 +289,63 @@ class TimedBeliefDBMixin(TimedBelief):
         cls,
         session: Session,
         sensor: SensorDBMixin,
-        event_before: Optional[datetime] = None,
-        event_not_before: Optional[datetime] = None,
-        belief_before: Optional[datetime] = None,
-        belief_not_before: Optional[datetime] = None,
+        event_starts_after: Optional[datetime] = None,
+        event_ends_before: Optional[datetime] = None,
+        beliefs_after: Optional[datetime] = None,
+        beliefs_before: Optional[datetime] = None,
+        event_before: Optional[datetime] = None,  # deprecated
+        event_not_before: Optional[datetime] = None,  # deprecated
+        belief_before: Optional[datetime] = None,  # deprecated
+        belief_not_before: Optional[datetime] = None,  # deprecated
         source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
         :param session: the database session to use
         :param sensor: sensor to which the beliefs pertain
-        :param event_before: only return beliefs about events that end before this datetime (inclusive)
-        :param event_not_before: only return beliefs about events that start after this datetime (inclusive)
-        :param belief_before: only return beliefs formed before this datetime (inclusive)
-        :param belief_not_before: only return beliefs formed after this datetime (inclusive)
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: only return beliefs formed by the given source or list of sources
         :returns: a multi-index DataFrame with all relevant beliefs
-
-        TODO: rename params for clarity: event_finished_before, event_starts_not_before (or similar), same for beliefs
         """
 
+        # todo: deprecate the 'event_before' argument in favor of 'event_ends_before' (announced v1.4.x)
+        event_ends_before = tb_utils.replace_deprecated_argument(
+            "event_before", event_before, "event_ends_before", event_ends_before
+        )
+        # todo: deprecate the 'event_not_before' argument in favor of 'event_starts_after' (announced v1.4.x)
+        event_starts_after = tb_utils.replace_deprecated_argument(
+            "event_not_before",
+            event_not_before,
+            "event_starts_after",
+            event_starts_after,
+        )
+        # todo: deprecate the 'belief_before' argument in favor of 'beliefs_before' (announced v1.4.x)
+        beliefs_before = tb_utils.replace_deprecated_argument(
+            "belief_before", belief_before, "beliefs_before", beliefs_before
+        )
+        # todo: deprecate the 'belief_not_before' argument in favor of 'beliefs_after' (announced v1.4.x)
+        beliefs_after = tb_utils.replace_deprecated_argument(
+            "belief_not_before", belief_not_before, "beliefs_after", beliefs_after
+        )
+
         # Check for timezone-aware datetime input
-        if event_before is not None:
-            event_before = tb_utils.parse_datetime_like(event_before, "event_before")
-        if event_not_before is not None:
-            event_not_before = tb_utils.parse_datetime_like(
-                event_not_before, "event_not_before"
+        if event_starts_after is not None:
+            event_starts_after = tb_utils.parse_datetime_like(
+                event_starts_after, "event_not_before"
             )
-        if belief_before is not None:
-            belief_before = tb_utils.parse_datetime_like(belief_before, "belief_before")
-        if belief_not_before is not None:
-            belief_not_before = tb_utils.parse_datetime_like(
-                belief_not_before, "belief_not_before"
+        if event_ends_before is not None:
+            event_ends_before = tb_utils.parse_datetime_like(
+                event_ends_before, "event_before"
+            )
+        if beliefs_after is not None:
+            beliefs_after = tb_utils.parse_datetime_like(
+                beliefs_after, "belief_not_before"
+            )
+        if beliefs_before is not None:
+            beliefs_before = tb_utils.parse_datetime_like(
+                beliefs_before, "belief_before"
             )
 
         # Query sensor for relevant timing properties
@@ -348,21 +374,21 @@ class TimedBeliefDBMixin(TimedBelief):
         q = session.query(cls).filter(cls.sensor_id == sensor.id)
 
         # Apply event time filter
-        if event_before is not None:
-            q = q.filter(cls.event_start + event_resolution <= event_before)
-        if event_not_before is not None:
-            q = q.filter(cls.event_start >= event_not_before)
+        if event_starts_after is not None:
+            q = q.filter(cls.event_start >= event_starts_after)
+        if event_ends_before is not None:
+            q = q.filter(cls.event_start + event_resolution <= event_ends_before)
 
         # Apply rough belief time filter
-        if belief_before is not None:
+        if beliefs_after is not None:
             q = q.filter(
                 cls.event_start
-                <= belief_before + cls.belief_horizon + knowledge_horizon_max
+                >= beliefs_after + cls.belief_horizon + knowledge_horizon_min
             )
-        if belief_not_before is not None:
+        if beliefs_before is not None:
             q = q.filter(
                 cls.event_start
-                >= belief_not_before + cls.belief_horizon + knowledge_horizon_min
+                <= beliefs_before + cls.belief_horizon + knowledge_horizon_max
             )
 
         # Apply source filter
@@ -375,10 +401,10 @@ class TimedBeliefDBMixin(TimedBelief):
         df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
 
         # Actually filter by belief time
-        if belief_before is not None:
-            df = df[df.index.get_level_values("belief_time") < belief_before]
-        if belief_not_before is not None:
-            df = df[df.index.get_level_values("belief_time") >= belief_not_before]
+        if beliefs_after is not None:
+            df = df[df.index.get_level_values("belief_time") >= beliefs_after]
+        if beliefs_before is not None:
+            df = df[df.index.get_level_values("belief_time") < beliefs_before]
 
         return df
 
@@ -410,7 +436,7 @@ class DBTimedBelief(Base, TimedBeliefDBMixin):
         sensor: DBSensor,
         source: DBBeliefSource,
         event_value: Optional[float] = None,
-        value: Optional[float] = None,
+        value: Optional[float] = None,  # deprecated
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
