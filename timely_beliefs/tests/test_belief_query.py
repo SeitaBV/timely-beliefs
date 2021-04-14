@@ -48,44 +48,6 @@ def multiple_day_ahead_beliefs_about_ex_post_time_slot_event(
     return beliefs
 
 
-@pytest.fixture(scope="function", params=[1, 2])
-def rolling_day_ahead_beliefs_about_time_slot_events(
-    request, time_slot_sensor: DBSensor
-):
-    """Define multiple day-ahead beliefs about an ex post time slot event."""
-    source = (
-        session.query(DBBeliefSource)
-        .filter(DBBeliefSource.id == request.param)
-        .one_or_none()
-    )
-
-    beliefs = []
-    for i in range(1, 11):  # ten events
-
-        # Recent belief (horizon 48 hours)
-        belief = DBTimedBelief(
-            sensor=time_slot_sensor,
-            source=source,
-            value=10 + i,
-            belief_time=datetime(2050, 1, 1, 10, tzinfo=utc) + timedelta(hours=i),
-            event_start=datetime(2050, 1, 3, 10, tzinfo=utc) + timedelta(hours=i),
-        )
-        session.add(belief)
-        beliefs.append(belief)
-
-        # Slightly older beliefs (belief_time an hour earlier)
-        belief = DBTimedBelief(
-            sensor=time_slot_sensor,
-            source=source,
-            value=100 + i,
-            belief_time=datetime(2050, 1, 1, 10, tzinfo=utc) + timedelta(hours=i - 1),
-            event_start=datetime(2050, 1, 3, 10, tzinfo=utc) + timedelta(hours=i),
-        )
-        session.add(belief)
-        beliefs.append(belief)
-    return beliefs
-
-
 def test_query_belief_by_belief_time(
     ex_post_time_slot_sensor: DBSensor,
     day_ahead_belief_about_ex_post_time_slot_event: DBTimedBelief,
