@@ -310,22 +310,22 @@ class TimedBeliefDBMixin(TimedBelief):
         :returns: a multi-index DataFrame with all relevant beliefs
         """
 
-        # todo: deprecate the 'event_before' argument in favor of 'event_ends_before' (announced v1.4.x)
+        # todo: deprecate the 'event_before' argument in favor of 'event_ends_before' (announced v1.4.1)
         event_ends_before = tb_utils.replace_deprecated_argument(
             "event_before", event_before, "event_ends_before", event_ends_before
         )
-        # todo: deprecate the 'event_not_before' argument in favor of 'event_starts_after' (announced v1.4.x)
+        # todo: deprecate the 'event_not_before' argument in favor of 'event_starts_after' (announced v1.4.1)
         event_starts_after = tb_utils.replace_deprecated_argument(
             "event_not_before",
             event_not_before,
             "event_starts_after",
             event_starts_after,
         )
-        # todo: deprecate the 'belief_before' argument in favor of 'beliefs_before' (announced v1.4.x)
+        # todo: deprecate the 'belief_before' argument in favor of 'beliefs_before' (announced v1.4.1)
         beliefs_before = tb_utils.replace_deprecated_argument(
             "belief_before", belief_before, "beliefs_before", beliefs_before
         )
-        # todo: deprecate the 'belief_not_before' argument in favor of 'beliefs_after' (announced v1.4.x)
+        # todo: deprecate the 'belief_not_before' argument in favor of 'beliefs_after' (announced v1.4.1)
         beliefs_after = tb_utils.replace_deprecated_argument(
             "belief_not_before", belief_not_before, "beliefs_after", beliefs_after
         )
