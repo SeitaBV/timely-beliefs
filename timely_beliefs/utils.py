@@ -171,11 +171,12 @@ def replace_deprecated_argument(
     deprecated_arg_val: any,
     new_arg_name: str,
     new_arg_val: any,
+    required_argument: bool = True,
 ) -> any:
     """Util function for replacing a deprecated argument in favour of a new argument.
     If new_arg_val was not already set, it is set to deprecated_arg_val together with a FutureWarning.
     """
-    if new_arg_val is None and deprecated_arg_val is None:
+    if required_argument and new_arg_val is None and deprecated_arg_val is None:
         raise ValueError(f"Missing argument: {new_arg_name}.")
     elif new_arg_val is not None:
         pass
