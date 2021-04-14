@@ -259,7 +259,7 @@ def source_vs_hour_chart(
                 "event_start:O",
                 timeUnit="hours",
                 axis=alt.Axis(domain=False, ticks=False, labelAngle=0),
-                scale=alt.Scale(domain=list(range(24))),
+                # scale=alt.Scale(domain=list(range(24))),
                 title="Hour of day",  # "UTC hour of day"
             ),
             color=alt.condition(
@@ -340,8 +340,11 @@ def probabilistic_chart(
         stroke=alt.condition(
             selectors.ridgeline_hover_brush, alt.value("black"), alt.value("lightgray")
         ),
-        strokeWidth=alt.condition(
-            selectors.ridgeline_hover_brush, alt.value(2.5), alt.value(0.5)
+        strokeWidth=alt.StrokeWidthValue(
+            0.5,
+            condition=alt.StrokeWidthValue(
+                2.5, selection=selectors.ridgeline_hover_brush.name
+            ),
         ),
     )
     area_chart = base_chart.mark_area(interpolate="monotone", fillOpacity=0.6).encode(

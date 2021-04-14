@@ -5,12 +5,12 @@
 install: install-deps install-tb
 
 install-deps:
-	pip install pip-tools
-	pip-sync
+	pip install --upgrade pip-tools
+	pip-sync dev/requirements.txt
 
 freeze-deps:
-	pip install pip-tools
-	pip-compile  # use --upgrade or --upgrade-package to actually change versions
+	pip install --upgrade pip-tools
+	pip-compile -o dev/requirements.txt	 # use --upgrade or --upgrade-package to actually change versions
 
 install-tb:
 	python setup.py develop
