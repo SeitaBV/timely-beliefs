@@ -178,7 +178,7 @@ def replace_deprecated_argument(
     """
     if required_argument is True and new_arg_val is None and deprecated_arg_val is None:
         raise ValueError(f"Missing argument: {new_arg_name}.")
-    elif deprecated_arg_val is not None:
+    if deprecated_arg_val is not None:
         import warnings
 
         warnings.warn(
