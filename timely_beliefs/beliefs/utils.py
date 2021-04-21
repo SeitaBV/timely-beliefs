@@ -482,7 +482,7 @@ def read_csv(
     cumulative_probability: float = None,
     **kwargs,
 ) -> "classes.BeliefsDataFrame":
-    """Utility function to load a BeliefsDataFrame from a csv file (see example/temperature.csv).
+    """Utility function to load a BeliefsDataFrame from a csv file or xls sheet (see example/temperature.csv).
 
     You still need to set the sensor and the source for the BeliefsDataFrame; the csv file only contains their names.
     In case the csv file contains multiple source names, you can pass a list of sources.
@@ -500,7 +500,15 @@ def read_csv(
     >>> df.to_csv()
 
     """
-    df = pd.read_csv(path, **kwargs)
+    ext = path.split(".")[-1]
+    if ext.lower() == "csv":
+        df = pd.read_csv(path, **kwargs)
+    elif ext.lower() in ("xlsx", "xls"):
+        df = pd.read_excel(path, **kwargs)  # requires openpyxl
+    else:
+        raise TypeError(
+            f"Extension {ext} not recognized. Accepted file extensions are csv, xlsx and xls."
+        )
 
     # Special case for simple time series (UTC datetime in 1st column and value in 2nd column)
     if len(df.columns) == 2:
@@ -529,10 +537,10 @@ def read_csv(
                 df["source"].replace(source_name, source, inplace=True)
         else:
             warnings.warn(
-                "Sources are stored in csv file by their name or id. Please specify a list of BeliefSources for looking them up."
+                f"Sources are stored in {ext} file by their name or id. Please specify a list of BeliefSources for looking them up."
             )
     else:
-        raise Exception("No source specified in csv, please set a source.")
+        raise Exception(f"No source specified in {ext}, please set a source.")
 
     # Apply optionally set cumulative probability
     if cumulative_probability is not None:
