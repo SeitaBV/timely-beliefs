@@ -493,7 +493,7 @@ def read_csv(
     and the second column has to contain the event values.
     You also need to pass explicit values for the belief horizon/time and cumulative probability,
     in addition to the sensor and source.
-    Useful ddditional kwargs passed to pandas are parse_dates=True and infer_datetime_format=True.
+    Useful additional kwargs passed to pandas are parse_dates=True and infer_datetime_format=True.
 
     To write a BeliefsDataFrame to a csv file, just use the pandas way:
 
