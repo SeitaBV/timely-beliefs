@@ -16,7 +16,7 @@ setup(
         "uncertainty",
         "lineage",
     ],
-    version="1.4.2",
+    version="1.4.3",
     python_requires=">=3.6.1",  # not enforced, just info
     install_requires=[
         "pytz",
