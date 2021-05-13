@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import altair as alt
 import numpy as np
@@ -21,6 +21,7 @@ def plot(
     ci: float = 0.9,
     intuitive_forecast_horizon: bool = True,
     interpolate: bool = True,
+    event_value_range: Tuple[Optional[float], Optional[float]] = (None, None),
 ) -> alt.LayerChart:
     """Plot the BeliefsDataFrame with the Altair visualization library.
 
@@ -31,6 +32,7 @@ def plot(
     :param ci: The confidence interval to highlight in the time series graph
     :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
     :param interpolate: If True, the time series chart shows a user-friendly interpolated line rather than more accurate stripes indicating average values
+    :param event_value_range: Optionally set explicit limits on the range of event values (for axis scaling).
     :return: Altair LayerChart
     """
 
@@ -51,7 +53,18 @@ def plot(
         intuitive_forecast_horizon=intuitive_forecast_horizon,
     )
     unique_belief_horizons = plottable_df["belief_horizon"].unique()
-    event_value_range = (bdf.min()[0], bdf.max()[0])
+
+    # Set range of event values
+    if None in event_value_range:
+        event_value_range = list(event_value_range)
+        if event_value_range[0] is None:
+            # Infer minimum from data
+            event_value_range[0] = bdf["event_value"].min()
+        if event_value_range[-1] is None:
+            # Infer maximum from data
+            event_value_range[-1] = bdf["event_value"].max()
+        event_value_range = tuple(event_value_range)
+
     plottable_df = plottable_df.groupby(
         ["event_start", "source"], group_keys=False
     ).apply(
@@ -67,9 +80,7 @@ def plot(
     # Construct selectors
     time_window_selector = selectors.time_window_selector(base, interpolate)
     if show_accuracy is True:
-        horizon_selection_brush = selectors.horizon_selection_brush(
-            init_belief_horizon=unique_belief_horizons[0]
-        )
+        horizon_selection_brush = selectors.horizon_selection_brush()
         horizon_selector = selectors.horizon_selector(
             base.properties(width=1300),
             horizon_selection_brush,
@@ -99,6 +110,9 @@ def plot(
         ci,
         event_value_range,
     )
+    # Initialize belief time to (roughly) the middle of the event time window
+    event_starts = bdf.event_starts
+    init_value = event_starts[len(event_starts) // 2] if len(event_starts) > 0 else None
     if show_accuracy is True:
         ha_chart = graphs.accuracy_vs_horizon_chart(
             base.properties(width=1300),
@@ -117,6 +131,7 @@ def plot(
                     & selectors.fixed_viewpoint_selector(
                         base,
                         active_fixed_viewpoint_selector=active_fixed_viewpoint_selector,
+                        init_value=init_value,
                     )
                     + ts_chart
                     | hd_chart
@@ -131,7 +146,8 @@ def plot(
             (
                 (
                     time_window_selector
-                    & selectors.fixed_viewpoint_selector(base) + ts_chart
+                    & selectors.fixed_viewpoint_selector(base, init_value=init_value)
+                    + ts_chart
                 )
                 | selectors.source_selector(plottable_df)
             )
@@ -341,9 +357,16 @@ def ridgeline_plot(
         df["belief_horizon"]
     )
 
+    # Set defaults for timely-beliefs ridgeline plots
     step = 10
     overlap = 50
     probability_scale_range = (step, -step * overlap)
+    if belief_horizon_unit == "hours":
+        y_label_once_every_n_horizon_steps = 6
+    elif belief_horizon_unit == "days":
+        y_label_once_every_n_horizon_steps = 7
+    else:
+        y_label_once_every_n_horizon_steps = 5
 
     deterministic_chart = graphs.deterministic_chart(probability_scale_range)
     probabilistic_chart = graphs.probabilistic_chart(
@@ -367,10 +390,10 @@ def ridgeline_plot(
                 title=("Upcoming " if fixed_viewpoint else "Previous ")
                 + belief_horizon_unit,
                 header=alt.Header(
-                    labelAngle=0, labelAlign="right", format="%B"
-                ),  # todo: set conditional labels once labelExpr finds its way from vega-lite to altair,
-                #      so then we can choose to print e.g. 0, 6, 12, 18, 24 hours instead of all of 0 to 24 hours.
-                #      See https://github.com/vega/vega-lite/issues/5310
+                    labelAngle=0,
+                    labelAlign="left",
+                    labelExpr=f"datum.value % {y_label_once_every_n_horizon_steps} == 0 ? datum.value : ''",
+                ),
             )
         )
         .properties(bounds="flush")

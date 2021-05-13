@@ -477,19 +477,58 @@ def read_csv(
     sensor: "classes.Sensor",
     source: "classes.BeliefSource" = None,
     look_up_sources: List["classes.BeliefSource"] = None,
+    belief_horizon: timedelta = None,
+    belief_time: datetime = None,
+    cumulative_probability: float = None,
+    **kwargs,
 ) -> "classes.BeliefsDataFrame":
-    """Utility function to load a BeliefsDataFrame from a csv file (see example/temperature.csv).
+    """Utility function to load a BeliefsDataFrame from a csv file or xls sheet (see example/temperature.csv).
 
     You still need to set the sensor and the source for the BeliefsDataFrame; the csv file only contains their names.
     In case the csv file contains multiple source names, you can pass a list of sources.
     Each source name will be replaced by the actual source.
+
+    Also supports the case of a csv file with just 2 columns and 1 header row (a quite common time series format).
+    In this case no special header names are required, but the first column has to contain the UTC event starts,
+    and the second column has to contain the event values.
+    You also need to pass explicit values for the belief horizon/time and cumulative probability,
+    in addition to the sensor and source.
+
+    Consult pandas documentation for which additional kwargs can be passed to pandas.read_csv or pandas.read_excel.
+    Useful examples are parse_dates=True, infer_datetime_format=True (for read_csv)
+    and sheet_name (sheet number or name, for read_excel).
 
     To write a BeliefsDataFrame to a csv file, just use the pandas way:
 
     >>> df.to_csv()
 
     """
-    df = pd.read_csv(path)
+    ext = path.split(".")[-1]
+    if ext.lower() == "csv":
+        df = pd.read_csv(path, **kwargs)
+    elif ext.lower() in ("xlsx", "xls"):
+        df = pd.read_excel(path, **kwargs)  # requires openpyxl
+    else:
+        raise TypeError(
+            f"Extension {ext} not recognized. Accepted file extensions are csv, xlsx and xls."
+        )
+
+    # Special case for simple time series (UTC datetime in 1st column and value in 2nd column)
+    if len(df.columns) == 2:
+        df.columns = ["event_start", "event_value"]
+        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
+            sensor.timezone
+        )
+
+    # Apply optionally set belief timing
+    if belief_horizon is not None and belief_time is not None:
+        raise ValueError("Cannot set both a belief horizon and a belief time.")
+    elif belief_horizon is not None:
+        df["belief_horizon"] = belief_horizon
+    elif belief_time is not None:
+        df["belief_time"] = belief_time
+
+    # Apply optionally set source
     if source is not None:
         df["source"] = source_utils.ensure_source_exists(source)
     elif "source" in df.columns:
@@ -501,10 +540,15 @@ def read_csv(
                 df["source"].replace(source_name, source, inplace=True)
         else:
             warnings.warn(
-                "Sources are stored in csv file by their name or id. Please specify a list of BeliefSources for looking them up."
+                f"Sources are stored in {ext} file by their name or id. Please specify a list of BeliefSources for looking them up."
             )
     else:
-        raise Exception("No source specified in csv, please set a source.")
+        raise Exception(f"No source specified in {ext}, please set a source.")
+
+    # Apply optionally set cumulative probability
+    if cumulative_probability is not None:
+        df["cumulative_probability"] = cumulative_probability
+
     return classes.BeliefsDataFrame(df, sensor=sensor)
 
 

@@ -5,7 +5,7 @@ Create interactive charts using [Altair](http://altair-viz.github.io) and view t
     >>> chart = df.plot(reference_source=df.lineage.sources[0], show_accuracy=True)
     >>> chart.serve()
 
-This will create an interactive Vega-Lite chart [(Satyanarayan et al., 2016)](#references) like the one in the screenshot at the top of this Readme.
+This will create an interactive Vega-Lite chart [(Satyanarayan et al., 2016)](#references) like the one in the screenshot at the top of [our main Readme](README.md).
 At this time, we chose to show the (possibly more intuitive) forecast horizon for visualisation,
 rather than our more precise definition of belief horizon.
 

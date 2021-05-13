@@ -17,7 +17,7 @@ from timely_beliefs.beliefs import utils as belief_utils
 from timely_beliefs.beliefs.utils import is_pandas_structure, is_tb_structure
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors import utils as sensor_utils
-from timely_beliefs.sensors.classes import DBSensor, Sensor
+from timely_beliefs.sensors.classes import DBSensor, Sensor, SensorDBMixin
 from timely_beliefs.sources import utils as source_utils
 from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 from timely_beliefs.visualization import utils as visualization_utils
@@ -50,12 +50,12 @@ class TimedBelief(object):
     source: BeliefSource
     cumulative_probability: float
 
-    def __init__(
+    def __init__(  # noqa: C901 todo: the noqa can probably be removed when we deprecate the value argument
         self,
         sensor: Sensor,
         source: Union[BeliefSource, str, int],
         event_value: Optional[float] = None,
-        value: Optional[float] = None,
+        value: Optional[float] = None,  # deprecated
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
@@ -66,19 +66,10 @@ class TimedBelief(object):
     ):
         self.sensor = sensor
         self.source = source_utils.ensure_source_exists(source)
-        if event_value is None and value is None:
-            raise ValueError("Missing argument: event_value.")
-        elif event_value is not None:
-            self.event_value = event_value
-        else:
-            # todo: deprecate the 'value' argument in favor of 'event_value'
-            import warnings
-
-            warnings.warn(
-                "Argument 'value' will be replaced by 'event_value'. Replace 'value' with 'event_value' to suppress this warning.",
-                FutureWarning,
-            )
-            self.event_value = value
+        # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.1.0)
+        self.event_value = tb_utils.replace_deprecated_argument(
+            "value", value, "event_value", event_value
+        )
 
         if [cumulative_probability, cp, sigma].count(None) not in (2, 3):
             raise ValueError(
@@ -176,15 +167,20 @@ class TimedBeliefDBMixin(TimedBelief):
             )
         return None
 
-    event_start = Column(DateTime(timezone=True), primary_key=True)
+    event_start = Column(DateTime(timezone=True), primary_key=True, index=True)
     belief_horizon = Column(Interval(), nullable=False, primary_key=True)
-    cumulative_probability = Column(Float, nullable=False, primary_key=True)
+    cumulative_probability = Column(
+        Float, nullable=False, primary_key=True, default=0.5
+    )
     event_value = Column(Float, nullable=False)
 
     @declared_attr
     def sensor_id(cls):
         return Column(
-            Integer(), ForeignKey("sensor.id", ondelete="CASCADE"), primary_key=True
+            Integer(),
+            ForeignKey("sensor.id", ondelete="CASCADE"),
+            primary_key=True,
+            index=True,
         )
 
     @declared_attr
@@ -195,7 +191,8 @@ class TimedBeliefDBMixin(TimedBelief):
         self,
         sensor: DBSensor,
         source: DBBeliefSource,
-        value: float,
+        event_value: Optional[float] = None,
+        value: Optional[float] = None,  # deprecated
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
@@ -204,13 +201,17 @@ class TimedBeliefDBMixin(TimedBelief):
         belief_horizon: Optional[TimedeltaLike] = None,
         belief_time: Optional[DatetimeLike] = None,
     ):
+        # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.3.0)
+        event_value = tb_utils.replace_deprecated_argument(
+            "value", value, "event_value", event_value
+        )
         self.sensor_id = sensor.id
         self.source_id = source.id
         TimedBelief.__init__(
             self,
             sensor=sensor,
             source=source,
-            value=value,
+            event_value=event_value,
             cumulative_probability=cumulative_probability,
             cp=cp,
             sigma=sigma,
@@ -221,51 +222,153 @@ class TimedBeliefDBMixin(TimedBelief):
         )
 
     @classmethod
-    def query(
+    def add_to_session(
         cls,
         session: Session,
-        sensor: DBSensor,
-        event_before: datetime = None,
-        event_not_before: datetime = None,
-        belief_before: datetime = None,
-        belief_not_before: datetime = None,
-        source: Union[int, List[int], str, List[str]] = None,
+        beliefs_data_frame: "BeliefsDataFrame",
+        expunge_session: bool = False,
+        allow_overwrite: bool = False,
+        bulk_save_objects: bool = False,
+        commit_transaction: bool = False,
+    ):
+        """Add a BeliefsDataFrame as timed beliefs to a database session.
+
+        If you are adding lots of beliefs, it's most efficient to use expunge_session=True and allow_overwrite=False
+
+        :param session:             the database session to use
+        :param beliefs_data_frame:  the BeliefsDataFrame to be persisted
+        :param expunge_session:     if True, all non-flushed instances are removed from the session before adding beliefs.
+                                    Expunging can resolve problems you might encounter with states of objects in your session.
+                                    When using this option, you might want to flush newly-created objects which are not beliefs
+                                    (e.g. a sensor or data source object).
+        :param allow_overwrite:     if True, new objects are merged
+                                    if False, objects are added to the session or bulk saved
+        :param bulk_save_objects:   if True, objects are bulk saved with session.bulk_save_objects(),
+                                    which is quite fast but has several caveats, see:
+                                    https://docs.sqlalchemy.org/orm/persistence_techniques.html#bulk-operations-caveats
+                                    if False, objects are added to the session with session.add_all()
+        :param commit_transaction:  if True, the session is committed
+                                    if False, you can still add other data to the session
+                                    and commit it all within an atomic transaction
+        """
+        # Belief timing is stored as the belief horizon rather than as the belief time
+        belief_records = (
+            beliefs_data_frame.convert_index_from_belief_time_to_horizon()
+            .reset_index()
+            .to_dict("records")
+        )
+        beliefs = [cls(sensor=beliefs_data_frame.sensor, **d) for d in belief_records]
+        if expunge_session:
+            session.expunge_all()
+        if not allow_overwrite:
+            if bulk_save_objects:
+                session.bulk_save_objects(beliefs)
+            else:
+                session.add_all(beliefs)
+        else:
+            for belief in beliefs:
+                session.merge(belief)
+        if commit_transaction:
+            session.commit()
+
+    @classmethod
+    @tb_utils.append_doc_of("TimedBeliefDBMixin.search_session")
+    def query(cls, *args, **kwargs):
+        """Function will be deprecated. Please switch to using search_session."""
+        # todo: deprecate this function (announced v1.3.0), which can clash with SQLAlchemy's Model.query()
+        import warnings
+
+        warnings.warn(
+            "Function 'query' will be replaced by 'search_session'.",
+            FutureWarning,
+        )
+        return cls.search_session(*args, **kwargs)
+
+    @classmethod
+    def search_session(
+        cls,
+        session: Session,
+        sensor: SensorDBMixin,
+        event_starts_after: Optional[datetime] = None,
+        event_ends_before: Optional[datetime] = None,
+        beliefs_after: Optional[datetime] = None,
+        beliefs_before: Optional[datetime] = None,
+        event_before: Optional[datetime] = None,  # deprecated
+        event_not_before: Optional[datetime] = None,  # deprecated
+        belief_before: Optional[datetime] = None,  # deprecated
+        belief_not_before: Optional[datetime] = None,  # deprecated
+        source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
     ) -> "BeliefsDataFrame":
-        """Query beliefs about sensor events.
+        """Search a database session for beliefs about sensor events.
         :param session: the database session to use
         :param sensor: sensor to which the beliefs pertain
-        :param event_before: only return beliefs about events that end before this datetime (inclusive)
-        :param event_not_before: only return beliefs about events that start after this datetime (inclusive)
-        :param belief_before: only return beliefs formed before this datetime (inclusive)
-        :param belief_not_before: only return beliefs formed after this datetime (inclusive)
-        :param source: only return beliefs formed by the given source or list of sources (pass their id or name)
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param source: only return beliefs formed by the given source or list of sources
         :returns: a multi-index DataFrame with all relevant beliefs
-
-        TODO: rename params for clarity: event_finished_before, event_starts_not_before (or similar), same for beliefs
         """
 
+        # todo: deprecate the 'event_before' argument in favor of 'event_ends_before' (announced v1.4.1)
+        event_ends_before = tb_utils.replace_deprecated_argument(
+            "event_before",
+            event_before,
+            "event_ends_before",
+            event_ends_before,
+            required_argument=False,
+        )
+        # todo: deprecate the 'event_not_before' argument in favor of 'event_starts_after' (announced v1.4.1)
+        event_starts_after = tb_utils.replace_deprecated_argument(
+            "event_not_before",
+            event_not_before,
+            "event_starts_after",
+            event_starts_after,
+            required_argument=False,
+        )
+        # todo: deprecate the 'belief_before' argument in favor of 'beliefs_before' (announced v1.4.1)
+        beliefs_before = tb_utils.replace_deprecated_argument(
+            "belief_before",
+            belief_before,
+            "beliefs_before",
+            beliefs_before,
+            required_argument=False,
+        )
+        # todo: deprecate the 'belief_not_before' argument in favor of 'beliefs_after' (announced v1.4.1)
+        beliefs_after = tb_utils.replace_deprecated_argument(
+            "belief_not_before",
+            belief_not_before,
+            "beliefs_after",
+            beliefs_after,
+            required_argument=False,
+        )
+
         # Check for timezone-aware datetime input
-        if event_before is not None:
-            event_before = tb_utils.parse_datetime_like(event_before, "event_before")
-        if event_not_before is not None:
-            event_not_before = tb_utils.parse_datetime_like(
-                event_not_before, "event_not_before"
+        if event_starts_after is not None:
+            event_starts_after = tb_utils.parse_datetime_like(
+                event_starts_after, "event_not_before"
             )
-        if belief_before is not None:
-            belief_before = tb_utils.parse_datetime_like(belief_before, "belief_before")
-        if belief_not_before is not None:
-            belief_not_before = tb_utils.parse_datetime_like(
-                belief_not_before, "belief_not_before"
+        if event_ends_before is not None:
+            event_ends_before = tb_utils.parse_datetime_like(
+                event_ends_before, "event_before"
+            )
+        if beliefs_after is not None:
+            beliefs_after = tb_utils.parse_datetime_like(
+                beliefs_after, "belief_not_before"
+            )
+        if beliefs_before is not None:
+            beliefs_before = tb_utils.parse_datetime_like(
+                beliefs_before, "belief_before"
             )
 
         # Query sensor for relevant timing properties
         event_resolution, knowledge_horizon_fnc, knowledge_horizon_par = (
             session.query(
-                DBSensor.event_resolution,
-                DBSensor.knowledge_horizon_fnc,
-                DBSensor.knowledge_horizon_par,
+                sensor.__class__.event_resolution,
+                sensor.__class__.knowledge_horizon_fnc,
+                sensor.__class__.knowledge_horizon_par,
             )
-            .filter(DBSensor.id == sensor.id)
+            .filter(sensor.__class__.id == sensor.id)
             .one_or_none()
         )
 
@@ -284,51 +387,37 @@ class TimedBeliefDBMixin(TimedBelief):
         q = session.query(cls).filter(cls.sensor_id == sensor.id)
 
         # Apply event time filter
-        if event_before is not None:
-            q = q.filter(cls.event_start + event_resolution <= event_before)
-        if event_not_before is not None:
-            q = q.filter(cls.event_start >= event_not_before)
+        if event_starts_after is not None:
+            q = q.filter(cls.event_start >= event_starts_after)
+        if event_ends_before is not None:
+            q = q.filter(cls.event_start + event_resolution <= event_ends_before)
 
         # Apply rough belief time filter
-        if belief_before is not None:
+        if beliefs_after is not None:
             q = q.filter(
                 cls.event_start
-                <= belief_before + cls.belief_horizon + knowledge_horizon_max
+                >= beliefs_after + cls.belief_horizon + knowledge_horizon_min
             )
-        if belief_not_before is not None:
+        if beliefs_before is not None:
             q = q.filter(
                 cls.event_start
-                >= belief_not_before + cls.belief_horizon + knowledge_horizon_min
+                <= beliefs_before + cls.belief_horizon + knowledge_horizon_max
             )
 
         # Apply source filter
         if source is not None:
-            source_list = [source] if not isinstance(source, list) else source
-            id_list = [s for s in source_list if isinstance(s, int)]
-            name_list = [s for s in source_list if isinstance(s, str)]
-            if len(id_list) + len(name_list) < len(source_list):
-                unidentifiable_list = [
-                    s
-                    for s in source_list
-                    if not isinstance(s, int) and not isinstance(s, str)
-                ]
-                raise ValueError(
-                    "Query by source failed: query only possible by integer id or string name. Failed sources: %s"
-                    % unidentifiable_list
-                )
-            else:
-                q = q.join(DBBeliefSource).filter(
-                    (cls.source_id.in_(id_list)) | (DBBeliefSource.name.in_(name_list))
-                )
+            sources: list = [source] if not isinstance(source, list) else source
+            source_cls = sources[0].__class__
+            q = q.join(source_cls).filter(cls.source_id.in_([s.id for s in sources]))
 
         # Build our DataFrame of beliefs
         df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
 
         # Actually filter by belief time
-        if belief_before is not None:
-            df = df[df.index.get_level_values("belief_time") < belief_before]
-        if belief_not_before is not None:
-            df = df[df.index.get_level_values("belief_time") >= belief_not_before]
+        if beliefs_after is not None:
+            df = df[df.index.get_level_values("belief_time") >= beliefs_after]
+        if beliefs_before is not None:
+            df = df[df.index.get_level_values("belief_time") < beliefs_before]
 
         return df
 
@@ -359,7 +448,8 @@ class DBTimedBelief(Base, TimedBeliefDBMixin):
         self,
         sensor: DBSensor,
         source: DBBeliefSource,
-        value: float,
+        event_value: Optional[float] = None,
+        value: Optional[float] = None,  # deprecated
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
@@ -368,18 +458,22 @@ class DBTimedBelief(Base, TimedBeliefDBMixin):
         belief_horizon: Optional[TimedeltaLike] = None,
         belief_time: Optional[DatetimeLike] = None,
     ):
+        # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.3.0)
+        event_value = tb_utils.replace_deprecated_argument(
+            "value", value, "event_value", event_value
+        )
         TimedBeliefDBMixin.__init__(
             self,
-            sensor,
-            source,
-            value,
-            cumulative_probability,
-            cp,
-            sigma,
-            event_start,
-            event_time,
-            belief_horizon,
-            belief_time,
+            sensor=sensor,
+            source=source,
+            event_value=event_value,
+            cumulative_probability=cumulative_probability,
+            cp=cp,
+            sigma=sigma,
+            event_start=event_start,
+            event_time=event_time,
+            belief_horizon=belief_horizon,
+            belief_time=belief_time,
         )
         Base.__init__(self)
 
@@ -506,9 +600,9 @@ class BeliefsDataFrame(pd.DataFrame):
                 object.__setattr__(self, name, getattr(other, name, None))
         return self
 
-    def __init__(  # noqa: C901
+    def __init__(  # noqa: C901 todo: refactor, e.g. by detecting initialization method
         self, *args, **kwargs
-    ):  # noqa: C901 todo: refactor, e.g. by detecting initialization method
+    ):
         """Initialise a multi-index DataFrame with beliefs about a unique sensor."""
 
         # Initialized with a BeliefsSeries or BeliefsDataFrame
@@ -1340,6 +1434,7 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_source: BeliefSource = None,
         intuitive_forecast_horizon: bool = True,
         interpolate: bool = True,
+        event_value_range: Tuple[Optional[float], Optional[float]] = (None, None),
     ) -> alt.LayerChart:
         """Visualize the BeliefsDataFrame in an interactive Altair chart.
 
@@ -1350,6 +1445,13 @@ class BeliefsDataFrame(pd.DataFrame):
         :param intuitive_forecast_horizon: If true, horizons are shown with respect to event start rather than knowledge time
         :param interpolate: If True, the time series chart shows a user-friendly interpolated line
                rather than more accurate stripes indicating average values
+        :param event_value_range: Optionally set explicit limits on the range of event values (for axis scaling).
+               For example:
+               (0, 3)  # lower limit is 0, upper limit is 3
+               (None, 3)  # lower limit is taken from the plotted data, upper limit is 3
+               (0, None)  # lower limit is 0, upper limit is taken from the plotted data
+               (bdf["event_value"].min(), bdf["event_value"].max())  # limits are taken from the event value range of bdf
+               (None, None)  # default, limits are taken from the plotted data
         :returns: Altair chart object with a vega-lite representation (for more information, see reference below).
 
         >>> chart = df.plot(df.lineage.sources[0])
@@ -1368,6 +1470,7 @@ class BeliefsDataFrame(pd.DataFrame):
             reference_source=reference_source,
             intuitive_forecast_horizon=intuitive_forecast_horizon,
             interpolate=interpolate,
+            event_value_range=event_value_range,
         )
 
     @staticmethod

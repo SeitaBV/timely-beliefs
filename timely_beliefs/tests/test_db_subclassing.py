@@ -5,7 +5,8 @@ from sqlalchemy import Column, Float, ForeignKey, Integer
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import backref, relationship
 
-from timely_beliefs import DBBeliefSource, DBSensor
+import timely_beliefs.utils as tb_utils
+from timely_beliefs import BeliefsDataFrame, DBBeliefSource, DBSensor
 from timely_beliefs.beliefs.classes import TimedBeliefDBMixin
 from timely_beliefs.db_base import Base
 from timely_beliefs.sources.classes import BeliefSourceDBMixin
@@ -35,8 +36,8 @@ def test_subclassing_source(db):
 
     assert session.query(RatedSource).filter(RatedSource.rating == 5).count() == 1
 
-    # We made one with default rating (0) and in conftest two are made in advance
-    assert session.query(RatedSource).filter(RatedSource.rating == 0).count() == 3
+    # We made one with default rating (0) and in conftest three are made in advance
+    assert session.query(RatedSource).filter(RatedSource.rating == 0).count() == 4
 
 
 class RatedSourceInCustomTable(Base, BeliefSourceDBMixin):
@@ -91,11 +92,8 @@ class JoyfulBeliefInCustomTable(Base, TimedBeliefDBMixin):
     ):
         self.happiness = happiness
         TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
-        [
-            kwargs.pop(key, None)
-            for key in TimedBeliefDBMixin.__init__.__code__.co_varnames
-        ]  # take out any kwargs used by the mixin, and pass on any remaining kwargs to the next super class.
-        Base.__init__(self, **kwargs)
+        base_kwargs = tb_utils.remove_class_init_kwargs(TimedBeliefDBMixin, kwargs)
+        Base.__init__(self, **base_kwargs)
 
 
 def test_custom_source_and_beliefs_with_mixin(db):
@@ -136,3 +134,8 @@ def test_custom_source_and_beliefs_with_mixin(db):
 
     assert "my_belief_source" in db.tables.keys()
     assert "my_timed_belief" in db.tables.keys()
+
+    # todo: adjust test for deprecated query method
+    bdf = JoyfulBeliefInCustomTable.query(session, sensor)
+    assert isinstance(bdf, BeliefsDataFrame)
+    assert len(bdf) == 1
