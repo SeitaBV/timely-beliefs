@@ -6,7 +6,7 @@ As a developer, you can build the code like this:
 
 For testing, add a local database with expected credentials, for instance like this:
 
-    sudo -u postgres psql                                          
+    sudo -u postgres psql
     postgres=# CREATE USER tbtest WITH PASSWORD 'tbtest';
     postgres=# CREATE DATABASE tbtest WITH OWNER = tbtest;
     postgres=# exit
