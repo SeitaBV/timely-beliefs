@@ -486,7 +486,7 @@ class BeliefsSeries(pd.Series):
     @property
     def _constructor(self):
         def f(*args, **kwargs):
-            """ Call __finalize__() after construction to inherit metadata. """
+            """Call __finalize__() after construction to inherit metadata."""
             return BeliefsSeries(*args, **kwargs).__finalize__(self, method="inherit")
 
         return f
@@ -494,7 +494,7 @@ class BeliefsSeries(pd.Series):
     @property
     def _constructor_expanddim(self):
         def f(*args, **kwargs):
-            """ Call __finalize__() after construction to inherit metadata. """
+            """Call __finalize__() after construction to inherit metadata."""
             # adapted from https://github.com/pandas-dev/pandas/issues/19850#issuecomment-367934440
             return BeliefsDataFrame(*args, **kwargs).__finalize__(
                 self, method="inherit"
@@ -550,7 +550,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def _constructor(self):
         def f(*args, **kwargs):
-            """ Call __finalize__() after construction to inherit metadata. """
+            """Call __finalize__() after construction to inherit metadata."""
             return BeliefsDataFrame(*args, **kwargs).__finalize__(
                 self, method="inherit"
             )
@@ -560,7 +560,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def _constructor_sliced(self):
         def f(*args, **kwargs):
-            """ Call __finalize__() after construction to inherit metadata. """
+            """Call __finalize__() after construction to inherit metadata."""
             # adapted from https://github.com/pandas-dev/pandas/issues/19850#issuecomment-367934440
             return BeliefsSeries(*args, **kwargs).__finalize__(self, method="inherit")
 
@@ -847,7 +847,10 @@ class BeliefsDataFrame(pd.DataFrame):
         if "belief_horizon" in self.index.names:
             return self.index.get_level_values("belief_horizon")
         else:
-            return (self.knowledge_times - self.belief_times).rename("belief_horizon")
+            return (
+                self.knowledge_times.tz_convert("UTC")
+                - self.belief_times.tz_convert("UTC")
+            ).rename("belief_horizon")
 
     @property
     def event_starts(self) -> pd.DatetimeIndex:
@@ -1573,7 +1576,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
 
 def set_columns_and_indices_for_empty_frame(df, columns, indices, default_types):
-    """ Set appropriate columns and indices for the empty BeliefsDataFrame. """
+    """Set appropriate columns and indices for the empty BeliefsDataFrame."""
     if "belief_horizon" in df and "belief_time" not in df:
         indices = [
             "belief_horizon" if index == "belief_time" else index for index in indices
@@ -1597,7 +1600,7 @@ def set_columns_and_indices_for_empty_frame(df, columns, indices, default_types)
 
 
 def assign_sensor_and_event_resolution(df, sensor, event_resolution):
-    """ Set the Sensor metadata (including timing properties of the sensor). """
+    """Set the Sensor metadata (including timing properties of the sensor)."""
     df.sensor = sensor
     df.event_resolution = (
         event_resolution
