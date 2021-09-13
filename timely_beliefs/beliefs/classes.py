@@ -405,7 +405,7 @@ class TimedBeliefDBMixin(TimedBelief):
             )
 
         # Apply source filter
-        if source is not None:
+        if source not in (None, []):
             sources: list = [source] if not isinstance(source, list) else source
             source_cls = sources[0].__class__
             q = q.join(source_cls).filter(cls.source_id.in_([s.id for s in sources]))
