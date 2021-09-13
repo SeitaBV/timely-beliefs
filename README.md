@@ -68,7 +68,7 @@ Because of the sparse representation of index levels (a clever default setting i
 as we show here in a printout of the example BeliefsDataFrame in our examples module:
 
     >>> import timely_beliefs
-    >>> df = timely_beliefs.examples.example_df
+    >>> df = timely_beliefs.examples.get_example_df()
     >>> df.head(8)
                                                                                          event_value
     event_start               belief_time               source   cumulative_probability

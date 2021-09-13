@@ -4,7 +4,9 @@ from datetime import timedelta
 import timely_beliefs as tb
 from timely_beliefs.examples.beliefs_data_frames import sixteen_probabilistic_beliefs
 
-example_df = sixteen_probabilistic_beliefs()
+
+def get_example_df():
+    return sixteen_probabilistic_beliefs()
 
 
 def get_temperature_df():

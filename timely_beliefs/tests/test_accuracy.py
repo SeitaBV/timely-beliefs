@@ -5,7 +5,7 @@ from pytz import utc
 
 from timely_beliefs import BeliefsDataFrame
 from timely_beliefs.beliefs.probabilistic_utils import partial_cdf
-from timely_beliefs.examples import example_df
+from timely_beliefs.examples import get_example_df
 from timely_beliefs.tests.utils import equal_lists
 
 
@@ -13,6 +13,7 @@ def test_setting_reference():
     """Set a column with reference values."""
 
     # Deterministic reference values
+    example_df = get_example_df()
     df = example_df.set_reference_values(
         reference_source=example_df.lineage.sources[0], return_expected_value=True
     )
@@ -35,7 +36,7 @@ def test_setting_reference():
 def test_mae():
     """For deterministic forecasts, our scoring rule (continuous ranked probability score) should equal the mean
     absolute error."""
-    df = example_df.xs(0.5, level="cumulative_probability", drop_level=False)
+    df = get_example_df().xs(0.5, level="cumulative_probability", drop_level=False)
     mae = df.rolling_viewpoint_accuracy(
         timedelta(days=2, hours=9), reference_source=df.lineage.sources[0]
     )["mae"]
@@ -69,7 +70,7 @@ def test_mae():
 def test_crps():
     """For probabilistic forecasts, our scoring rule (continuous ranked probability score) tells more than just whether
     you got the expected value right."""
-    df = example_df
+    df = get_example_df()
     crps = df.rolling_viewpoint_accuracy(
         timedelta(days=2, hours=9), reference_source=df.lineage.sources[0]
     )["mae"]

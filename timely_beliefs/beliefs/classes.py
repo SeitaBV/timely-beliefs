@@ -1294,7 +1294,8 @@ class BeliefsDataFrame(pd.DataFrame):
 
         >>> from datetime import datetime
         >>> from pytz import utc
-        >>> from timely_beliefs.examples import example_df as df
+        >>> from timely_beliefs.examples import get_example_df
+        >>> df = get_example_df()
         >>> # Select the accuracy of beliefs held about each event on June 2nd (midnight)
         >>> df.fixed_viewpoint_accuracy(belief_time=datetime(2013, 6, 2, tzinfo=utc))
         >>> # Or equivalently:

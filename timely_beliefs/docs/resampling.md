@@ -14,7 +14,7 @@ Resampling a BeliefsDataFrame can be an expensive operation, especially when the
 Upsample to events with a resolution of 5 minutes:
 
     >>> from datetime import timedelta
-    >>> df = timely_beliefs.examples.example_df
+    >>> df = timely_beliefs.examples.get_example_df()
     >>> df5m = df.resample_events(timedelta(minutes=5))
     >>> df5m.sort_index(level=["belief_time", "source"]).head(9)
                                                                                          event_value

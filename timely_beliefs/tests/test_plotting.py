@@ -1,10 +1,11 @@
 import pytest
 
-from timely_beliefs.examples import example_df
+from timely_beliefs.examples import get_example_df
 
 
 def test_chart_creation():
     """Create a chart JSON object with vega-lite specifications."""
+    example_df = get_example_df()
     with pytest.raises(ValueError) as v:
         example_df.plot()
     assert "Must set reference source." in str(v.value)
