@@ -54,7 +54,7 @@ or deteriorates as we look further into the future (by taking a fixed viewpoint)
 
 A ridgeline plot of a belief history (e.g. of temperature forecasts) can be created as follows:
 
-    >>> df = timely_beliefs.examples.temperature_df
+    >>> df = timely_beliefs.examples.get_temperature_df()
     >>> chart = df.plot_ridgeline_belief_history(
             datetime(2015, 3, 1, 13, 0, tzinfo=pytz.utc),
             df,
@@ -70,7 +70,7 @@ A ridgeline plot of a belief history (e.g. of temperature forecasts) can be crea
 
 A ridgeline plot of beliefs (e.g. temperature forecasts) with a fixed viewpoint can be created as follows:
 
-    >>> df = timely_beliefs.examples.temperature_df
+    >>> df = timely_beliefs.examples.get_temperature_df()
     >>> chart = df.plot_ridgeline_fixed_viewpoint(
             datetime(2015, 3, 1, 13, 0, tzinfo=pytz.utc),
             df,
