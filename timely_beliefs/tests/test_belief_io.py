@@ -7,7 +7,7 @@ import pytest
 import pytz
 
 import timely_beliefs as tb
-from timely_beliefs.examples import example_df
+from timely_beliefs.examples import get_example_df
 from timely_beliefs.tests.utils import assert_metadata_is_retained
 
 
@@ -15,7 +15,7 @@ from timely_beliefs.tests.utils import assert_metadata_is_retained
 def csv_file(tmpdir_factory):
     """Save BeliefsDataFrame to csv."""
 
-    example_df.to_csv("test.csv")
+    get_example_df().to_csv("test.csv")
     yield
     os.remove("test.csv")
 
@@ -359,6 +359,7 @@ def test_converting_between_data_frame_and_series_retains_metadata():
     Test whether slicing of a BeliefsDataFrame into a BeliefsSeries retains the metadata.
     Test whether expanding dimensions of a BeliefsSeries into a BeliefsDataFrame retains the metadata.
     """
+    example_df = get_example_df()
     df = example_df
     series = df["event_value"]
     assert_metadata_is_retained(series, original_df=example_df, is_series=True)
@@ -367,6 +368,7 @@ def test_converting_between_data_frame_and_series_retains_metadata():
 
 
 def test_dropping_index_levels_retains_metadata():
+    example_df = get_example_df()
     df = example_df.copy()
     df.index = df.index.get_level_values("event_start")  # drop all other index levels
     assert_metadata_is_retained(df, original_df=example_df)
@@ -377,6 +379,7 @@ def test_slicing_retains_metadata(drop_level):
     """
     Test whether slicing the index of a BeliefsDataFrame retains the metadata.
     """
+    example_df = get_example_df()
     df = example_df
     df = df.xs("2000-01-03 10:00:00+00:00", level="event_start", drop_level=drop_level)
     print(df)
@@ -391,6 +394,7 @@ def test_mean_resampling_retains_metadata(resolution):
     Fails with pandas==1.0.0
     Succeeds with pandas==1.1.0
     """
+    example_df = get_example_df()
     df = example_df
     df = df.resample(resolution, level="event_start").mean()
     print(df)
@@ -408,6 +412,7 @@ def _test_agg_resampling_retains_metadata(resolution):
 
     Fails with pandas==1.1.5
     """
+    example_df = get_example_df()
     df = example_df
     df = df.reset_index(level=["belief_time", "source", "cumulative_probability"])
     df = df.resample(resolution).agg(
@@ -434,6 +439,7 @@ def test_groupby_retains_metadata():
     Fails with pandas==1.1.0
     Fixed with pandas==1.1.5
     """
+    example_df = get_example_df()
     df = example_df
 
     def assert_function(x):
@@ -447,7 +453,7 @@ def test_groupby_retains_metadata():
 
 def test_copy_series_retains_name_and_metadata():
     # GH 41
-    df = example_df
+    df = get_example_df()
     sensor = df.sensor
     s = df["event_value"]
     assert s.sensor == sensor
@@ -458,18 +464,18 @@ def test_copy_series_retains_name_and_metadata():
 
 
 def test_init_from_beliefs_data_frame():
-    """ Check that input BeliefsDataFrame was not altered. """
+    """Check that input BeliefsDataFrame was not altered."""
     # GH 34
-    df = example_df.rename(columns={"event_value": "reference_value"})
+    df = get_example_df().rename(columns={"event_value": "reference_value"})
     df_copy = df.copy()
     tb.BeliefsDataFrame(df)
     pd.testing.assert_frame_equal(df, df_copy)
 
 
 def test_init_from_beliefs_series():
-    """ Check that input BeliefsSeries was not altered. """
+    """Check that input BeliefsSeries was not altered."""
     # GH 34
-    df = example_df.rename(columns={"event_value": "reference_value"})
+    df = get_example_df().rename(columns={"event_value": "reference_value"})
     s = df["reference_value"]
     df_copy = df.copy()
     s_copy = s.copy()
@@ -576,8 +582,9 @@ def test_groupby_retains_subclass_attribute(att, args):
 
 @pytest.mark.parametrize("constant", [1, -1, 3.14, timedelta(hours=1), ["TiledString"]])
 def test_multiplication_with_constant_retains_metadata(constant):
-    """ Check whether the metadata is still there after multiplication. """
+    """Check whether the metadata is still there after multiplication."""
     # GH 35
+    example_df = get_example_df()
     df = example_df * constant
     assert_metadata_is_retained(df, original_df=example_df)
 

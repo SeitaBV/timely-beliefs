@@ -162,7 +162,7 @@ def timedelta_to_human_range(s: pd.Series) -> Tuple[pd.Series, str]:
     For example:
 
     >>> import timely_beliefs as tb
-    >>> horizons = tb.examples.temperature_df.convert_index_from_belief_time_to_horizon().reset_index()["belief_horizon"].drop_duplicates()
+    >>> horizons = tb.examples.get_temperature_df().convert_index_from_belief_time_to_horizon().reset_index()["belief_horizon"].drop_duplicates()
     >>> horizons  # This is going to look awkward as tick labels
     <<< 0     0 days 00:00:00
         1     0 days 01:00:00

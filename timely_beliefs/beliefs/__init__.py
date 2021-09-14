@@ -21,7 +21,7 @@ class BeliefsAccessor(object):
     :Example:
 
     >>> import timely_beliefs
-    >>> df = timely_beliefs.tests.example_df
+    >>> df = timely_beliefs.tests.get_example_df()
     >>> df.lineage.number_of_sources
     2
 
