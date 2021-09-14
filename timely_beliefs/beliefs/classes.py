@@ -405,7 +405,9 @@ class TimedBeliefDBMixin(TimedBelief):
             )
 
         # Apply source filter
-        if source not in (None, []):
+        if source is []:
+            return BeliefsDataFrame(sensor=sensor, beliefs=[])
+        elif source is not None:
             sources: list = [source] if not isinstance(source, list) else source
             source_cls = sources[0].__class__
             q = q.join(source_cls).filter(cls.source_id.in_([s.id for s in sources]))
