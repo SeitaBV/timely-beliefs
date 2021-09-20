@@ -300,6 +300,8 @@ class TimedBeliefDBMixin(TimedBelief):
         source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
+
+        The optional arguments represent optional filters.
         :param session: the database session to use
         :param sensor: sensor to which the beliefs pertain
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
