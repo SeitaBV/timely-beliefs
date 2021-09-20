@@ -22,10 +22,15 @@ def select_most_recent_belief(
 ) -> "classes.BeliefsDataFrame":
     """Drop all but most recent (non-NaN) belief."""
 
+    if df.empty:
+        return df
+
     # Drop NaN beliefs before selecting the most recent
     df = df.for_each_belief(
         lambda x: x.dropna() if x.isnull().all()["event_value"] else x
     )
+    if df.empty:
+        return df
 
     if "belief_horizon" in df.index.names:
         return df.groupby(level=["event_start", "source"], group_keys=False).apply(
