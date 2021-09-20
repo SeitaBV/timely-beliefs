@@ -300,6 +300,8 @@ class TimedBeliefDBMixin(TimedBelief):
         source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
+
+        The optional arguments represent optional filters.
         :param session: the database session to use
         :param sensor: sensor to which the beliefs pertain
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
@@ -405,7 +407,9 @@ class TimedBeliefDBMixin(TimedBelief):
             )
 
         # Apply source filter
-        if source is not None:
+        if source is []:
+            return BeliefsDataFrame(sensor=sensor, beliefs=[])
+        elif source is not None:
             sources: list = [source] if not isinstance(source, list) else source
             source_cls = sources[0].__class__
             q = q.join(source_cls).filter(cls.source_id.in_([s.id for s in sources]))
