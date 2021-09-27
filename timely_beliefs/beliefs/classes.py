@@ -421,7 +421,7 @@ class TimedBeliefDBMixin(TimedBelief):
         if beliefs_after is not None:
             df = df[df.index.get_level_values("belief_time") >= beliefs_after]
         if beliefs_before is not None:
-            df = df[df.index.get_level_values("belief_time") < beliefs_before]
+            df = df[df.index.get_level_values("belief_time") <= beliefs_before]
 
         return df
 
