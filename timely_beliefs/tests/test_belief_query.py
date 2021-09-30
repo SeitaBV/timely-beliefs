@@ -160,12 +160,12 @@ def test_query_belief_history(
 def test_query_rolling_horizon(
     time_slot_sensor: DBSensor, rolling_day_ahead_beliefs_about_time_slot_events
 ):
-    # belief db selects all beliefs but one recent one (made exactly at 15h)
+    """Make sure that a rolling viewpoint includes the most recent beliefs."""
     belief_df = DBTimedBelief.search_session(
         session=session,
         sensor=time_slot_sensor,
-        beliefs_before=datetime(2050, 1, 1, 15, tzinfo=utc),
-    )
+        beliefs_before=datetime(2050, 1, 1, 14, tzinfo=utc),
+    )  # select beliefs up until 14 o'clock (4 events have 2 beliefs, and 1 event has 1 belief)
     rolling_df = belief_df.rolling_viewpoint(
         belief_horizon=timedelta(hours=49)
     )  # select only the five older beliefs
@@ -173,10 +173,10 @@ def test_query_rolling_horizon(
     assert (rolling_df["event_value"].values == np.arange(101, 106)).all()
     rolling_df = belief_df.rolling_viewpoint(
         belief_horizon=timedelta(hours=48)
-    )  # select mostly recent beliefs
+    )  # select the most recent beliefs
     assert (
         len(rolling_df) == 5
-    )  # 4 early (made at 11,12,13,14 o'clock), 1 late ( at 14 o'clock)
+    )  # 4 more recent (made at 11,12,13,14 o'clock), 1 older (at 14 o'clock, because the 15 o'clock is missing)
     assert (rolling_df["event_value"].values == [11, 12, 13, 14, 105]).all()
 
 
@@ -231,7 +231,7 @@ def test_upsample(time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_ev
 
 
 def _test_empty_frame(time_slot_sensor):
-    """ pandas GH30517 """
+    """pandas GH30517"""
     bdf = DBTimedBelief.search_session(
         session=session,
         sensor=time_slot_sensor,
