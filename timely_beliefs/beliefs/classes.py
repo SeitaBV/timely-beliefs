@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import altair as alt
 import pandas as pd
+import pytz
 from pandas.core.groupby import DataFrameGroupBy
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, Interval
 from sqlalchemy.ext.declarative import declared_attr, has_inherited_table
@@ -807,6 +808,34 @@ class BeliefsDataFrame(pd.DataFrame):
 
     def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
         return tb_utils.replace_multi_index_level(self, "event_start", self.event_ends)
+
+    def convert_timezone_of_belief_timing_index(
+        self, timezone: Union[str, pytz.timezone]
+    ) -> "BeliefsDataFrame":
+        if "belief_horizon" in self.index.names:
+            return self  # timedeltas don't have timezones
+        elif "belief_time" in self.index.names:
+            return tb_utils.replace_multi_index_level(
+                self, "belief_time", self.belief_times.tz_convert(timezone)
+            )
+        else:
+            raise ValueError(
+                "Missing level 'belief_horizon' or 'belief_time' in index."
+            )
+
+    def convert_timezone_of_event_timing_index(
+        self, timezone: Union[str, pytz.timezone]
+    ) -> "BeliefsDataFrame":
+        if "event_end" in self.index.names:
+            return tb_utils.replace_multi_index_level(
+                self, "event_end", self.event_ends.tz_convert(timezone)
+            )
+        elif "event_start" in self.index.names:
+            return tb_utils.replace_multi_index_level(
+                self, "event_start", self.event_starts.tz_convert(timezone)
+            )
+        else:
+            raise ValueError("Missing level 'event_start' or 'event_end' in index.")
 
     def drop_belief_time_or_horizon_index_level(self) -> "BeliefsDataFrame":
         return self.droplevel(
