@@ -286,7 +286,7 @@ class TimedBeliefDBMixin(TimedBelief):
         return cls.search_session(*args, **kwargs)
 
     @classmethod
-    def search_session(
+    def search_session(  # noqa: C901  # todo: remove after removing deprecated arguments
         cls,
         session: Session,
         sensor: SensorDBMixin,
@@ -299,6 +299,8 @@ class TimedBeliefDBMixin(TimedBelief):
         belief_before: Optional[datetime] = None,  # deprecated
         belief_not_before: Optional[datetime] = None,  # deprecated
         source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
+        place_beliefs_in_sensor_timezone: bool = True,
+        place_events_in_sensor_timezone: bool = True,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
@@ -310,6 +312,8 @@ class TimedBeliefDBMixin(TimedBelief):
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: only return beliefs formed by the given source or list of sources
+        :param place_beliefs_in_sensor_timezone: if True, belief times are converted to the timezone of the sensor
+        :param place_events_in_sensor_timezone: if True, event starts are converted to the timezone of the sensor
         :returns: a multi-index DataFrame with all relevant beliefs
         """
 
@@ -423,6 +427,12 @@ class TimedBeliefDBMixin(TimedBelief):
             df = df[df.index.get_level_values("belief_time") >= beliefs_after]
         if beliefs_before is not None:
             df = df[df.index.get_level_values("belief_time") <= beliefs_before]
+
+        # Convert timezone of beliefs and events to sensor timezone
+        if place_beliefs_in_sensor_timezone:
+            df = df.convert_timezone_of_belief_timing_index(sensor.timezone)
+        if place_events_in_sensor_timezone:
+            df = df.convert_timezone_of_event_timing_index(sensor.timezone)
 
         return df
 
