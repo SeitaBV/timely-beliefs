@@ -826,7 +826,9 @@ class BeliefsDataFrame(pd.DataFrame):
             return self  # timedeltas don't have timezones
         elif "belief_time" in self.index.names:
             return tb_utils.replace_multi_index_level(
-                self, "belief_time", self.belief_times.tz_convert(timezone)
+                self,
+                "belief_time",
+                pd.to_datetime(self.belief_times, utc=True).tz_convert(timezone),
             )
         else:
             raise ValueError(
@@ -838,11 +840,15 @@ class BeliefsDataFrame(pd.DataFrame):
     ) -> "BeliefsDataFrame":
         if "event_end" in self.index.names:
             return tb_utils.replace_multi_index_level(
-                self, "event_end", self.event_ends.tz_convert(timezone)
+                self,
+                "event_end",
+                pd.to_datetime(self.event_ends, utc=True).tz_convert(timezone),
             )
         elif "event_start" in self.index.names:
             return tb_utils.replace_multi_index_level(
-                self, "event_start", self.event_starts.tz_convert(timezone)
+                self,
+                "event_start",
+                pd.to_datetime(self.event_starts, utc=True).tz_convert(timezone),
             )
         else:
             raise ValueError("Missing level 'event_start' or 'event_end' in index.")
