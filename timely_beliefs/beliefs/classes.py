@@ -802,6 +802,9 @@ class BeliefsDataFrame(pd.DataFrame):
             self, "belief_horizon", self.belief_times
         )
 
+    def convert_index_from_event_end_to_start(self) -> "BeliefsDataFrame":
+        return tb_utils.replace_multi_index_level(self, "event_end", self.event_starts)
+
     def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
         return tb_utils.replace_multi_index_level(self, "event_start", self.event_ends)
 
@@ -858,15 +861,25 @@ class BeliefsDataFrame(pd.DataFrame):
 
     @property
     def event_starts(self) -> pd.DatetimeIndex:
-        return pd.DatetimeIndex(self.index.get_level_values("event_start"))
+        if "event_start" in self.index.names:
+            return pd.DatetimeIndex(self.index.get_level_values("event_start"))
+        else:
+            return pd.DatetimeIndex(
+                self.event_ends.to_series(name="event_start").apply(
+                    lambda event_end: event_end - self.event_resolution
+                )
+            )
 
     @property
     def event_ends(self) -> pd.DatetimeIndex:
-        return pd.DatetimeIndex(
-            self.event_starts.to_series(name="event_end").apply(
-                lambda event_start: event_start + self.event_resolution
+        if "event_end" in self.index.names:
+            return pd.DatetimeIndex(self.index.get_level_values("event_end"))
+        else:
+            return pd.DatetimeIndex(
+                self.event_starts.to_series(name="event_end").apply(
+                    lambda event_start: event_start + self.event_resolution
+                )
             )
-        )
 
     @property
     def sources(self) -> pd.Index:
