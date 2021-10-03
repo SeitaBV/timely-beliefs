@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import altair as alt
 import pandas as pd
+import pytz
 from pandas.core.groupby import DataFrameGroupBy
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, Interval
 from sqlalchemy.ext.declarative import declared_attr, has_inherited_table
@@ -285,7 +286,7 @@ class TimedBeliefDBMixin(TimedBelief):
         return cls.search_session(*args, **kwargs)
 
     @classmethod
-    def search_session(
+    def search_session(  # noqa: C901  # todo: remove after removing deprecated arguments
         cls,
         session: Session,
         sensor: SensorDBMixin,
@@ -298,6 +299,8 @@ class TimedBeliefDBMixin(TimedBelief):
         belief_before: Optional[datetime] = None,  # deprecated
         belief_not_before: Optional[datetime] = None,  # deprecated
         source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
+        place_beliefs_in_sensor_timezone: bool = True,
+        place_events_in_sensor_timezone: bool = True,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
@@ -309,6 +312,8 @@ class TimedBeliefDBMixin(TimedBelief):
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: only return beliefs formed by the given source or list of sources
+        :param place_beliefs_in_sensor_timezone: if True (the default), belief times are converted to the timezone of the sensor
+        :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
         :returns: a multi-index DataFrame with all relevant beliefs
         """
 
@@ -422,6 +427,12 @@ class TimedBeliefDBMixin(TimedBelief):
             df = df[df.index.get_level_values("belief_time") >= beliefs_after]
         if beliefs_before is not None:
             df = df[df.index.get_level_values("belief_time") <= beliefs_before]
+
+        # Convert timezone of beliefs and events to sensor timezone
+        if place_beliefs_in_sensor_timezone:
+            df = df.convert_timezone_of_belief_timing_index(sensor.timezone)
+        if place_events_in_sensor_timezone:
+            df = df.convert_timezone_of_event_timing_index(sensor.timezone)
 
         return df
 
@@ -802,8 +813,45 @@ class BeliefsDataFrame(pd.DataFrame):
             self, "belief_horizon", self.belief_times
         )
 
+    def convert_index_from_event_end_to_start(self) -> "BeliefsDataFrame":
+        return tb_utils.replace_multi_index_level(self, "event_end", self.event_starts)
+
     def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
         return tb_utils.replace_multi_index_level(self, "event_start", self.event_ends)
+
+    def convert_timezone_of_belief_timing_index(
+        self, timezone: Union[str, pytz.timezone]
+    ) -> "BeliefsDataFrame":
+        if "belief_horizon" in self.index.names:
+            return self  # timedeltas don't have timezones
+        elif "belief_time" in self.index.names:
+            return tb_utils.replace_multi_index_level(
+                self,
+                "belief_time",
+                pd.to_datetime(self.belief_times, utc=True).tz_convert(timezone),
+            )
+        else:
+            raise ValueError(
+                "Missing level 'belief_horizon' or 'belief_time' in index."
+            )
+
+    def convert_timezone_of_event_timing_index(
+        self, timezone: Union[str, pytz.timezone]
+    ) -> "BeliefsDataFrame":
+        if "event_end" in self.index.names:
+            return tb_utils.replace_multi_index_level(
+                self,
+                "event_end",
+                pd.to_datetime(self.event_ends, utc=True).tz_convert(timezone),
+            )
+        elif "event_start" in self.index.names:
+            return tb_utils.replace_multi_index_level(
+                self,
+                "event_start",
+                pd.to_datetime(self.event_starts, utc=True).tz_convert(timezone),
+            )
+        else:
+            raise ValueError("Missing level 'event_start' or 'event_end' in index.")
 
     def drop_belief_time_or_horizon_index_level(self) -> "BeliefsDataFrame":
         return self.droplevel(
@@ -858,15 +906,25 @@ class BeliefsDataFrame(pd.DataFrame):
 
     @property
     def event_starts(self) -> pd.DatetimeIndex:
-        return pd.DatetimeIndex(self.index.get_level_values("event_start"))
+        if "event_start" in self.index.names:
+            return pd.DatetimeIndex(self.index.get_level_values("event_start"))
+        else:
+            return pd.DatetimeIndex(
+                self.event_ends.to_series(name="event_start").apply(
+                    lambda event_end: event_end - self.event_resolution
+                )
+            )
 
     @property
     def event_ends(self) -> pd.DatetimeIndex:
-        return pd.DatetimeIndex(
-            self.event_starts.to_series(name="event_end").apply(
-                lambda event_start: event_start + self.event_resolution
+        if "event_end" in self.index.names:
+            return pd.DatetimeIndex(self.index.get_level_values("event_end"))
+        else:
+            return pd.DatetimeIndex(
+                self.event_starts.to_series(name="event_end").apply(
+                    lambda event_start: event_start + self.event_resolution
+                )
             )
-        )
 
     @property
     def sources(self) -> pd.Index:
