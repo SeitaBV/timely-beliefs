@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 from pytz import utc
 
+import timely_beliefs.beliefs.utils as belief_utils
 from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
 from timely_beliefs.tests import session
 
@@ -45,6 +46,31 @@ def multiple_day_ahead_beliefs_about_ex_post_time_slot_event(
         )
         session.add(belief)
         beliefs.append(belief)
+    return beliefs
+
+
+@pytest.fixture(scope="function")
+def multiple_probabilistic_day_ahead_beliefs_about_ex_post_time_slot_event(
+    ex_post_time_slot_sensor: DBSensor, test_source_a: DBBeliefSource
+):
+    """Define multiple probabilistic day-ahead beliefs about an ex post time slot event."""
+    n = 10
+    np = 2
+    event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
+    beliefs = []
+    for i in range(n):
+        for j in range(np):
+            belief = DBTimedBelief(
+                source=test_source_a,
+                sensor=ex_post_time_slot_sensor,
+                value=10 + i - j / 100,
+                belief_time=ex_post_time_slot_sensor.knowledge_time(event_start)
+                - timedelta(hours=i + 1),
+                event_start=event_start,
+                cumulative_probability=0.5 * (1 - j / np),
+            )
+            session.add(belief)
+            beliefs.append(belief)
     return beliefs
 
 
@@ -245,12 +271,31 @@ def _test_empty_frame(time_slot_sensor):
     )  # dtype of belief_horizon is timedelta64[ns], so the minimum horizon on an empty BeliefsDataFrame is NaT instead of NaN
 
 
-def test_select_most_recent_beliefs(
+def test_select_most_recent_deterministic_beliefs(
     ex_post_time_slot_sensor: DBSensor,
     multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
 ):
     df = DBTimedBelief.search_session(
+        session=session, sensor=ex_post_time_slot_sensor, most_recent_only=False
+    )
+    most_recent_df = belief_utils.select_most_recent_belief(df)
+    df = DBTimedBelief.search_session(
         session=session, sensor=ex_post_time_slot_sensor, most_recent_only=True
     )
-    assert df.belief_times[-1] == datetime(2025, 1, 1, 10, tzinfo=utc)
-    assert len(df) == 1
+    pd.testing.assert_frame_equal(df, most_recent_df)
+
+
+def test_select_most_recent_probabilistic_beliefs(
+    ex_post_time_slot_sensor: DBSensor,
+    multiple_probabilistic_day_ahead_beliefs_about_ex_post_time_slot_event: List[
+        DBTimedBelief
+    ],
+):
+    df = DBTimedBelief.search_session(
+        session=session, sensor=ex_post_time_slot_sensor, most_recent_only=False
+    )
+    most_recent_df = belief_utils.select_most_recent_belief(df)
+    df = DBTimedBelief.search_session(
+        session=session, sensor=ex_post_time_slot_sensor, most_recent_only=True
+    )
+    pd.testing.assert_frame_equal(df, most_recent_df)
