@@ -243,3 +243,14 @@ def _test_empty_frame(time_slot_sensor):
     assert pd.api.types.is_timedelta64_dtype(
         bdf.index.get_level_values("belief_horizon")
     )  # dtype of belief_horizon is timedelta64[ns], so the minimum horizon on an empty BeliefsDataFrame is NaT instead of NaN
+
+
+def test_select_most_recent_beliefs(
+    ex_post_time_slot_sensor: DBSensor,
+    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
+):
+    df = DBTimedBelief.search_session(
+        session=session, sensor=ex_post_time_slot_sensor, most_recent_only=True
+    )
+    assert df.belief_times[-1] == datetime(2025, 1, 1, 10, tzinfo=utc)
+    assert len(df) == 1
