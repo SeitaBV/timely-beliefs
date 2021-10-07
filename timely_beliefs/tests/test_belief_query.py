@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 from pytz import utc
 
+import timely_beliefs.beliefs.utils as belief_utils
 from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
 from timely_beliefs.tests import session
 
@@ -45,6 +46,38 @@ def multiple_day_ahead_beliefs_about_ex_post_time_slot_event(
         )
         session.add(belief)
         beliefs.append(belief)
+    return beliefs
+
+
+@pytest.fixture(scope="function")
+def multiple_probabilistic_day_ahead_beliefs_about_ex_post_time_slot_event(
+    ex_post_time_slot_sensor: DBSensor,
+    ex_post_time_slot_sensor_b: DBSensor,
+    test_source_a: DBBeliefSource,
+):
+    """Define multiple probabilistic day-ahead beliefs about an ex post time slot event on two sensors."""
+    n = 10  # number of belief times
+    np = 2  # number of probabilities per belief
+    event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
+    beliefs = []
+    for sensor in [ex_post_time_slot_sensor, ex_post_time_slot_sensor_b]:
+        for i in range(n):
+            for j in range(np):
+                if sensor == ex_post_time_slot_sensor and i == 0:
+                    # Skip to ensure that sensor B has more recent beliefs
+                    # This is to test the most_recent_only parameter for a query on the other sensor
+                    continue
+                belief = DBTimedBelief(
+                    source=test_source_a,
+                    sensor=sensor,
+                    value=10 + i - j / 100,
+                    belief_time=ex_post_time_slot_sensor.knowledge_time(event_start)
+                    - timedelta(hours=i + 1),
+                    event_start=event_start,
+                    cumulative_probability=0.5 * (1 - j / np),
+                )
+                session.add(belief)
+                beliefs.append(belief)
     return beliefs
 
 
@@ -243,3 +276,33 @@ def _test_empty_frame(time_slot_sensor):
     assert pd.api.types.is_timedelta64_dtype(
         bdf.index.get_level_values("belief_horizon")
     )  # dtype of belief_horizon is timedelta64[ns], so the minimum horizon on an empty BeliefsDataFrame is NaT instead of NaN
+
+
+def test_select_most_recent_deterministic_beliefs(
+    ex_post_time_slot_sensor: DBSensor,
+    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
+):
+    df = DBTimedBelief.search_session(
+        session=session, sensor=ex_post_time_slot_sensor, most_recent_only=False
+    )
+    most_recent_df = belief_utils.select_most_recent_belief(df)
+    df = DBTimedBelief.search_session(
+        session=session, sensor=ex_post_time_slot_sensor, most_recent_only=True
+    )
+    pd.testing.assert_frame_equal(df, most_recent_df)
+
+
+def test_select_most_recent_probabilistic_beliefs(
+    ex_post_time_slot_sensor: DBSensor,
+    multiple_probabilistic_day_ahead_beliefs_about_ex_post_time_slot_event: List[
+        DBTimedBelief
+    ],
+):
+    df = DBTimedBelief.search_session(
+        session=session, sensor=ex_post_time_slot_sensor, most_recent_only=False
+    )
+    most_recent_df = belief_utils.select_most_recent_belief(df)
+    df = DBTimedBelief.search_session(
+        session=session, sensor=ex_post_time_slot_sensor, most_recent_only=True
+    )
+    pd.testing.assert_frame_equal(df, most_recent_df)
