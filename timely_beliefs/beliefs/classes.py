@@ -438,8 +438,8 @@ class TimedBeliefDBMixin(TimedBelief):
                     cls.source_id,
                     func.min(cls.belief_horizon).label("most_recent_belief_horizon"),
                 )
-                .group_by(cls.event_start, cls.source_id)
                 .filter(cls.sensor_id == sensor.id)
+                .group_by(cls.event_start, cls.source_id)
                 .subquery()
             )
             q = q.join(
