@@ -402,7 +402,7 @@ class TimedBeliefDBMixin(TimedBelief):
         )
 
         # Query based on start_time_window
-        q = session.query(cls).select_from(cls).filter(cls.sensor_id == sensor.id)
+        q = session.query(cls).filter(cls.sensor_id == sensor.id)
 
         # Apply event time filter
         if event_starts_after is not None:
