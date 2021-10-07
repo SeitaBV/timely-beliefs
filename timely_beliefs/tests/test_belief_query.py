@@ -51,26 +51,33 @@ def multiple_day_ahead_beliefs_about_ex_post_time_slot_event(
 
 @pytest.fixture(scope="function")
 def multiple_probabilistic_day_ahead_beliefs_about_ex_post_time_slot_event(
-    ex_post_time_slot_sensor: DBSensor, test_source_a: DBBeliefSource
+    ex_post_time_slot_sensor: DBSensor,
+    ex_post_time_slot_sensor_b: DBSensor,
+    test_source_a: DBBeliefSource,
 ):
-    """Define multiple probabilistic day-ahead beliefs about an ex post time slot event."""
-    n = 10
-    np = 2
+    """Define multiple probabilistic day-ahead beliefs about an ex post time slot event on two sensors."""
+    n = 10  # number of belief times
+    np = 2  # number of probabilities per belief
     event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
     beliefs = []
-    for i in range(n):
-        for j in range(np):
-            belief = DBTimedBelief(
-                source=test_source_a,
-                sensor=ex_post_time_slot_sensor,
-                value=10 + i - j / 100,
-                belief_time=ex_post_time_slot_sensor.knowledge_time(event_start)
-                - timedelta(hours=i + 1),
-                event_start=event_start,
-                cumulative_probability=0.5 * (1 - j / np),
-            )
-            session.add(belief)
-            beliefs.append(belief)
+    for sensor in [ex_post_time_slot_sensor, ex_post_time_slot_sensor_b]:
+        for i in range(n):
+            for j in range(np):
+                if sensor == ex_post_time_slot_sensor and i == 0:
+                    # Skip to ensure that sensor B has more recent beliefs
+                    # This is to test the most_recent_only parameter for a query on the other sensor
+                    continue
+                belief = DBTimedBelief(
+                    source=test_source_a,
+                    sensor=sensor,
+                    value=10 + i - j / 100,
+                    belief_time=ex_post_time_slot_sensor.knowledge_time(event_start)
+                    - timedelta(hours=i + 1),
+                    event_start=event_start,
+                    cumulative_probability=0.5 * (1 - j / np),
+                )
+                session.add(belief)
+                beliefs.append(belief)
     return beliefs
 
 
