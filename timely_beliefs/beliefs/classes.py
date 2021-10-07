@@ -322,7 +322,7 @@ class TimedBeliefDBMixin(TimedBelief):
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: only return beliefs formed by the given source or list of sources
-        :param most_recent_only: only return the most recent beliefs from each source about each event
+        :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param place_beliefs_in_sensor_timezone: if True (the default), belief times are converted to the timezone of the sensor
         :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
         :returns: a multi-index DataFrame with all relevant beliefs
