@@ -6,8 +6,8 @@ import numpy as np
 import openturns as ot
 import pandas as pd
 import properscoring as ps
-from scipy import special
 from pandas.core.groupby import DataFrameGroupBy
+from scipy import special
 
 from timely_beliefs import utils as tb_utils
 from timely_beliefs.beliefs import classes  # noqa: F401
