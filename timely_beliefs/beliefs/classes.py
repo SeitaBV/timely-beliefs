@@ -692,10 +692,12 @@ class BeliefsDataFrame(pd.DataFrame):
 
             # Check for different sources with the same name
             unique_sources = set(belief.source for belief in beliefs)
-            unique_source_names = set(source.name for source in unique_sources)
-            if len(unique_source_names) != len(unique_sources):
+            unique_source_string_representations = set(
+                source.__str__ for source in unique_sources
+            )
+            if len(unique_source_string_representations) != len(unique_sources):
                 raise ValueError(
-                    "Source names must be unique. Cannot initialise BeliefsDataFrame given the following unique sources:\n%s"
+                    "String representations of sources must be unique. Cannot initialise BeliefsDataFrame given the following unique sources:\n%s"
                     % unique_sources
                 )
 
