@@ -131,7 +131,7 @@ def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
     marginal_cdfs_v: Union[List[Union[List[float], np.ndarray]], np.ndarray] = None,
     a: float = 0,
     b: float = 1,
-    copula: ot.CopulaImplementation = None,
+    copula: ot.DistributionImplementation = None,
     agg_function: Callable[[np.ndarray], np.ndarray] = None,
     simplify: bool = True,
     n_draws: int = 100,
