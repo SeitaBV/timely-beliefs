@@ -216,6 +216,8 @@ def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
     # If not specified, pick the independent copula as a default (i.e. assume independent random variables)
     if copula is None:
         copula = ot.IndependentCopula(dim)
+    elif not copula.isCopula():
+        raise ValueError(f"Copula {copula} doesn't seem to be a valid copula")
 
     # If not specified, pick the sum function as a default for joining values
     if agg_function is None:
