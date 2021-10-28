@@ -21,7 +21,9 @@ setup(
     install_requires=[
         "pytz",
         # https://pandas.pydata.org/pandas-docs/stable/whatsnew/v1.2.0.html#increased-minimum-version-for-python
-        "pandas>=1.1.5,<1.2" if sys.version_info[:2] == (3, 6) else "pandas>=1.1.5",
+        "pandas>=1.1.5,<1.2"
+        if sys.version_info[:2] == (3, 6)
+        else "pandas>=1.1.5,<1.3",
         "numpy",
         "scipy",
         # https://github.com/scipy/scipy/releases/tag/v1.6.0
