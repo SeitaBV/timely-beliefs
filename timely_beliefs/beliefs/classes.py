@@ -693,7 +693,7 @@ class BeliefsDataFrame(pd.DataFrame):
             # Check for different sources with the same name
             unique_sources = set(belief.source for belief in beliefs)
             unique_source_string_representations = set(
-                source.__str__ for source in unique_sources
+                str(source) for source in unique_sources
             )
             if len(unique_source_string_representations) != len(unique_sources):
                 raise ValueError(
