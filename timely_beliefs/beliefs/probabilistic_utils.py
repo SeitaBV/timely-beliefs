@@ -6,8 +6,8 @@ import numpy as np
 import openturns as ot
 import pandas as pd
 import properscoring as ps
-from scipy import special
 from pandas.core.groupby import DataFrameGroupBy
+from scipy import special
 
 from timely_beliefs import utils as tb_utils
 from timely_beliefs.beliefs import classes  # noqa: F401
@@ -131,7 +131,7 @@ def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
     marginal_cdfs_v: Union[List[Union[List[float], np.ndarray]], np.ndarray] = None,
     a: float = 0,
     b: float = 1,
-    copula: ot.CopulaImplementation = None,
+    copula: ot.DistributionImplementation = None,
     agg_function: Callable[[np.ndarray], np.ndarray] = None,
     simplify: bool = True,
     n_draws: int = 100,
@@ -216,6 +216,8 @@ def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
     # If not specified, pick the independent copula as a default (i.e. assume independent random variables)
     if copula is None:
         copula = ot.IndependentCopula(dim)
+    elif not copula.isCopula():
+        raise ValueError(f"Copula {copula} doesn't seem to be a valid copula")
 
     # If not specified, pick the sum function as a default for joining values
     if agg_function is None:
