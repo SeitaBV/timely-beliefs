@@ -1,5 +1,6 @@
 # Timely beliefs
 
+[![License](https://img.shields.io/github/license/seitabv/timely-beliefs?color=blue)](https://github.com/SeitaBV/timely-beliefs/blob/main/LICENSE)
 [![Build Status](https://travis-ci.com/SeitaBV/timely-beliefs.svg?branch=master)](https://travis-ci.com/SeitaBV/timely-beliefs)
 [![Python Version](https://img.shields.io/pypi/pyversions/timely-beliefs.svg)](https://pypi.python.org/pypi/timely-beliefs)
 [![Pypi Version](https://img.shields.io/pypi/v/timely-beliefs.svg)](https://pypi.python.org/pypi/timely-beliefs)
