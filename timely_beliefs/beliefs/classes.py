@@ -309,6 +309,7 @@ class TimedBeliefDBMixin(TimedBelief):
         belief_not_before: Optional[datetime] = None,  # deprecated
         source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
         most_recent_only: bool = False,
+        most_recent_events_only: bool = False,
         place_beliefs_in_sensor_timezone: bool = True,
         place_events_in_sensor_timezone: bool = True,
     ) -> "BeliefsDataFrame":
@@ -323,6 +324,7 @@ class TimedBeliefDBMixin(TimedBelief):
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: only return beliefs formed by the given source or list of sources
         :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
+        :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param place_beliefs_in_sensor_timezone: if True (the default), belief times are converted to the timezone of the sensor
         :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
         :returns: a multi-index DataFrame with all relevant beliefs
@@ -448,6 +450,26 @@ class TimedBeliefDBMixin(TimedBelief):
                     cls.event_start == subq.c.event_start,
                     cls.source_id == subq.c.source_id,
                     cls.belief_horizon == subq.c.most_recent_belief_horizon,
+                ),
+            )
+
+        # Apply most recent events filter
+        if most_recent_events_only:
+            subq_most_recent_events = (
+                session.query(
+                    cls.source_id,
+                    func.max(cls.event_start).label("most_recent_event_start"),
+                )
+                .filter(cls.sensor_id == sensor.id)
+                .group_by(cls.source_id)
+                .subquery()
+            )
+            q = q.join(
+                subq_most_recent_events,
+                and_(
+                    cls.source_id == subq_most_recent_events.c.source_id,
+                    cls.event_start
+                    == subq_most_recent_events.c.most_recent_event_start,
                 ),
             )
 
