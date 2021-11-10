@@ -303,6 +303,8 @@ class TimedBeliefDBMixin(TimedBelief):
         event_ends_before: Optional[datetime] = None,
         beliefs_after: Optional[datetime] = None,
         beliefs_before: Optional[datetime] = None,
+        horizons_at_least: Optional[timedelta] = None,
+        horizons_at_most: Optional[timedelta] = None,
         event_before: Optional[datetime] = None,  # deprecated
         event_not_before: Optional[datetime] = None,  # deprecated
         belief_before: Optional[datetime] = None,  # deprecated
@@ -321,6 +323,8 @@ class TimedBeliefDBMixin(TimedBelief):
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
+        :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: only return beliefs formed by the given source or list of sources
         :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param place_beliefs_in_sensor_timezone: if True (the default), belief times are converted to the timezone of the sensor
@@ -421,6 +425,12 @@ class TimedBeliefDBMixin(TimedBelief):
                 cls.event_start
                 <= beliefs_before + cls.belief_horizon + knowledge_horizon_max
             )
+
+        # Apply belief horizon filter
+        if horizons_at_least is not None:
+            q = q.filter(cls.belief_horizon >= horizons_at_least)
+        if horizons_at_most is not None:
+            q = q.filter(cls.belief_horizon <= horizons_at_most)
 
         # Apply source filter
         if source is []:
