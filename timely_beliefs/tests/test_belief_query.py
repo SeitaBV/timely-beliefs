@@ -305,6 +305,8 @@ def test_select_most_recent_deterministic_beliefs(
     multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
     multiple_day_after_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
 ):
+    """Check db query filters for most recent beliefs, most recent events, and both at once."""
+
     # Query all beliefs for this sensor
     df = DBTimedBelief.search_session(
         session=session, sensor=ex_post_time_slot_sensor, most_recent_only=False
@@ -332,6 +334,23 @@ def test_select_most_recent_deterministic_beliefs(
     )
     pd.testing.assert_frame_equal(
         df_recent_events_within_query, df_recent_events_after_query
+    )
+
+    # Most recent beliefs and most recent events selected after query (our reference)
+    df_recent_both_after_query = df_recent_beliefs_after_query[
+        df_recent_beliefs_after_query.index.get_level_values("event_start")
+        == df_recent_beliefs_after_query.event_starts.max()
+    ]
+
+    # Most recent beliefs and most recent events selected within query (our test)
+    df_recent_both_within_query = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_post_time_slot_sensor,
+        most_recent_only=True,
+        most_recent_events_only=True,
+    )
+    pd.testing.assert_frame_equal(
+        df_recent_both_within_query, df_recent_both_after_query
     )
 
 
