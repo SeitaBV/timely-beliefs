@@ -310,7 +310,9 @@ class TimedBeliefDBMixin(TimedBelief):
         belief_before: Optional[datetime] = None,  # deprecated
         belief_not_before: Optional[datetime] = None,  # deprecated
         source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
-        most_recent_only: bool = False,
+        most_recent_beliefs_only: bool = False,
+        most_recent_events_only: bool = False,
+        most_recent_only: bool = False,  # deprecated
         place_beliefs_in_sensor_timezone: bool = True,
         place_events_in_sensor_timezone: bool = True,
     ) -> "BeliefsDataFrame":
@@ -326,7 +328,8 @@ class TimedBeliefDBMixin(TimedBelief):
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: only return beliefs formed by the given source or list of sources
-        :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
+        :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
+        :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param place_beliefs_in_sensor_timezone: if True (the default), belief times are converted to the timezone of the sensor
         :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
         :returns: a multi-index DataFrame with all relevant beliefs
@@ -362,6 +365,14 @@ class TimedBeliefDBMixin(TimedBelief):
             belief_not_before,
             "beliefs_after",
             beliefs_after,
+            required_argument=False,
+        )
+        # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v1.7.0)
+        most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
+            "most_recent_only",
+            most_recent_only,
+            "most_recent_beliefs_only",
+            most_recent_beliefs_only,
             required_argument=False,
         )
 
@@ -441,7 +452,7 @@ class TimedBeliefDBMixin(TimedBelief):
             q = q.join(source_cls).filter(cls.source_id.in_([s.id for s in sources]))
 
         # Apply most recent beliefs filter
-        if most_recent_only:
+        if most_recent_beliefs_only:
             subq = (
                 session.query(
                     cls.event_start,
@@ -458,6 +469,26 @@ class TimedBeliefDBMixin(TimedBelief):
                     cls.event_start == subq.c.event_start,
                     cls.source_id == subq.c.source_id,
                     cls.belief_horizon == subq.c.most_recent_belief_horizon,
+                ),
+            )
+
+        # Apply most recent events filter
+        if most_recent_events_only:
+            subq_most_recent_events = (
+                session.query(
+                    cls.source_id,
+                    func.max(cls.event_start).label("most_recent_event_start"),
+                )
+                .filter(cls.sensor_id == sensor.id)
+                .group_by(cls.source_id)
+                .subquery()
+            )
+            q = q.join(
+                subq_most_recent_events,
+                and_(
+                    cls.source_id == subq_most_recent_events.c.source_id,
+                    cls.event_start
+                    == subq_most_recent_events.c.most_recent_event_start,
                 ),
             )
 

@@ -81,6 +81,28 @@ def multiple_probabilistic_day_ahead_beliefs_about_ex_post_time_slot_event(
     return beliefs
 
 
+@pytest.fixture(scope="function")
+def multiple_day_after_beliefs_about_ex_post_time_slot_event(
+    ex_post_time_slot_sensor: DBSensor, test_source_a: DBBeliefSource
+):
+    """Define multiple day-after beliefs about an ex post time slot event."""
+    n = 10
+    event_start = datetime(2025, 1, 2, 23, 00, tzinfo=utc)
+    beliefs = []
+    for i in range(n):
+        belief = DBTimedBelief(
+            source=test_source_a,
+            sensor=ex_post_time_slot_sensor,
+            value=10 + i,
+            belief_time=ex_post_time_slot_sensor.knowledge_time(event_start)
+            + timedelta(hours=i + 1),
+            event_start=event_start,
+        )
+        session.add(belief)
+        beliefs.append(belief)
+    return beliefs
+
+
 def test_query_belief_by_belief_time(
     ex_post_time_slot_sensor: DBSensor,
     day_ahead_belief_about_ex_post_time_slot_event: DBTimedBelief,
@@ -281,15 +303,55 @@ def _test_empty_frame(time_slot_sensor):
 def test_select_most_recent_deterministic_beliefs(
     ex_post_time_slot_sensor: DBSensor,
     multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
+    multiple_day_after_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
 ):
+    """Check db query filters for most recent beliefs, most recent events, and both at once."""
+
+    # Query all beliefs for this sensor
     df = DBTimedBelief.search_session(
         session=session, sensor=ex_post_time_slot_sensor, most_recent_only=False
     )
-    most_recent_df = belief_utils.select_most_recent_belief(df)
-    df = DBTimedBelief.search_session(
+
+    # Most recent beliefs selected after query (our reference)
+    df_recent_beliefs_after_query = belief_utils.select_most_recent_belief(df)
+
+    # Most recent beliefs selected within query (our test)
+    df_recent_beliefs_within_query = DBTimedBelief.search_session(
         session=session, sensor=ex_post_time_slot_sensor, most_recent_only=True
     )
-    pd.testing.assert_frame_equal(df, most_recent_df)
+    pd.testing.assert_frame_equal(
+        df_recent_beliefs_within_query, df_recent_beliefs_after_query
+    )
+
+    # Most recent events selected after query (our reference)
+    df_recent_events_after_query = df[
+        df.index.get_level_values("event_start") == df.event_starts.max()
+    ]
+
+    # Most recent events selected within query (our test)
+    df_recent_events_within_query = DBTimedBelief.search_session(
+        session=session, sensor=ex_post_time_slot_sensor, most_recent_events_only=True
+    )
+    pd.testing.assert_frame_equal(
+        df_recent_events_within_query, df_recent_events_after_query
+    )
+
+    # Most recent beliefs and most recent events selected after query (our reference)
+    df_recent_both_after_query = df_recent_beliefs_after_query[
+        df_recent_beliefs_after_query.index.get_level_values("event_start")
+        == df_recent_beliefs_after_query.event_starts.max()
+    ]
+
+    # Most recent beliefs and most recent events selected within query (our test)
+    df_recent_both_within_query = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_post_time_slot_sensor,
+        most_recent_only=True,
+        most_recent_events_only=True,
+    )
+    pd.testing.assert_frame_equal(
+        df_recent_both_within_query, df_recent_both_after_query
+    )
 
 
 def test_select_most_recent_probabilistic_beliefs(
