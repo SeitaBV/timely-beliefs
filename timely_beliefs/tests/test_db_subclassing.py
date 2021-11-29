@@ -14,7 +14,7 @@ from timely_beliefs.tests import session
 
 
 class RatedSource(DBBeliefSource):
-    """ Subclassing a belief source, adding a field."""
+    """Subclassing a belief source, adding a field."""
 
     rating = Column(Float(), default=0)
 
