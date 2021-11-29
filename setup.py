@@ -35,8 +35,7 @@ setup(
         "altair>=4.0.0",
         "selenium",
     ],
-    setup_requires=["pytest-runner", "setuptools_scm"],
-    tests_require=["pytest"],
+    setup_requires=["setuptools_scm"],
     use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
     packages=[
         "timely_beliefs",
