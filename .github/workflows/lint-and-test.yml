@@ -20,14 +20,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        py_version: [ '3.6', '3.7', ' 3.8', '3.9' ]
+        py_version: [ '3.7', '3.8', '3.9' ]
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.py_version }}
       - uses: actions/checkout@v2
-      - run: pip install setuptools_rust  # required in Python 3.6
       - run: make test
     env:
       PGHOST: 127.0.0.1
