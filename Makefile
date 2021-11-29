@@ -18,5 +18,5 @@ install-tb:
 	pre-commit install
 
 test:
-	pip install pytest
+	pip install setuptools_scm pytest
 	pytest

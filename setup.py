@@ -16,7 +16,6 @@ setup(
         "uncertainty",
         "lineage",
     ],
-    version="1.7.0",
     python_requires=">=3.6.1",  # not enforced, just info
     install_requires=[
         "pytz",
@@ -36,8 +35,9 @@ setup(
         "altair>=4.0.0",
         "selenium",
     ],
-    setup_requires=["pytest-runner"],
+    setup_requires=["pytest-runner", "setuptools_scm"],
     tests_require=["pytest"],
+    use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
     packages=[
         "timely_beliefs",
         "timely_beliefs.beliefs",
