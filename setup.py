@@ -1,6 +1,6 @@
 import sys
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name="timely-beliefs",
@@ -46,7 +46,8 @@ setup(
         "timely_beliefs.examples",
         "timely_beliefs.visualization",
     ],
-    include_package_data=True,
+    packages=find_packages(),  # will include *.py files and some other types
+    include_package_data=True,  # now setuptools_scm adds all files under source control
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
