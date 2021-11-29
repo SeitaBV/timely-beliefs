@@ -36,8 +36,6 @@ setup(
         "altair>=4.0.0",
         "selenium",
     ],
-    setup_requires=["pytest-runner"],
-    tests_require=["pytest"],
     packages=[
         "timely_beliefs",
         "timely_beliefs.beliefs",
