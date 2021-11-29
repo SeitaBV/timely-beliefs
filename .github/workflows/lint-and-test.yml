@@ -31,9 +31,9 @@ jobs:
     env:
       PGHOST: 127.0.0.1
       PGPORT: 5432
-      PGUSER: timely_beliefs_test
-      PGDB: timely_beliefs_test
-      PGPASSWORD: timely_beliefs_test
+      PGUSER: tbtest
+      PGDB: tbtest
+      PGPASSWORD: tbtest
 
     services:
       # Label used to access the service container
@@ -41,9 +41,9 @@ jobs:
         # Docker Hub image
         image: postgres:12.5 
         env:
-          POSTGRES_USER: timely_beliefs_test
-          POSTGRES_PASSWORD: timely_beliefs_test
-          POSTGRES_DB: timely_beliefs_test
+          POSTGRES_USER: tbtest
+          POSTGRES_PASSWORD: tbtest
+          POSTGRES_DB: tbtest
         ports:
           - 5432:5432
         # needed because the postgres container does not provide a healthcheck
