@@ -37,16 +37,7 @@ setup(
     ],
     setup_requires=["setuptools_scm"],
     use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
-    packages=[
-        "timely_beliefs",
-        "timely_beliefs.beliefs",
-        "timely_beliefs.sensors",
-        "timely_beliefs.sensors.func_store",
-        "timely_beliefs.sources",
-        "timely_beliefs.examples",
-        "timely_beliefs.visualization",
-    ],
-    packages=find_packages(),  # will include *.py files and some other types
+    packages=find_packages(),
     include_package_data=True,  # now setuptools_scm adds all files under source control
     classifiers=[
         "Programming Language :: Python",
