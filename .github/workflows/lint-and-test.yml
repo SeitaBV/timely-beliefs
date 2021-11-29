@@ -27,6 +27,7 @@ jobs:
         with:
           python-version: ${{ matrix.py_version }}
       - uses: actions/checkout@v2
+      - run: pip install --upgrade pip  # required in Python 3.6
       - run: make test
     env:
       PGHOST: 127.0.0.1
