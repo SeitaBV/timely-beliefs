@@ -18,5 +18,6 @@ install-tb:
 	pre-commit install
 
 test:
+	python setup.py develop
 	pip install pytest
 	pytest
