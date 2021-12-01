@@ -2,6 +2,16 @@ import sys
 
 from setuptools import setup, find_packages
 
+
+def get_numpy_version():
+    """numpy's setup requires minimal Python versions"""
+    if sys.version_info[:2] <= (3, 6):
+        return "numpy==1.19.5"
+    if sys.version_info[:2] <= (3, 7):
+        return "numpy==1.21.4"
+    return "numpy"
+
+
 setup(
     name="timely-beliefs",
     description="Data modelled as beliefs (at a certain time) about events (at a certain time).",
@@ -23,7 +33,7 @@ setup(
         "pandas>=1.1.5,<1.2"
         if sys.version_info[:2] == (3, 6)
         else "pandas>=1.1.5,<1.3",
-        "numpy",
+        get_numpy_version(),
         "scipy",
         # https://github.com/scipy/scipy/releases/tag/v1.6.0
         "scipy<1.6" if sys.version_info[:2] == (3, 6) else "scipy",
