@@ -1,6 +1,6 @@
 import sys
 
-from setuptools import setup
+from setuptools import find_packages, setup
 
 
 def get_numpy_version():
@@ -26,9 +26,9 @@ setup(
         "uncertainty",
         "lineage",
     ],
-    version="1.7.0",
     python_requires=">=3.6.1",  # not enforced, just info
     install_requires=[
+        "importlib_metadata",
         "pytz",
         # https://pandas.pydata.org/pandas-docs/stable/whatsnew/v1.2.0.html#increased-minimum-version-for-python
         "pandas>=1.1.5,<1.2"
@@ -46,16 +46,10 @@ setup(
         "altair>=4.0.0",
         "selenium",
     ],
-    packages=[
-        "timely_beliefs",
-        "timely_beliefs.beliefs",
-        "timely_beliefs.sensors",
-        "timely_beliefs.sensors.func_store",
-        "timely_beliefs.sources",
-        "timely_beliefs.examples",
-        "timely_beliefs.visualization",
-    ],
-    include_package_data=True,
+    setup_requires=["setuptools_scm"],
+    use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
+    packages=find_packages(),
+    include_package_data=True,  # now setuptools_scm adds all files under source control
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",

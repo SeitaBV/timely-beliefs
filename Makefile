@@ -19,5 +19,5 @@ install-tb:
 
 test:
 	python setup.py develop
-	pip install pytest
+	pip install setuptools_scm pytest
 	pytest
