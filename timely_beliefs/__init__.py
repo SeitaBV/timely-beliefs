@@ -25,7 +25,7 @@ __version__ = "Unknown"
 # and relies on setuptools_scm.
 # TODO: When timely-beliefs stops supporting Python 3.6 and 3.7,
 #       we can remove the pkg_resources option.
-if sys.version_info[:2] == (3, 9):
+if sys.version_info[:2] >= (3, 8):
     from importlib_metadata import version, PackageNotFoundError
 
     try:

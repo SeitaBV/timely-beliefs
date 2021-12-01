@@ -28,6 +28,7 @@ setup(
     ],
     python_requires=">=3.6.1",  # not enforced, just info
     install_requires=[
+        "importlib_metadata",
         "pytz",
         # https://pandas.pydata.org/pandas-docs/stable/whatsnew/v1.2.0.html#increased-minimum-version-for-python
         "pandas>=1.1.5,<1.2"
