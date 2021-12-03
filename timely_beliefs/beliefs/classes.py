@@ -496,7 +496,7 @@ class TimedBeliefDBMixin(TimedBelief):
 
         # Apply custom filter criteria
         if custom_filter_criteria is not None:
-            q = q.filter(custom_filter_criteria)
+            q = q.filter(*custom_filter_criteria)
 
         # Build our DataFrame of beliefs
         df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
