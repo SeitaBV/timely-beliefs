@@ -315,6 +315,7 @@ class TimedBeliefDBMixin(TimedBelief):
         most_recent_only: bool = False,  # deprecated
         place_beliefs_in_sensor_timezone: bool = True,
         place_events_in_sensor_timezone: bool = True,
+        custom_filter_criteria: List[bool] = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
@@ -332,6 +333,7 @@ class TimedBeliefDBMixin(TimedBelief):
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param place_beliefs_in_sensor_timezone: if True (the default), belief times are converted to the timezone of the sensor
         :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
+        :param custom_filter_criteria: optionally pass additional filters, such as ones that rely on subclasses
         :returns: a multi-index DataFrame with all relevant beliefs
         """
 
@@ -491,6 +493,10 @@ class TimedBeliefDBMixin(TimedBelief):
                     == subq_most_recent_events.c.most_recent_event_start,
                 ),
             )
+
+        # Apply custom filter criteria
+        if custom_filter_criteria is not None:
+            q = q.filter(*custom_filter_criteria)
 
         # Build our DataFrame of beliefs
         df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
