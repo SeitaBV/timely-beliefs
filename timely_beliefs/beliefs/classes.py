@@ -298,7 +298,7 @@ class TimedBeliefDBMixin(TimedBelief):
     def search_session(  # noqa: C901  # todo: remove after removing deprecated arguments
         cls,
         session: Session,
-        sensor: SensorDBMixin,
+        sensor: Union[SensorDBMixin, int],
         event_starts_after: Optional[datetime] = None,
         event_ends_before: Optional[datetime] = None,
         beliefs_after: Optional[datetime] = None,
@@ -320,7 +320,7 @@ class TimedBeliefDBMixin(TimedBelief):
 
         The optional arguments represent optional filters.
         :param session: the database session to use
-        :param sensor: sensor to which the beliefs pertain
+        :param sensor: sensor to which the beliefs pertain, or its unique sensor id
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
@@ -395,14 +395,20 @@ class TimedBeliefDBMixin(TimedBelief):
             )
 
         # Query sensor for relevant timing properties
-        event_resolution, knowledge_horizon_fnc, knowledge_horizon_par = (
-            session.query(
-                sensor.__class__.event_resolution,
-                sensor.__class__.knowledge_horizon_fnc,
-                sensor.__class__.knowledge_horizon_par,
+        if isinstance(sensor, int):
+            sensor = (
+                session.query(sensor.__class__)
+                .filter(sensor.__class__.id == sensor)
+                .one_or_none()
             )
-            .filter(sensor.__class__.id == sensor.id)
-            .one_or_none()
+            if sensor is None:
+                raise ValueError("No such sensor")
+        elif not isinstance(sensor, SensorDBMixin):
+            raise ValueError(f"sensor {sensor} is not a {SensorDBMixin}")
+        event_resolution, knowledge_horizon_fnc, knowledge_horizon_par = (
+            sensor.event_resolution,
+            sensor.knowledge_horizon_fnc,
+            sensor.knowledge_horizon_par,
         )
 
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
