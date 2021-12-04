@@ -405,20 +405,15 @@ class TimedBeliefDBMixin(TimedBelief):
                 raise ValueError("No such sensor")
         elif not isinstance(sensor, SensorDBMixin):
             raise ValueError(f"sensor {sensor} is not a {SensorDBMixin}")
-        event_resolution, knowledge_horizon_fnc, knowledge_horizon_par = (
-            sensor.event_resolution,
-            sensor.knowledge_horizon_fnc,
-            sensor.knowledge_horizon_par,
-        )
 
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
         (
             knowledge_horizon_min,
             knowledge_horizon_max,
         ) = sensor_utils.eval_verified_knowledge_horizon_fnc(
-            knowledge_horizon_fnc,
-            knowledge_horizon_par,
-            event_resolution=event_resolution,
+            sensor.knowledge_horizon_fnc,
+            sensor.knowledge_horizon_par,
+            event_resolution=sensor.event_resolution,
             get_bounds=True,
         )
 
@@ -429,7 +424,7 @@ class TimedBeliefDBMixin(TimedBelief):
         if event_starts_after is not None:
             q = q.filter(cls.event_start >= event_starts_after)
         if event_ends_before is not None:
-            q = q.filter(cls.event_start + event_resolution <= event_ends_before)
+            q = q.filter(cls.event_start + sensor.event_resolution <= event_ends_before)
 
         # Apply rough belief time filter
         if beliefs_after is not None:
