@@ -1,6 +1,6 @@
 import math
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import altair as alt
 import pandas as pd
@@ -299,6 +299,7 @@ class TimedBeliefDBMixin(TimedBelief):
         cls,
         session: Session,
         sensor: Union[SensorDBMixin, int],
+        sensor_class: Optional[Type[SensorDBMixin]] = DBSensor,
         event_starts_after: Optional[datetime] = None,
         event_ends_before: Optional[datetime] = None,
         beliefs_after: Optional[datetime] = None,
@@ -321,6 +322,7 @@ class TimedBeliefDBMixin(TimedBelief):
         The optional arguments represent optional filters.
         :param session: the database session to use
         :param sensor: sensor to which the beliefs pertain, or its unique sensor id
+        :param sensor_class: optionally pass the sensor (sub)class explicitly (it should be mapped to a database table)
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
@@ -394,17 +396,20 @@ class TimedBeliefDBMixin(TimedBelief):
                 beliefs_before, "belief_before"
             )
 
-        # Query sensor for relevant timing properties
+        # Query sensor, required for its timing properties
         if isinstance(sensor, int):
+            # Check for proper sensor class
+            if not issubclass(sensor_class, SensorDBMixin):
+                raise ValueError(
+                    f"sensor {sensor} is a {type(sensor)}, which is not a subclass of {SensorDBMixin}"
+                )
             sensor = (
-                session.query(sensor.__class__)
-                .filter(sensor.__class__.id == sensor)
+                session.query(sensor_class)
+                .filter(sensor_class.id == sensor)
                 .one_or_none()
             )
             if sensor is None:
                 raise ValueError("No such sensor")
-        elif not isinstance(sensor, SensorDBMixin):
-            raise ValueError(f"sensor {sensor} is not a {SensorDBMixin}")
 
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
         (
