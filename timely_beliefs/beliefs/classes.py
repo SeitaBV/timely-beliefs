@@ -1,6 +1,6 @@
 import math
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import altair as alt
 import pandas as pd
@@ -299,7 +299,8 @@ class TimedBeliefDBMixin(TimedBelief):
     def search_session(  # noqa: C901  # todo: remove after removing deprecated arguments
         cls,
         session: Session,
-        sensor: SensorDBMixin,
+        sensor: Union[SensorDBMixin, int],
+        sensor_class: Optional[Type[SensorDBMixin]] = DBSensor,
         event_starts_after: Optional[datetime] = None,
         event_ends_before: Optional[datetime] = None,
         beliefs_after: Optional[datetime] = None,
@@ -322,7 +323,8 @@ class TimedBeliefDBMixin(TimedBelief):
 
         The optional arguments represent optional filters.
         :param session: the database session to use
-        :param sensor: sensor to which the beliefs pertain
+        :param sensor: sensor to which the beliefs pertain, or its unique sensor id
+        :param sensor_class: optionally pass the sensor (sub)class explicitly (only needed if you pass a sensor id instead of a sensor, and your sensor class is not DBSensor); the class should be mapped to a database table
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
@@ -397,25 +399,29 @@ class TimedBeliefDBMixin(TimedBelief):
                 beliefs_before, "belief_before"
             )
 
-        # Query sensor for relevant timing properties
-        event_resolution, knowledge_horizon_fnc, knowledge_horizon_par = (
-            session.query(
-                sensor.__class__.event_resolution,
-                sensor.__class__.knowledge_horizon_fnc,
-                sensor.__class__.knowledge_horizon_par,
+        # Query sensor, required for its timing properties
+        if isinstance(sensor, int):
+            # Check for proper sensor class
+            if not issubclass(sensor_class, SensorDBMixin):
+                raise ValueError(
+                    f"sensor {sensor} is a {type(sensor)}, which is not a subclass of {SensorDBMixin}"
+                )
+            sensor = (
+                session.query(sensor_class)
+                .filter(sensor_class.id == sensor)
+                .one_or_none()
             )
-            .filter(sensor.__class__.id == sensor.id)
-            .one_or_none()
-        )
+            if sensor is None:
+                raise ValueError("No such sensor")
 
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
         (
             knowledge_horizon_min,
             knowledge_horizon_max,
         ) = sensor_utils.eval_verified_knowledge_horizon_fnc(
-            knowledge_horizon_fnc,
-            knowledge_horizon_par,
-            event_resolution=event_resolution,
+            sensor.knowledge_horizon_fnc,
+            sensor.knowledge_horizon_par,
+            event_resolution=sensor.event_resolution,
             get_bounds=True,
         )
 
@@ -426,7 +432,7 @@ class TimedBeliefDBMixin(TimedBelief):
         if event_starts_after is not None:
             q = q.filter(cls.event_start >= event_starts_after)
         if event_ends_before is not None:
-            q = q.filter(cls.event_start + event_resolution <= event_ends_before)
+            q = q.filter(cls.event_start + sensor.event_resolution <= event_ends_before)
 
         # Apply rough belief time filter
         if beliefs_after is not None:

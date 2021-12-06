@@ -300,6 +300,25 @@ def _test_empty_frame(time_slot_sensor):
     )  # dtype of belief_horizon is timedelta64[ns], so the minimum horizon on an empty BeliefsDataFrame is NaT instead of NaN
 
 
+def test_search_by_sensor_id(
+    ex_post_time_slot_sensor: DBSensor,
+    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
+):
+    """Check db query by sensor id, against query by sensor instance, for a non-empty dataset."""
+
+    # Query all beliefs for this sensor, using sensor instance (our reference)
+    df_by_instance = DBTimedBelief.search_session(
+        session=session, sensor=ex_post_time_slot_sensor, most_recent_only=False
+    )
+
+    # Query all beliefs for this sensor, using sensor id (our test)
+    df_by_id = DBTimedBelief.search_session(
+        session=session, sensor=ex_post_time_slot_sensor.id, most_recent_only=False
+    )
+    assert not df_by_id.empty
+    pd.testing.assert_frame_equal(df_by_id, df_by_instance)
+
+
 def test_select_most_recent_deterministic_beliefs(
     ex_post_time_slot_sensor: DBSensor,
     multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
