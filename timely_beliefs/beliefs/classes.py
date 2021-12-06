@@ -324,7 +324,7 @@ class TimedBeliefDBMixin(TimedBelief):
         The optional arguments represent optional filters.
         :param session: the database session to use
         :param sensor: sensor to which the beliefs pertain, or its unique sensor id
-        :param sensor_class: optionally pass the sensor (sub)class explicitly (only needed if you pass a sensor id and not a sensor); the class should be mapped to a database table
+        :param sensor_class: optionally pass the sensor (sub)class explicitly (only needed if you pass a sensor id instead of a sensor, and your sensor class is not DBSensor); the class should be mapped to a database table
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
