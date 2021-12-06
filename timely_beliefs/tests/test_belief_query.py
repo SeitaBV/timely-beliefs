@@ -313,7 +313,7 @@ def test_search_by_sensor_id(
 
     # Query all beliefs for this sensor, using sensor id (our test)
     df_by_id = DBTimedBelief.search_session(
-        session=session, sensor=ex_post_time_slot_sensor, most_recent_only=False
+        session=session, sensor=ex_post_time_slot_sensor.id, most_recent_only=False
     )
     assert not df_by_id.empty
     pd.testing.assert_frame_equal(df_by_id, df_by_instance)
