@@ -20,6 +20,7 @@ from sqlalchemy.ext.declarative import declared_attr, has_inherited_table
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import Session, backref, relationship
 from sqlalchemy.schema import UniqueConstraint
+from sqlalchemy.sql.elements import BinaryExpression
 
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
@@ -315,7 +316,7 @@ class TimedBeliefDBMixin(TimedBelief):
         most_recent_only: bool = False,  # deprecated
         place_beliefs_in_sensor_timezone: bool = True,
         place_events_in_sensor_timezone: bool = True,
-        custom_filter_criteria: List[bool] = None,
+        custom_filter_criteria: List[BinaryExpression] = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
