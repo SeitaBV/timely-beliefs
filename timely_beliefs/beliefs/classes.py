@@ -1,6 +1,7 @@
 import math
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+import types
 
 import altair as alt
 import pandas as pd
@@ -19,8 +20,10 @@ from sqlalchemy import (
 from sqlalchemy.ext.declarative import declared_attr, has_inherited_table
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import Session, backref, relationship
+from sqlalchemy.orm.util import AliasedClass
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy.sql.elements import BinaryExpression
+from sqlalchemy.sql.expression import Selectable
 
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
@@ -36,6 +39,12 @@ from timely_beliefs.visualization import utils as visualization_utils
 METADATA = ["sensor", "event_resolution"]
 DatetimeLike = Union[datetime, str, pd.Timestamp]
 TimedeltaLike = Union[timedelta, str, pd.Timedelta]
+JoinTarget = Union[
+    Selectable,
+    type,
+    AliasedClass,
+    types.FunctionType,
+]
 
 
 class TimedBelief(object):
@@ -318,6 +327,7 @@ class TimedBeliefDBMixin(TimedBelief):
         place_beliefs_in_sensor_timezone: bool = True,
         place_events_in_sensor_timezone: bool = True,
         custom_filter_criteria: List[BinaryExpression] = None,
+        custom_join_targets: List[JoinTarget] = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
@@ -337,6 +347,7 @@ class TimedBeliefDBMixin(TimedBelief):
         :param place_beliefs_in_sensor_timezone: if True (the default), belief times are converted to the timezone of the sensor
         :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
         :param custom_filter_criteria: optionally pass additional filters, such as ones that rely on subclasses
+        :param custom_join_targets: optionally pass additional join targets, to accommodate filters that rely on subclasses
         :returns: a multi-index DataFrame with all relevant beliefs
         """
 
@@ -501,9 +512,12 @@ class TimedBeliefDBMixin(TimedBelief):
                 ),
             )
 
-        # Apply custom filter criteria
+        # Apply custom filter criteria and join targets
         if custom_filter_criteria is not None:
             q = q.filter(*custom_filter_criteria)
+        if custom_join_targets is not None:
+            for target in custom_join_targets:
+                q = q.join(target)
 
         # Build our DataFrame of beliefs
         df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
