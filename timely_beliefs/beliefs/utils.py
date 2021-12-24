@@ -11,7 +11,7 @@ from timely_beliefs import utils as tb_utils
 from timely_beliefs.beliefs import classes
 from timely_beliefs.beliefs.probabilistic_utils import (
     calculate_crps,
-    get_expected_belief,
+    get_median_belief,
     probabilistic_nan_mean,
 )
 from timely_beliefs.sources import utils as source_utils
@@ -456,7 +456,7 @@ def set_reference(
 
     # Take the expected value of the beliefs as the reference value
     if return_expected_value is True:
-        reference_df = reference_df.for_each_belief(get_expected_belief)
+        reference_df = reference_df.for_each_belief(get_median_belief)
 
     belief_timing_col = (
         "belief_time" if "belief_time" in reference_df.index.names else "belief_horizon"
