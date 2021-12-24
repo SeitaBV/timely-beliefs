@@ -1678,13 +1678,14 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_belief_horizon: timedelta = None,
         reference_source: BeliefSource = None,
         return_expected_value: bool = False,
+        return_middle_value: bool = False,
     ) -> "BeliefsDataFrame":
         """Add a column with reference values.
-        By default the reference will be the expected value of the most recent belief held by the same source.
+        By default, the reference will be the probabilistic value of the most recent belief held by the same source.
+        To set a deterministic reference, use either return_expected_value or return_middle_value.
         Optionally, set a reference belief horizon.
         Optionally, set a reference source present in the BeliefsDataFrame.
-        These options allow to define what is considered to be true at a certain time after an event.
-        Todo: Option to set probabilistic reference values
+        These options allow defining what is considered to be true at a certain time after an event.
 
         :param reference_belief_time: optional datetime to indicate that
                the accuracy should be determined with respect to the latest belief held at this time
@@ -1692,7 +1693,8 @@ class BeliefsDataFrame(pd.DataFrame):
                the accuracy should be determined with respect to the latest belief at this duration past knowledge time
         :param reference_source: optional BeliefSource to indicate that
                the accuracy should be determined with respect to the beliefs held by the given source
-        :param return_expected_value: if True, set a deterministic reference by picking the expected value
+        :param return_expected_value: if True, set a deterministic reference by picking the mean value
+        :param return_middle_value: if True, set a deterministic reference by picking the median value
         """
 
         df = self
@@ -1704,11 +1706,12 @@ class BeliefsDataFrame(pd.DataFrame):
                 reference_belief_horizon=reference_belief_horizon,
                 reference_source=reference_source,
                 return_expected_value=return_expected_value,
+                return_middle_value=return_middle_value,
             )
         )
 
         # Concat to add a column while keeping original cp index level
-        if return_expected_value is True:
+        if return_expected_value or return_middle_value:
             if "belief_time" in df.index.names:
                 df = df.convert_index_from_belief_time_to_horizon()
                 df = pd.concat(
