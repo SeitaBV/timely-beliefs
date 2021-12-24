@@ -467,8 +467,8 @@ def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame"
         # Calculate the weighted sum of scores over all possible outcomes for the observation.
         crps = np.dot(crpss, pdf_p_observation)
 
-    # List the expected observation as the reference for determining percentage scores
-    df_score = get_expected_belief(df_observation.to_frame())
+    # List the middle observation as the reference for determining percentage scores
+    df_score = get_median_belief(df_observation.to_frame())
     df_score = df_score.droplevel("cumulative_probability")
 
     # And of course return the score as well
