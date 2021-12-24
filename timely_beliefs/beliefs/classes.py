@@ -1,7 +1,7 @@
 import math
+import types
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
-import types
 
 import altair as alt
 import pandas as pd
