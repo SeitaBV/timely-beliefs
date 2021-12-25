@@ -35,7 +35,7 @@ setup(
         "uncertainty",
         "lineage",
     ],
-    python_requires=">=3.8",  # not enforced, just info. 3.6 and 3.7 are possible to install, but we don't support 
+    python_requires=">=3.8",  # not enforced, just info. 3.6 and 3.7 are possible to install, but we don't support
     install_requires=[
         "importlib_metadata",
         "pytz",
