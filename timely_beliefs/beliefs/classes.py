@@ -1031,8 +1031,8 @@ class BeliefsDataFrame(pd.DataFrame):
         self, fnc: Callable = None, *args: Any, **kwargs: Any
     ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
         """Convenient function to apply a function to each belief in the BeliefsDataFrame.
-        A belief is a group with unique event start, belief time and source. A deterministic belief is defined by a
-        single row, whereas a probabilistic belief is defined by multiple rows.
+        A belief is a group with unique event start, belief time and source.
+        Each individual belief may be deterministic (defined by a single row), or probabilistic (multiple rows).
         If no function is given, return the GroupBy object.
 
         :Example:
@@ -1043,6 +1043,15 @@ class BeliefsDataFrame(pd.DataFrame):
         >>> df.for_each_belief().pipe(some_other_function, True, a=1)
         >>> # If you want to call this method within another groupby function, pass the df group explicitly
         >>> df.for_each_belief(some_function, True, a=1, df=df)
+        """
+        return self._for_each_belief(fnc, False, *args, **kwargs)
+
+    def _for_each_belief(
+        self, fnc: Callable, collective_beliefs: bool, *args: Any, **kwargs: Any
+    ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
+        """
+        If collective_beliefs is True, just group by event start and belief time.
+        Otherwise, group beliefs by source, too.
         """
         df = kwargs.pop("df", self)
         index_names = []
@@ -1060,11 +1069,32 @@ class BeliefsDataFrame(pd.DataFrame):
             if "belief_horizon" in df.index.names
             else []
         )
-        index_names.append("source")
+        if collective_beliefs is False:
+            index_names.append("source")
         gr = df.groupby(level=index_names, group_keys=False)
         if fnc is not None:
             return gr.apply(lambda x: fnc(x, *args, **kwargs))
         return gr
+
+    @hybrid_method
+    def for_each_collective_belief(
+        self, fnc: Callable = None, *args: Any, **kwargs: Any
+    ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
+        """Convenient function to apply a function to each collective belief in the BeliefsDataFrame.
+        A collective belief is a group with unique event start and belief time, which may contain multiple sources.
+        Each individual belief may be deterministic (defined by a single row), or probabilistic (multiple rows).
+        If no function is given, return the GroupBy object.
+
+        :Example:
+
+        >>> # Apply some function that accepts a DataFrame, a positional argument and a keyword argument
+        >>> df.for_each_collective_belief(some_function, True, a=1)
+        >>> # Pipe some other function that accepts a GroupBy object, a positional argument and a keyword argument
+        >>> df.for_each_collective_belief().pipe(some_other_function, True, a=1)
+        >>> # If you want to call this method within another groupby function, pass the df group explicitly
+        >>> df.for_each_collective_belief(some_function, True, a=1, df=df)
+        """
+        return self._for_each_belief(fnc, True, *args, **kwargs)
 
     @hybrid_method
     def belief_history(
