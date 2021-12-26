@@ -5,6 +5,7 @@
 1. [Derived database classes](#derived-database-classes)
 1. [Table creation and session](#table-creation-and-session)
 1. [Subclassing](#subclassing)
+1. [Queries](#queries)
 
 ## Derived database classes
 
@@ -139,6 +140,28 @@ This one uses a Mixin class called `TimedBeliefDBMixin` (which is also used in t
             Base.__init__(self)
 
 
-Note that we don say where the sqlalchemy `Base` comes from here. This is the one from your project.
+Note that we don't say where the sqlalchemy `Base` comes from here. This is the one from your project.
 If you create tables from timely_belief's Base (see above) as well, you end up with more tables that you probably want to use.
 Which is not a blocker, but for cleanliness you might want to get all tables from timely beliefs base or define all Table implementations yourself, such as with `JoyfulBeliefInCustomTable` above.
+
+### Queries
+
+The `search_session` method on the `TimedBeliefDBMixin` provides support for custom filters that rely on other database classes.
+
+For example, to continue the 1st example in [Subclassing](#subclassing), pass a custom `sensor_class` and `custom_filter_criteria` to filter on the `DBLocatedSensor`'s `location_name` attribute:
+
+    from timely_beliefs import DBTimedBelief
+    
+    df = DBTimedBelief.search_session(
+        sensor_class=DBLocatedSensor,
+        custom_filter_criteria=[DBLocatedSensor.location_name == "office"],
+    )
+
+Or for filters that rely on other (non-timely-beliefs) classes, use `custom_join_targets`.
+here, we assume a hypothetical custom class `Country` is referenced from the `DBLocatedSensor` class:
+
+    df = DBTimedBelief.search_session(
+        sensor_class=DBLocatedSensor,
+        custom_filter_criteria=[DBLocatedSensor.country_id == Country.id],
+        custom_join_targets=[Country],
+    )

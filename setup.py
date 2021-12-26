@@ -12,6 +12,15 @@ def get_numpy_version():
     return "numpy"
 
 
+def get_scipy_version():
+    """scipy's setup requires minimal Python versions"""
+    if sys.version_info[:2] <= (3, 6):
+        return "scipy<1.6"
+    if sys.version_info[:2] == (3, 7):
+        return "scipy<1.8"
+    return "scipy"
+
+
 setup(
     name="timely-beliefs",
     description="Data modelled as beliefs (at a certain time) about events (at a certain time).",
@@ -26,7 +35,7 @@ setup(
         "uncertainty",
         "lineage",
     ],
-    python_requires=">=3.6.1",  # not enforced, just info
+    python_requires=">=3.8",  # not enforced, just info. 3.6 and 3.7 are possible to install, but we don't support
     install_requires=[
         "importlib_metadata",
         "pytz",
@@ -35,9 +44,7 @@ setup(
         if sys.version_info[:2] == (3, 6)
         else "pandas>=1.1.5,<1.3",
         get_numpy_version(),
-        "scipy",
-        # https://github.com/scipy/scipy/releases/tag/v1.6.0
-        "scipy<1.6" if sys.version_info[:2] == (3, 6) else "scipy",
+        get_scipy_version(),
         "SQLAlchemy",
         "psycopg2-binary",
         "isodate",
@@ -53,7 +60,6 @@ setup(
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Development Status :: 3 - Alpha",
