@@ -326,12 +326,14 @@ class TimedBeliefDBMixin(TimedBelief):
         most_recent_only: bool = False,  # deprecated
         place_beliefs_in_sensor_timezone: bool = True,
         place_events_in_sensor_timezone: bool = True,
-        custom_filter_criteria: List[BinaryExpression] = None,
-        custom_join_targets: List[JoinTarget] = None,
+        custom_filter_criteria: Optional[List[BinaryExpression]] = None,
+        custom_join_targets: Optional[List[JoinTarget]] = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
-        The optional arguments represent optional filters.
+        The optional arguments represent optional filters, with two exceptions:
+        - sensor_class makes it possible to create a query on sensor subclasses
+        - custom_join_targets makes it possible to add custom filters using other (incl. subclassed) targets
         :param session: the database session to use
         :param sensor: sensor to which the beliefs pertain, or its unique sensor id
         :param sensor_class: optionally pass the sensor (sub)class explicitly (only needed if you pass a sensor id instead of a sensor, and your sensor class is not DBSensor); the class should be mapped to a database table
@@ -346,8 +348,8 @@ class TimedBeliefDBMixin(TimedBelief):
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param place_beliefs_in_sensor_timezone: if True (the default), belief times are converted to the timezone of the sensor
         :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
-        :param custom_filter_criteria: optionally pass additional filters, such as ones that rely on subclasses
-        :param custom_join_targets: optionally pass additional join targets, to accommodate filters that rely on subclasses
+        :param custom_filter_criteria: additional filters, such as ones that rely on subclasses
+        :param custom_join_targets: additional join targets, to accommodate filters that rely on other targets (e.g. subclasses)
         :returns: a multi-index DataFrame with all relevant beliefs
         """
 
