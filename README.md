@@ -20,8 +20,8 @@ The data model is an extended [pandas](https://pandas.pydata.org/) DataFrame tha
 Getting started (or try one of the [other ways to create a BeliefsDataFrame](timely_beliefs/docs/init.md)):
 
     >>> import timely_beliefs as tb
-    >>> bdf = tb.BeliefsDataFrame([tb.TimedBelief(tb.Sensor("Indoor temperature", "°C"), tb.BeliefSource("Thermometer"), 21, event_time="2000-03-05 11:00Z", belief_horizon="0H")])
-    >>> print(bdf)
+    >>> df = tb.BeliefsDataFrame([tb.TimedBelief(tb.Sensor("Indoor temperature", "°C"), tb.BeliefSource("Thermometer"), 21, event_time="2000-03-05 11:00Z", belief_horizon="0H")])
+    >>> print(df)
                                                                                             event_value
     event_start               belief_time               source      cumulative_probability             
     2000-03-05 11:00:00+00:00 2000-03-05 11:00:00+00:00 Thermometer 0.5                              21

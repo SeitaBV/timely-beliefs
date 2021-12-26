@@ -140,7 +140,7 @@ This one uses a Mixin class called `TimedBeliefDBMixin` (which is also used in t
             Base.__init__(self)
 
 
-Note that we don say where the sqlalchemy `Base` comes from here. This is the one from your project.
+Note that we don't say where the sqlalchemy `Base` comes from here. This is the one from your project.
 If you create tables from timely_belief's Base (see above) as well, you end up with more tables that you probably want to use.
 Which is not a blocker, but for cleanliness you might want to get all tables from timely beliefs base or define all Table implementations yourself, such as with `JoyfulBeliefInCustomTable` above.
 
