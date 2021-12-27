@@ -1408,12 +1408,12 @@ class BeliefsDataFrame(pd.DataFrame):
         """Simply get the accuracy of beliefs about events, at a given time (pass a datetime), at a given horizon
         (pass a timedelta), or as a function of horizon (the default).
 
-        By default the accuracy is determined with respect to the most recent beliefs held by the same source.
+        By default, the accuracy is determined with respect to the most recent beliefs held by the same source.
         Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
 
-        By default the accuracy is determined with respect to the most recent beliefs.
+        By default, the accuracy is determined with respect to the most recent beliefs.
 
-        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        By default, the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
 
         For more options, use df.fixed_viewpoint_accuracy() or df.rolling_viewpoint_accuracy() instead.
@@ -1475,7 +1475,7 @@ class BeliefsDataFrame(pd.DataFrame):
         Alternatively, select the accuracy of beliefs formed within a certain time window. This allows setting a maximum
         acceptable freshness of the data.
 
-        By default the accuracy is determined with respect to the reference values in the `reference_value` column.
+        By default, the accuracy is determined with respect to the reference values in the `reference_value` column.
         This column is created if it does not exist, or if one of the following reference parameters is not None.
         By default, the reference values are the most recent beliefs held by the same source.
         - Optionally, set a reference belief time to determine accuracy with respect to beliefs at a specific time.
@@ -1483,7 +1483,7 @@ class BeliefsDataFrame(pd.DataFrame):
         - Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
         These options allow to define what is considered to be true at a certain time.
 
-        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        By default, the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
 
         :Example:
@@ -1558,14 +1558,14 @@ class BeliefsDataFrame(pd.DataFrame):
         knowledge time (with negative horizons indicating post knowledge time).
         This allows setting a maximum acceptable freshness of the data.
 
-        By default the accuracy is determined with respect to the reference values in the `reference_value` column.
+        By default, the accuracy is determined with respect to the reference values in the `reference_value` column.
         This column is created if it does not exist, or if one of the following reference parameters is not None.
         By default, the reference values are the most recent beliefs held by the same source.
         - Optionally, set a reference belief horizon to determine accuracy with respect to beliefs at a specific horizon.
         - Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
-        These options allow to define what is considered to be true at a certain time after an event.
+        These options allow defining what is considered to be true at a certain time after an event.
 
-        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        By default, the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
 
         :Example:
@@ -1723,14 +1723,15 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_belief_time: datetime = None,
         reference_belief_horizon: timedelta = None,
         reference_source: BeliefSource = None,
-        return_expected_value: bool = False,
+        return_reference_type: str = "full",
+        return_expected_value: Optional[bool] = None,  # deprecated
     ) -> "BeliefsDataFrame":
         """Add a column with reference values.
-        By default the reference will be the expected value of the most recent belief held by the same source.
+        By default, the reference will be the probabilistic value of the most recent belief held by the same source.
+        To set a deterministic reference, use either return_expected_value or return_middle_value.
         Optionally, set a reference belief horizon.
         Optionally, set a reference source present in the BeliefsDataFrame.
-        These options allow to define what is considered to be true at a certain time after an event.
-        Todo: Option to set probabilistic reference values
+        These options allow defining what is considered to be true at a certain time after an event.
 
         :param reference_belief_time: optional datetime to indicate that
                the accuracy should be determined with respect to the latest belief held at this time
@@ -1738,8 +1739,22 @@ class BeliefsDataFrame(pd.DataFrame):
                the accuracy should be determined with respect to the latest belief at this duration past knowledge time
         :param reference_source: optional BeliefSource to indicate that
                the accuracy should be determined with respect to the beliefs held by the given source
-        :param return_expected_value: if True, set a deterministic reference by picking the expected value
+        :param return_reference_type: valid strings are:
+               - "full": a probabilistic reference using the full distribution
+               - "mean": a deterministic reference using the mean value
+               - "median": a deterministic reference using the median value
         """
+
+        # todo: deprecate the 'return_expected_value' argument in favor of 'return_reference_type' (announced v1.9.0)
+        return_expected_value = tb_utils.replace_deprecated_argument(
+            "return_expected_value",
+            return_expected_value,
+            "return_reference_type",
+            return_reference_type,
+            required_argument=False,
+        )
+        if isinstance(return_expected_value, bool):
+            return_reference_type = "mean" if return_expected_value else "full"
 
         df = self
 
@@ -1749,12 +1764,12 @@ class BeliefsDataFrame(pd.DataFrame):
                 reference_belief_time=reference_belief_time,
                 reference_belief_horizon=reference_belief_horizon,
                 reference_source=reference_source,
-                return_expected_value=return_expected_value,
+                return_reference_type=return_reference_type,
             )
         )
 
         # Concat to add a column while keeping original cp index level
-        if return_expected_value is True:
+        if return_reference_type != "full":
             if "belief_time" in df.index.names:
                 df = df.convert_index_from_belief_time_to_horizon()
                 df = pd.concat(

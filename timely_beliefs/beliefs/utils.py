@@ -12,6 +12,7 @@ from timely_beliefs.beliefs import classes
 from timely_beliefs.beliefs.probabilistic_utils import (
     calculate_crps,
     get_expected_belief,
+    get_median_belief,
     probabilistic_nan_mean,
 )
 from timely_beliefs.sources import utils as source_utils
@@ -384,7 +385,7 @@ def compute_accuracy_scores(
     the reference observations or the average reference observation, respectively.
     For your convenience, hopefully, we left the column names unchanged.
     For probabilistic reference observations, the CRPS takes into account all possible outcomes.
-    However, the MAPE and WAPE use the expected observation (cp=0.5) as their denominator.
+    However, the MAPE and WAPE use the middle observation (cp=0.5) as their denominator.
     """
 
     # Todo: put back checks when BeliefsDataFrame validation works after an index level becomes an attribute
@@ -425,7 +426,7 @@ def set_reference(
     reference_belief_time: datetime,
     reference_belief_horizon: timedelta,
     reference_source: BeliefSource,
-    return_expected_value: bool = False,
+    return_reference_type: str = "full",
 ) -> "classes.BeliefsDataFrame":
 
     # If applicable, decide which horizon or time provides the beliefs to serve as the reference
@@ -454,16 +455,22 @@ def set_reference(
     if reference_source is not None:
         reference_df = reference_df.set_event_value_from_source(reference_source)
 
-    # Take the expected value of the beliefs as the reference value
-    if return_expected_value is True:
+    # Take a deterministic value of the beliefs as the reference value
+    if return_reference_type == "mean":
         reference_df = reference_df.for_each_belief(get_expected_belief)
+    elif return_reference_type == "median":
+        reference_df = reference_df.for_each_belief(get_median_belief)
+    elif return_reference_type != "full":
+        raise ValueError(
+            f"Unknown return_reference_type {return_reference_type}: use 'full', 'mean' or 'median'."
+        )
 
     belief_timing_col = (
         "belief_time" if "belief_time" in reference_df.index.names else "belief_horizon"
     )
     reference_df = reference_df.droplevel(
         ["event_start", belief_timing_col, "cumulative_probability"]
-        if return_expected_value is True
+        if return_reference_type != "full"
         else ["event_start", belief_timing_col]
     ).rename(columns={"event_value": "reference_value"})
 
@@ -472,7 +479,7 @@ def set_reference(
         [reference_df] * df.lineage.number_of_belief_horizons,
         keys=df.lineage.belief_horizons,
         names=["belief_horizon", "source"]
-        if return_expected_value is True
+        if return_reference_type != "full"
         else ["belief_horizon", "source", "cumulative_probability"],
     )
 

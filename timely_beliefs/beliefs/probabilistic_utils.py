@@ -467,8 +467,8 @@ def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame"
         # Calculate the weighted sum of scores over all possible outcomes for the observation.
         crps = np.dot(crpss, pdf_p_observation)
 
-    # List the expected observation as the reference for determining percentage scores
-    df_score = get_expected_belief(df_observation.to_frame())
+    # List the middle observation as the reference for determining percentage scores
+    df_score = get_median_belief(df_observation.to_frame())
     df_score = df_score.droplevel("cumulative_probability")
 
     # And of course return the score as well
@@ -539,8 +539,43 @@ def get_belief_at_cumulative_probability(
         return df2.head(1)
 
 
-def get_mean_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
-    """Convenience function to select the expected value."""
+def get_mean_belief(
+    df: "classes.BeliefsDataFrame", distribution: str = "uniform"
+) -> "classes.BeliefsDataFrame":
+    """Convenience function to select the expected value.
+    Assumes the data frame contains a single belief per event.
+    """
+    event_starts = df.groupby(["event_start"]).groups.keys()
+    cdf_v = []
+    cdf_p = []
+    for event_start in event_starts:
+        vp = df.xs(event_start, level="event_start")  # value probability pair
+        cdf_v.append(vp.values.flatten())
+        cdf_p.append(vp.index.get_level_values("cumulative_probability").values)
+
+    # Interpret cumulative probabilities as a description of the complete cdf, and calculate means
+    cdfs: List[ot.DistributionImplementation] = interpret_complete_cdf(
+        cdf_p, cdf_v, distribution=distribution
+    )
+    means = [cdf.getMean()[0] for cdf in cdfs]
+    # Get the cumulative probability at the mean value, which may differ from 0.5 for asymmetric distributions
+    cp_at_means = [cdf.computeCDF(mean) for cdf, mean in zip(cdfs, means)]
+
+    # Convert from probabilistic to deterministic beliefs, assigning the mean
+    df = df.groupby(level=["event_start"], group_keys=False).apply(lambda x: x.head(1))
+    df = tb_utils.replace_multi_index_level(
+        df,
+        "cumulative_probability",
+        pd.Index(data=cp_at_means),
+    )
+    df["event_value"] = means
+    return df
+
+
+def get_median_belief(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
+    """Convenience function to select the middle value (50th percentile).
+    Assumes the data frame contains a single belief.
+    """
     return get_belief_at_cumulative_probability(df, 0.5) if len(df) > 1 else df
 
 
