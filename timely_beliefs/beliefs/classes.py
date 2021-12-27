@@ -1408,12 +1408,12 @@ class BeliefsDataFrame(pd.DataFrame):
         """Simply get the accuracy of beliefs about events, at a given time (pass a datetime), at a given horizon
         (pass a timedelta), or as a function of horizon (the default).
 
-        By default the accuracy is determined with respect to the most recent beliefs held by the same source.
+        By default, the accuracy is determined with respect to the most recent beliefs held by the same source.
         Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
 
-        By default the accuracy is determined with respect to the most recent beliefs.
+        By default, the accuracy is determined with respect to the most recent beliefs.
 
-        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        By default, the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
 
         For more options, use df.fixed_viewpoint_accuracy() or df.rolling_viewpoint_accuracy() instead.
@@ -1475,7 +1475,7 @@ class BeliefsDataFrame(pd.DataFrame):
         Alternatively, select the accuracy of beliefs formed within a certain time window. This allows setting a maximum
         acceptable freshness of the data.
 
-        By default the accuracy is determined with respect to the reference values in the `reference_value` column.
+        By default, the accuracy is determined with respect to the reference values in the `reference_value` column.
         This column is created if it does not exist, or if one of the following reference parameters is not None.
         By default, the reference values are the most recent beliefs held by the same source.
         - Optionally, set a reference belief time to determine accuracy with respect to beliefs at a specific time.
@@ -1483,7 +1483,7 @@ class BeliefsDataFrame(pd.DataFrame):
         - Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
         These options allow to define what is considered to be true at a certain time.
 
-        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        By default, the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
 
         :Example:
@@ -1558,14 +1558,14 @@ class BeliefsDataFrame(pd.DataFrame):
         knowledge time (with negative horizons indicating post knowledge time).
         This allows setting a maximum acceptable freshness of the data.
 
-        By default the accuracy is determined with respect to the reference values in the `reference_value` column.
+        By default, the accuracy is determined with respect to the reference values in the `reference_value` column.
         This column is created if it does not exist, or if one of the following reference parameters is not None.
         By default, the reference values are the most recent beliefs held by the same source.
         - Optionally, set a reference belief horizon to determine accuracy with respect to beliefs at a specific horizon.
         - Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
-        These options allow to define what is considered to be true at a certain time after an event.
+        These options allow defining what is considered to be true at a certain time after an event.
 
-        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        By default, the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
 
         :Example:
