@@ -1723,8 +1723,7 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_belief_time: datetime = None,
         reference_belief_horizon: timedelta = None,
         reference_source: BeliefSource = None,
-        return_expected_value: bool = False,
-        return_middle_value: bool = False,
+        return_reference_type: str = "full",
     ) -> "BeliefsDataFrame":
         """Add a column with reference values.
         By default, the reference will be the probabilistic value of the most recent belief held by the same source.
@@ -1739,8 +1738,10 @@ class BeliefsDataFrame(pd.DataFrame):
                the accuracy should be determined with respect to the latest belief at this duration past knowledge time
         :param reference_source: optional BeliefSource to indicate that
                the accuracy should be determined with respect to the beliefs held by the given source
-        :param return_expected_value: if True, set a deterministic reference by picking the mean value
-        :param return_middle_value: if True, set a deterministic reference by picking the median value
+        :param return_reference_type: valid strings are:
+               - "full": a probabilistic reference using the full distribution
+               - "mean": a deterministic reference using the mean value
+               - "median": a deterministic reference using the median value
         """
 
         df = self
@@ -1751,13 +1752,12 @@ class BeliefsDataFrame(pd.DataFrame):
                 reference_belief_time=reference_belief_time,
                 reference_belief_horizon=reference_belief_horizon,
                 reference_source=reference_source,
-                return_expected_value=return_expected_value,
-                return_middle_value=return_middle_value,
+                return_reference_type=return_reference_type,
             )
         )
 
         # Concat to add a column while keeping original cp index level
-        if return_expected_value or return_middle_value:
+        if return_reference_type != "full":
             if "belief_time" in df.index.names:
                 df = df.convert_index_from_belief_time_to_horizon()
                 df = pd.concat(

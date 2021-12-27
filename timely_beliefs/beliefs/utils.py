@@ -426,8 +426,7 @@ def set_reference(
     reference_belief_time: datetime,
     reference_belief_horizon: timedelta,
     reference_source: BeliefSource,
-    return_expected_value: bool = False,
-    return_middle_value: bool = False,
+    return_reference_type: str = "full",
 ) -> "classes.BeliefsDataFrame":
 
     # If applicable, decide which horizon or time provides the beliefs to serve as the reference
@@ -457,13 +456,13 @@ def set_reference(
         reference_df = reference_df.set_event_value_from_source(reference_source)
 
     # Take a deterministic value of the beliefs as the reference value
-    if return_expected_value and not return_middle_value:
+    if return_reference_type == "mean":
         reference_df = reference_df.for_each_belief(get_expected_belief)
-    elif return_middle_value and not return_expected_value:
+    elif return_reference_type == "median":
         reference_df = reference_df.for_each_belief(get_median_belief)
-    elif return_expected_value and return_middle_value:
+    elif return_reference_type != "full":
         raise ValueError(
-            "Please choose between the expected value or the middle value."
+            f"Unknown return_reference_type {return_reference_type}: use 'full', 'mean' or 'median'."
         )
 
     belief_timing_col = (
@@ -471,7 +470,7 @@ def set_reference(
     )
     reference_df = reference_df.droplevel(
         ["event_start", belief_timing_col, "cumulative_probability"]
-        if return_expected_value or return_middle_value
+        if return_reference_type != "full"
         else ["event_start", belief_timing_col]
     ).rename(columns={"event_value": "reference_value"})
 
@@ -480,7 +479,7 @@ def set_reference(
         [reference_df] * df.lineage.number_of_belief_horizons,
         keys=df.lineage.belief_horizons,
         names=["belief_horizon", "source"]
-        if return_expected_value or return_middle_value
+        if return_reference_type != "full"
         else ["belief_horizon", "source", "cumulative_probability"],
     )
 

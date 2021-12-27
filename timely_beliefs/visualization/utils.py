@@ -253,7 +253,7 @@ def prepare_df_for_plotting(
     else:
         reference_df = (
             df.set_reference_values(
-                reference_source=reference_source, return_middle_value=True
+                reference_source=reference_source, return_reference_type="median"
             )
             .drop(columns="event_value")
             .for_each_belief(get_nth_percentile_belief, 50)

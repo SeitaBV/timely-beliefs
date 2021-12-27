@@ -15,7 +15,7 @@ def test_setting_reference():
     # Deterministic reference values
     example_df = get_example_df()
     df = example_df.set_reference_values(
-        reference_source=example_df.lineage.sources[0], return_expected_value=True
+        reference_source=example_df.lineage.sources[0], return_reference_type="mean"
     )
     assert isinstance(df, BeliefsDataFrame)  # Check if type is maintained
     assert df.sensor == example_df.sensor  # Check if sensor is kept
@@ -26,7 +26,7 @@ def test_setting_reference():
 
     # Probabilistic reference values
     df = example_df.set_reference_values(
-        reference_source=example_df.lineage.sources[0], return_expected_value=False
+        reference_source=example_df.lineage.sources[0], return_reference_type="full"
     )
     assert equal_lists(df["reference_value"].head(6).values, [99, 100, 101] * 2)
 
