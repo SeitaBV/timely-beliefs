@@ -1724,6 +1724,7 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_belief_horizon: timedelta = None,
         reference_source: BeliefSource = None,
         return_reference_type: str = "full",
+        return_expected_value: Optional[bool] = None,  # deprecated
     ) -> "BeliefsDataFrame":
         """Add a column with reference values.
         By default, the reference will be the probabilistic value of the most recent belief held by the same source.
@@ -1743,6 +1744,17 @@ class BeliefsDataFrame(pd.DataFrame):
                - "mean": a deterministic reference using the mean value
                - "median": a deterministic reference using the median value
         """
+
+        # todo: deprecate the 'return_expected_value' argument in favor of 'return_reference_type' (announced v1.9.0)
+        return_expected_value = tb_utils.replace_deprecated_argument(
+            "return_expected_value",
+            return_expected_value,
+            "return_reference_type",
+            return_reference_type,
+            required_argument=False,
+        )
+        if isinstance(return_expected_value, bool):
+            return_reference_type = "mean" if return_expected_value else "full"
 
         df = self
 
