@@ -558,13 +558,15 @@ def get_mean_belief(
         cdf_p, cdf_v, distribution=distribution
     )
     means = [cdf.getMean()[0] for cdf in cdfs]
+    # Get the cumulative probability at the mean value, which may differ from 0.5 for asymmetric distributions
+    cp_at_means = [cdf.computeCDF(mean) for cdf, mean in zip(cdfs, means)]
 
     # Convert from probabilistic to deterministic beliefs, assigning the mean
     df = df.groupby(level=["event_start"], group_keys=False).apply(lambda x: x.head(1))
     df = tb_utils.replace_multi_index_level(
         df,
         "cumulative_probability",
-        pd.Index(data=[0.5] * len(df.index)),
+        pd.Index(data=cp_at_means),
     )
     df["event_value"] = means
     return df
