@@ -245,7 +245,7 @@ class TimedBeliefDBMixin(TimedBelief):
     def add_to_session(
         cls,
         session: Session,
-        beliefs_data_frame: "BeliefsDataFrame",  # todo: allow passing List[TimedBelief], too
+        beliefs_data_frame: "BeliefsDataFrame",
         expunge_session: bool = False,
         allow_overwrite: bool = False,
         bulk_save_objects: bool = False,
@@ -290,22 +290,6 @@ class TimedBeliefDBMixin(TimedBelief):
                 session.merge(belief)
         if commit_transaction:
             session.commit()
-
-    @classmethod
-    def expunge_from_session(
-        cls,
-        session: Session,
-        beliefs_data_frame: "BeliefsDataFrame",  # todo: allow passing List[TimedBelief], too
-    ):
-        # Belief timing is stored as the belief horizon rather than as the belief time
-        belief_records = (
-            beliefs_data_frame.convert_index_from_belief_time_to_horizon()
-                .reset_index()
-                .to_dict("records")
-        )
-        beliefs = [cls(sensor=beliefs_data_frame.sensor, **d) for d in belief_records]
-        for belief in beliefs:
-            session.expunge(belief)
 
     @classmethod
     @tb_utils.append_doc_of("TimedBeliefDBMixin.search_session")
@@ -1346,16 +1330,11 @@ class BeliefsDataFrame(pd.DataFrame):
         )
 
         # fast track a common case where each event has only one deterministic belief and only the most recent belief is needed
-        print("bbbbbbbbb")
-        print(df.lineage.number_of_beliefs == df.lineage.number_of_events)
-        print(keep_only_most_recent_belief)
-        print( df.lineage.number_of_sources)
         if (
             df.lineage.number_of_beliefs == df.lineage.number_of_events
             and keep_only_most_recent_belief
             and df.lineage.number_of_sources == 1
         ):
-            print("rrrrrrrrrr")
             if event_resolution > self.event_resolution:
                 # downsample
                 column_functions = {
