@@ -1,7 +1,7 @@
 from typing import Optional
 
-from sqlalchemy.orm import Query, Session
 from sqlalchemy import and_, func
+from sqlalchemy.orm import Query, Session
 
 
 def query_unchanged_beliefs(
