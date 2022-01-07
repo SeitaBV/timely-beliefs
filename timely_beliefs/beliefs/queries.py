@@ -5,7 +5,9 @@ from sqlalchemy import and_, func
 
 
 def query_unchanged_beliefs(
-    session: Session, cls: "TimedBeliefDBMixin", query: Optional[Query] = None
+    session: Session,
+    cls: "TimedBeliefDBMixin",  # noqa F821
+    query: Optional[Query] = None,
 ) -> Query:
     """Match unchanged beliefs.
 
