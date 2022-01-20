@@ -492,6 +492,7 @@ def read_csv(
     belief_horizon: timedelta = None,
     belief_time: datetime = None,
     cumulative_probability: float = None,
+    resample: bool = False,
     **kwargs,
 ) -> "classes.BeliefsDataFrame":
     """Utility function to load a BeliefsDataFrame from a csv file or xls sheet (see example/temperature.csv).
@@ -505,6 +506,7 @@ def read_csv(
     and the second column has to contain the event values.
     You also need to pass explicit values for the belief horizon/time and cumulative probability,
     in addition to the sensor and source.
+    If needed, the time series may be resampled to the event resolution of the sensor, using resample=True.
 
     Consult pandas documentation for which additional kwargs can be passed to pandas.read_csv or pandas.read_excel.
     Useful examples are parse_dates=True, infer_datetime_format=True (for read_csv)
@@ -531,6 +533,13 @@ def read_csv(
         df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
             sensor.timezone
         )
+        if resample:
+            df = (
+                df.set_index("event_start")
+                .resample(sensor.event_resolution)
+                .mean()
+                .reset_index()
+            )
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
