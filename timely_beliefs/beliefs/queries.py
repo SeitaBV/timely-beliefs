@@ -39,6 +39,7 @@ def query_unchanged_beliefs(
             tb2.event_start == tb1.event_start,
             tb2.sensor_id == tb1.sensor_id,
             tb2.source_id == tb1.source_id,
+            tb2.event_value == tb1.event_value,
             # next higher belief horizon for a given event for a given source, i.e. the preceding belief
             tb2.belief_horizon
             == session.query(func.min(tb3.belief_horizon))
@@ -51,10 +52,9 @@ def query_unchanged_beliefs(
             )
             .scalar_subquery(),
         ),
-    ).where(
-        or_(tb2.source_id == tb1.source_id, tb2.source_id is None),
-        or_(tb2.sensor_id == tb1.sensor_id, tb2.sensor_id is None),
-        # NB: to query changed beliefs, use or_(tb1.event_value != tb2.event_value, tb2.event_value is None)
-        tb1.event_value == tb2.event_value,
+        # NB: to query changed beliefs instead, adjust the join clauses as follows to not lose the very oldest belief:
+        # or_(tb2.sensor_id == tb1.sensor_id, tb2.sensor_id is None),
+        # or_(tb2.source_id == tb1.source_id, tb2.source_id is None),
+        # or_(tb2.event_value != tb1.event_value, tb2.event_value is None),
     )
     return q
