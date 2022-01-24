@@ -2,7 +2,7 @@ from datetime import timedelta
 from typing import Optional
 
 from sqlalchemy import and_, func, or_
-from sqlalchemy.orm import aliased, Query, Session
+from sqlalchemy.orm import Query, Session, aliased
 
 
 def query_unchanged_beliefs(
