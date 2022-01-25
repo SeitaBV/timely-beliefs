@@ -1,7 +1,7 @@
 from datetime import timedelta
 from typing import Optional
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Query, Session, aliased
 
 
