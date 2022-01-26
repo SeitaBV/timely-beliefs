@@ -18,7 +18,7 @@ def query_unchanged_beliefs(
     other than their belief time.
     """
     if query is None:
-        query = cls.query
+        query = session.query(cls)
 
     # Set up aliases
     tb1 = cls  # the DBTimedBelief class mapped to the timed_beliefs table
