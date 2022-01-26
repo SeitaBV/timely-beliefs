@@ -7,7 +7,7 @@ from sqlalchemy.orm import Query, Session, aliased
 
 def query_unchanged_beliefs(
     session: Session,
-    cls: "TimedBeliefDBMixin",  # noqa F821
+    cls: Optional["TimedBeliefDBMixin"] = None,  # noqa F821
     query: Optional[Query] = None,
     include_positive_horizons: bool = True,  # include belief horizons > 0 (i.e. forecasts)
     include_non_positive_horizons: bool = True,  # include belief horizons <= 0 (i.e. measurements, nowcasts and backcasts)
@@ -17,6 +17,9 @@ def query_unchanged_beliefs(
     Unchanged beliefs are beliefs that have not changed with respect to the preceding belief,
     other than their belief time.
     """
+    if cls is None:
+        # Avoid circular import
+        from timely_beliefs import DBTimedBelief as cls
     if query is None:
         query = session.query(cls)
 
