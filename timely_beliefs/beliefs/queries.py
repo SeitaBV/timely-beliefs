@@ -31,9 +31,9 @@ def query_unchanged_beliefs(
     # Set up / copy criteria for the tb3 alias
     # todo: if query has filter criteria on tb1, those should be applied to tb2 and tb3, too. Hint, combine visitors.iterate(query.whereclause) with replace_selectable
     tb3_criteria = []
-    if include_positive_horizons:
+    if include_positive_horizons and not include_non_positive_horizons:
         tb3_criteria.append(tb3.belief_horizon > timedelta(0))
-    if include_non_positive_horizons:
+    elif include_non_positive_horizons and not include_positive_horizons:
         tb3_criteria.append(tb3.belief_horizon <= timedelta(0))
 
     q = query.join(
