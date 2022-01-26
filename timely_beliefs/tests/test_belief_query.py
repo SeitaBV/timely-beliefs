@@ -7,7 +7,14 @@ import pytest
 from pytz import utc
 
 import timely_beliefs.beliefs.utils as belief_utils
-from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
+import timely_beliefs.beliefs.queries as query_utils
+from timely_beliefs import (
+    BeliefsDataFrame,
+    DBBeliefSource,
+    DBSensor,
+    DBTimedBelief,
+    TimedBelief,
+)
 from timely_beliefs.tests import session
 
 
@@ -387,3 +394,52 @@ def test_select_most_recent_probabilistic_beliefs(
         session=session, sensor=ex_post_time_slot_sensor, most_recent_only=True
     )
     pd.testing.assert_frame_equal(df, most_recent_df)
+
+
+@pytest.mark.parametrize(
+    "event_values, expected_unchanged_event_values",
+    [
+        ([10, 10, 10, 9, 9, 9], [None, 10, 10, None, 9, 9]),
+        ([10, 11, 10, 9, 9.5, 9], [None, None, None, None, None, None]),
+        ([10, 9, 10, 10, 9.5], [None, None, None, 10, None]),
+        ([10, 10, 9, 10, 10], [None, 10, None, None, 10]),
+    ],
+)
+def test_query_unchanged_beliefs(event_values, expected_unchanged_event_values):
+    sensor = session.query(DBSensor).first()
+    source = session.query(DBBeliefSource).first()
+    beliefs = [
+        DBTimedBelief(
+            sensor=sensor,
+            source=source,
+            event_value=v,
+            event_start=pd.Timestamp("2022-01-26 13:50+01:00").to_pydatetime(),
+            belief_time=pd.Timestamp("2022-01-05 13:50+01:00").to_pydatetime()
+            + i * timedelta(hours=1),
+        )
+        for i, v in enumerate(event_values)
+    ]
+    expected_unchanged_beliefs = BeliefsDataFrame(
+        [
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_value=v,
+                event_start=pd.Timestamp("2022-01-26 13:50+01:00").to_pydatetime(),
+                belief_time=pd.Timestamp("2022-01-05 13:50+01:00").to_pydatetime()
+                + i * timedelta(hours=1),
+            )
+            for i, v in enumerate(expected_unchanged_event_values)
+            if v is not None
+        ]
+    )
+    session.add_all(beliefs)
+    all_beliefs_query = session.query(DBTimedBelief).filter(
+        DBTimedBelief.sensor == sensor, DBTimedBelief.source == source
+    )
+    q = query_utils.query_unchanged_beliefs(
+        session=session,
+        query=all_beliefs_query,
+    )
+    unchanged_beliefs = BeliefsDataFrame(q.all())
+    pd.testing.assert_frame_equal(unchanged_beliefs, expected_unchanged_beliefs)
