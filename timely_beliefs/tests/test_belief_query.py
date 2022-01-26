@@ -6,8 +6,8 @@ import pandas as pd
 import pytest
 from pytz import utc
 
-import timely_beliefs.beliefs.utils as belief_utils
 import timely_beliefs.beliefs.queries as query_utils
+import timely_beliefs.beliefs.utils as belief_utils
 from timely_beliefs import (
     BeliefsDataFrame,
     DBBeliefSource,
