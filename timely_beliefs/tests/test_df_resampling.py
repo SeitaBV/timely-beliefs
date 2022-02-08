@@ -1,6 +1,6 @@
+import math
 from datetime import datetime, timedelta
 from typing import Callable, Optional
-import math
 
 import numpy as np
 import pandas as pd
