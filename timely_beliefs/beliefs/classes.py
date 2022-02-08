@@ -1357,7 +1357,7 @@ class BeliefsDataFrame(pd.DataFrame):
                     belief_timing_col: "max"
                     if belief_timing_col == "belief_time"
                     else "min",  # keep only most recent belief
-                    "cumulative_probability": "prod",  # assume independent variables
+                    "cumulative_probability": "mean",  # we just have one point on each CDF
                 }
                 df = downsample_beliefs_data_frame(
                     df, event_resolution, column_functions
