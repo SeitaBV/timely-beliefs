@@ -100,7 +100,7 @@ class TimedBelief(object):
         elif cp is not None:
             self.cumulative_probability = cp
         elif sigma is not None:
-            self.cumulative_probability = 1 / 2 + (math.erf(sigma / 2 ** 0.5)) / 2
+            self.cumulative_probability = 1 / 2 + (math.erf(sigma / 2**0.5)) / 2
         else:
             self.cumulative_probability = 0.5
 
