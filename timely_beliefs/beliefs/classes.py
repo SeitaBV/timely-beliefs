@@ -1329,10 +1329,17 @@ class BeliefsDataFrame(pd.DataFrame):
             "belief_time" if "belief_time" in df.index.names else "belief_horizon"
         )
 
-        # fast track a common case where each event has only one deterministic belief and only the most recent belief is needed
+        # fast track a common case where each event has only one deterministic belief by the same source, and:
+        # - only the most recent belief is needed, or
+        # - we are upsampling, or
+        # - all beliefs share a common belief time
         if (
             df.lineage.number_of_beliefs == df.lineage.number_of_events
-            and keep_only_most_recent_belief
+            and (
+                keep_only_most_recent_belief
+                or event_resolution < self.event_resolution
+                or df.lineage.number_of_belief_times == 1
+            )
             and df.lineage.number_of_sources == 1
         ):
             if event_resolution > self.event_resolution:
