@@ -4,9 +4,11 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import altair as alt
+import numpy as np
 import pandas as pd
 import pytz
 from pandas.core.groupby import DataFrameGroupBy
+from pandas.tseries.frequencies import to_offset
 from sqlalchemy import (
     Column,
     DateTime,
@@ -1311,11 +1313,16 @@ class BeliefsDataFrame(pd.DataFrame):
         event_resolution: TimedeltaLike,
         distribution: Optional[str] = None,
         keep_only_most_recent_belief: bool = False,
+        keep_nan_values: bool = False,
     ) -> "BeliefsDataFrame":
         """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample).
 
+        Drops NaN values by default.
+
         NB If you need to only keep the most recent belief,
         set keep_only_most_recent_belief=True for a significant speed boost.
+
+        :param keep_nan_values: if True, place back resampled NaN values.
         """
 
         if self.empty:
@@ -1361,6 +1368,13 @@ class BeliefsDataFrame(pd.DataFrame):
                 df = df.reset_index(
                     level=[belief_timing_col, "source", "cumulative_probability"]
                 )
+                resample_ratio = pd.to_timedelta(
+                    to_offset(df.event_resolution)
+                ) / pd.Timedelta(event_resolution)
+                if keep_nan_values:
+                    # back up NaN values
+                    unique_event_value_not_in_df = df["event_value"].abs().sum() + 1
+                    df = df.fillna(unique_event_value_not_in_df)
                 new_index = pd.date_range(
                     start=df.index[0],
                     end=df.index[-1] + self.event_resolution,
@@ -1368,7 +1382,14 @@ class BeliefsDataFrame(pd.DataFrame):
                     freq=event_resolution,
                     name="event_start",
                 )
-                df = df.reindex(new_index).fillna(method="pad")
+                df = df.reindex(new_index).fillna(
+                    method="pad",
+                    limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
+                )
+                df = df.dropna()
+                if keep_nan_values:
+                    # place back original NaN values
+                    df = df.replace(unique_event_value_not_in_df, np.NaN)
                 df.event_resolution = event_resolution
                 df = df.set_index(
                     [belief_timing_col, "source", "cumulative_probability"], append=True

@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Callable, Optional
+import math
 
+import numpy as np
 import pandas as pd
 import pytest
 import pytz
@@ -241,32 +243,54 @@ def test_percentages_and_accuracy_of_probabilistic_model(df_4323: BeliefsDataFra
 def test_downsample_once_upsample_once_around_dst(
     df_wxyz: Callable[[int, int, int, int, Optional[datetime]], BeliefsDataFrame]
 ):
+    """Fast track resampling is enabled because the data contains 1 deterministic belief per event and a unique belief time and source."""
+    downsampled_event_resolution = timedelta(hours=24)
+    upsampled_event_resolution = timedelta(minutes=10)
     start = pytz.timezone("Europe/Amsterdam").localize(datetime(2020, 3, 29, 0))
     df = df_wxyz(25, 1, 1, 1, start)  # 1 deterministic belief per event
+    df.iloc[0] = np.NaN  # introduce 1 NaN value
     print(df)
-    event_resolution_1 = timedelta(hours=24)
-    df_resampled_1 = df.resample_events(
-        event_resolution_1, keep_only_most_recent_belief=True
-    )  # enables fast track resampling for 1 deterministic belief per event
+
+    # Downsample the original frame
+    df_resampled_1 = df.resample_events(downsampled_event_resolution)
     print(df_resampled_1)
     # todo: uncomment if this is ever fixed: https://github.com/pandas-dev/pandas/issues/35248
-    # assert df_resampled_1.index.get_level_values("event_start")[1] == pd.Timestamp(start) + event_resolution
-    assert len(df_resampled_1) == 2 * event_resolution_1 / event_resolution_1  # 2
+    # assert df_resampled_1.index.get_level_values("event_start")[1] == pd.Timestamp(start) + event_resolution_1
+    assert len(df_resampled_1) == 2  # the data falls in 2 days
     assert df_resampled_1.sensor == df.sensor
-    assert df_resampled_1.event_resolution == event_resolution_1
-    event_resolution_2 = timedelta(minutes=5)
-    df_resampled_2 = df_resampled_1.resample_events(
-        event_resolution_2, keep_only_most_recent_belief=True
+    assert df_resampled_1.event_resolution == downsampled_event_resolution
+    assert df_resampled_1["event_value"].isnull().sum() == 0
+
+    # Upsample the original frame
+    df_resampled_2 = df.resample_events(
+        upsampled_event_resolution, keep_nan_values=True
     )
     pd.set_option("display.max_rows", None)
     print(df_resampled_2)
-    assert len(df_resampled_2) == 2 * event_resolution_1 / event_resolution_2  # 12*24*2
-    assert (
-        df_resampled_2.index.get_level_values("event_start")[1]
-        == pd.Timestamp(start) + event_resolution_2
+    assert len(df_resampled_2) == len(df) * math.ceil(
+        df.event_resolution / df_resampled_2.event_resolution
     )
-    assert df_resampled_2.sensor == df.sensor
-    assert df_resampled_2.event_resolution == event_resolution_2
+    assert df_resampled_2["event_value"].isnull().sum() == math.ceil(
+        df.event_resolution / df_resampled_2.event_resolution
+    )
+
+    # Upsample the downsampled frame
+    df_resampled_3 = df_resampled_1.resample_events(upsampled_event_resolution)
+    print(df_resampled_3)
+    assert (
+        len(df_resampled_3)
+        == len(df_resampled_1)
+        * df_resampled_1.event_resolution
+        / df_resampled_3.event_resolution
+        - timedelta(hours=1) / upsampled_event_resolution
+    )  # 12*24*2 - 12 (for DST transition) -> if this fails, https://github.com/pandas-dev/pandas/issues/35248 might have been fixed. If so, remove the - 12 to fix the test
+    assert (
+        df_resampled_3.index.get_level_values("event_start")[1]
+        == pd.Timestamp(start) + upsampled_event_resolution
+    )
+    assert df_resampled_3.sensor == df.sensor
+    assert df_resampled_3.event_resolution == upsampled_event_resolution
+    assert df_resampled_3["event_value"].isnull().sum() == 0
 
 
 def test_resample_with_belief_horizon(df_4323: BeliefsDataFrame):
