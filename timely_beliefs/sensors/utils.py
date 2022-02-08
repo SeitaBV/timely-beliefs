@@ -19,8 +19,8 @@ def datetime_x_days_ago_at_y_oclock(
 ) -> datetime:
     """Returns the datetime x days ago a y o'clock as determined from the perspective of timezone z."""
     if isinstance(y, float):
-        micros = int(y * 60 * 60 * 10 ** 6)
-        s, micros = divmod(micros, 10 ** 6)
+        micros = int(y * 60 * 60 * 10**6)
+        s, micros = divmod(micros, 10**6)
         m, s = divmod(s, 60)
         h, m = divmod(m, 60)
     else:

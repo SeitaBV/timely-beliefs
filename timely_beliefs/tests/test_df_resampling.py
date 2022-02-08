@@ -194,7 +194,7 @@ def test_downsample_probabilistic(df_4323, test_source_a: BeliefSource):
     )
     cdf_p = cdf.index.get_level_values(level="cumulative_probability")
     assert cdf_p[0] == approx(
-        0.1587 ** 2
+        0.1587**2
     )  # 1 combination yields the 1st unique possible outcome
     assert cdf_p[1] - cdf_p[0] == approx(
         (0.1587 * (0.5 - 0.1587)) * 2

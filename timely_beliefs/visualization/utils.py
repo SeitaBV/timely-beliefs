@@ -195,31 +195,31 @@ def timedelta_to_human_range(s: pd.Series) -> Tuple[pd.Series, str]:
     if timedelta_span >= timedelta(days=4 * 365.2425):
         s = s.apply(
             lambda x: x.days / 365.2425
-            + (x.seconds + x.microseconds / 10 ** 6) / (365.2425 * 24 * 60 * 60)
+            + (x.seconds + x.microseconds / 10**6) / (365.2425 * 24 * 60 * 60)
         )
         time_unit = "years"
     elif timedelta_span >= timedelta(days=4):
         s = s.apply(
-            lambda x: x.days + (x.seconds + x.microseconds / 10 ** 6) / (24 * 60 * 60)
+            lambda x: x.days + (x.seconds + x.microseconds / 10**6) / (24 * 60 * 60)
         )
         time_unit = "days"
     elif timedelta_span >= timedelta(hours=4):
         s = s.apply(
-            lambda x: x.days * 24 + (x.seconds + x.microseconds / 10 ** 6) / (60 * 60)
+            lambda x: x.days * 24 + (x.seconds + x.microseconds / 10**6) / (60 * 60)
         )
         time_unit = "hours"
     elif timedelta_span >= timedelta(minutes=4):
         s = s.apply(
-            lambda x: x.days * 24 * 60 + (x.seconds + x.microseconds / 10 ** 6) / 60
+            lambda x: x.days * 24 * 60 + (x.seconds + x.microseconds / 10**6) / 60
         )
         time_unit = "minutes"
     elif timedelta_span >= timedelta(seconds=4):
         s = s.apply(
-            lambda x: x.days * 24 * 60 * 60 + x.seconds + x.microseconds / 10 ** 6
+            lambda x: x.days * 24 * 60 * 60 + x.seconds + x.microseconds / 10**6
         )
         time_unit = "seconds"
     else:
-        s = s.apply(lambda x: x.days * 24 * 60 * 60 * 10 ** 6 + x.microseconds)
+        s = s.apply(lambda x: x.days * 24 * 60 * 60 * 10**6 + x.microseconds)
         time_unit = "microseconds"
     return s, time_unit
 

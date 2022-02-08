@@ -51,7 +51,7 @@ def interpret_complete_cdf(
                 mu = (
                     x1 * special.erfinv(1 - 2 * y2) - x2 * special.erfinv(1 - 2 * y1)
                 ) / (special.erfinv(1 - 2 * y2) - special.erfinv(1 - 2 * y1))
-                sigma = (2 ** 0.5 * x1 - 2 ** 0.5 * x2) / (
+                sigma = (2**0.5 * x1 - 2**0.5 * x2) / (
                     2 * special.erfinv(1 - 2 * y2) - 2 * special.erfinv(1 - 2 * y1)
                 )
                 cdfs.append(ot.Normal(mu, sigma))
