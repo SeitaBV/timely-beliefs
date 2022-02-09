@@ -270,9 +270,10 @@ def test_downsample_once_upsample_once_around_dst(
     assert len(df_resampled_2) == len(df) * math.ceil(
         df.event_resolution / df_resampled_2.event_resolution
     )
-    assert df_resampled_2["event_value"].isnull().sum() == math.ceil(
-        df.event_resolution / df_resampled_2.event_resolution
-    )
+    # The number of NaN values has increased by a factor equal to the resample ratio
+    assert df_resampled_2["event_value"].isnull().sum() == df[
+        "event_value"
+    ].isnull().sum() * math.ceil(df.event_resolution / df_resampled_2.event_resolution)
 
     # Upsample the downsampled frame
     df_resampled_3 = df_resampled_1.resample_events(upsampled_event_resolution)
