@@ -1382,6 +1382,35 @@ class BeliefsDataFrame(pd.DataFrame):
                     freq=event_resolution,
                     name="event_start",
                 )
+                # Reindex to introduce NaN values, then forward fill by the number of steps
+                # needed to have the new resolution cover the old resolution.
+                # For example, when resampling from a resolution of 30 to 20 minutes (NB frequency is 1 hour):
+                # event_start               event_value
+                # 2020-03-29 10:00:00+02:00 1000.0
+                # 2020-03-29 11:00:00+02:00 NaN
+                # 2020-03-29 12:00:00+02:00 2000.0
+                # After reindexing
+                # event_start               event_value
+                # 2020-03-29 10:00:00+02:00 1000.0
+                # 2020-03-29 10:20:00+02:00 NaN
+                # 2020-03-29 10:40:00+02:00 NaN
+                # 2020-03-29 11:00:00+02:00 NaN
+                # 2020-03-29 11:20:00+02:00 NaN
+                # 2020-03-29 11:40:00+02:00 NaN
+                # 2020-03-29 12:00:00+02:00 2000.0
+                # 2020-03-29 12:20:00+02:00 NaN
+                # 2020-03-29 12:40:00+02:00 NaN
+                # After filling a limited number of NaN values (ceil(30/20)-1 == 1)
+                # event_start               event_value
+                # 2020-03-29 10:00:00+02:00 1000.0
+                # 2020-03-29 10:20:00+02:00 1000.0
+                # 2020-03-29 10:40:00+02:00 NaN
+                # 2020-03-29 11:00:00+02:00 NaN
+                # 2020-03-29 11:20:00+02:00 NaN
+                # 2020-03-29 11:40:00+02:00 NaN
+                # 2020-03-29 12:00:00+02:00 2000.0
+                # 2020-03-29 12:20:00+02:00 2000.0
+                # 2020-03-29 12:40:00+02:00 NaN
                 df = df.reindex(new_index).fillna(
                     method="pad",
                     limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
