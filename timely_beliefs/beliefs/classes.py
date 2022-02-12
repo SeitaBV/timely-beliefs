@@ -397,19 +397,19 @@ class TimedBeliefDBMixin(TimedBelief):
         )
 
         # Check for timezone-aware datetime input
-        if event_starts_after is not None:
+        if not pd.isnull(event_starts_after):
             event_starts_after = tb_utils.parse_datetime_like(
                 event_starts_after, "event_not_before"
             )
-        if event_ends_before is not None:
+        if not pd.isnull(event_ends_before):
             event_ends_before = tb_utils.parse_datetime_like(
                 event_ends_before, "event_before"
             )
-        if beliefs_after is not None:
+        if not pd.isnull(beliefs_after):
             beliefs_after = tb_utils.parse_datetime_like(
                 beliefs_after, "belief_not_before"
             )
-        if beliefs_before is not None:
+        if not pd.isnull(beliefs_before):
             beliefs_before = tb_utils.parse_datetime_like(
                 beliefs_before, "belief_before"
             )
@@ -444,27 +444,27 @@ class TimedBeliefDBMixin(TimedBelief):
         q = session.query(cls).filter(cls.sensor_id == sensor.id)
 
         # Apply event time filter
-        if event_starts_after is not None:
+        if not pd.isnull(event_starts_after):
             q = q.filter(cls.event_start >= event_starts_after)
-        if event_ends_before is not None:
+        if not pd.isnull(event_ends_before):
             q = q.filter(cls.event_start + sensor.event_resolution <= event_ends_before)
 
         # Apply rough belief time filter
-        if beliefs_after is not None:
+        if not pd.isnull(beliefs_after):
             q = q.filter(
                 cls.event_start
                 >= beliefs_after + cls.belief_horizon + knowledge_horizon_min
             )
-        if beliefs_before is not None:
+        if not pd.isnull(beliefs_before):
             q = q.filter(
                 cls.event_start
                 <= beliefs_before + cls.belief_horizon + knowledge_horizon_max
             )
 
         # Apply belief horizon filter
-        if horizons_at_least is not None:
+        if not pd.isnull(horizons_at_least):
             q = q.filter(cls.belief_horizon >= horizons_at_least)
-        if horizons_at_most is not None:
+        if not pd.isnull(horizons_at_most):
             q = q.filter(cls.belief_horizon <= horizons_at_most)
 
         # Apply source filter
