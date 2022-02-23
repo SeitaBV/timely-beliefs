@@ -149,3 +149,7 @@ def determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock(
         FutureWarning,
     )
     return x_days_ago_at_y_oclock(event_start, *args, **kwargs)
+
+
+# aliases
+x_days_ago_at_y_o_clock = x_days_ago_at_y_oclock  # forgive a common typo
