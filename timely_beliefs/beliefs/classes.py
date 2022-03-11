@@ -763,7 +763,7 @@ class BeliefsDataFrame(pd.DataFrame):
             sensor = list(unique_sensors)[0]
 
             # Check for different sources with the same name
-            unique_sources = set(belief.source for belief in beliefs)
+            unique_sources = set(str(belief.source) for belief in beliefs)
             unique_source_string_representations = set(
                 str(source) for source in unique_sources
             )
