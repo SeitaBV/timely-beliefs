@@ -468,7 +468,7 @@ class TimedBeliefDBMixin(TimedBelief):
             q = q.filter(cls.belief_horizon <= horizons_at_most)
 
         # Apply source filter
-        if source is []:
+        if source == []:
             return BeliefsDataFrame(sensor=sensor, beliefs=[])
         elif source is not None:
             sources: list = [source] if not isinstance(source, list) else source
