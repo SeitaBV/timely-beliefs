@@ -110,6 +110,18 @@ def multiple_day_after_beliefs_about_ex_post_time_slot_event(
     return beliefs
 
 
+def test_query_belief_with_empty_source_list(
+    ex_post_time_slot_sensor: DBSensor,
+    day_ahead_belief_about_ex_post_time_slot_event: DBTimedBelief,
+):
+    belief_df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_post_time_slot_sensor,
+        source=[],
+    )
+    assert belief_df.empty
+
+
 def test_query_belief_by_belief_time(
     ex_post_time_slot_sensor: DBSensor,
     day_ahead_belief_about_ex_post_time_slot_event: DBTimedBelief,
