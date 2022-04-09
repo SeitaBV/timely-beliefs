@@ -1,5 +1,6 @@
 # Timely beliefs
 
+[![License](https://img.shields.io/github/license/seitabv/timely-beliefs?color=blue)](https://github.com/SeitaBV/timely-beliefs/blob/main/LICENSE)
 [![Build Status](https://travis-ci.com/SeitaBV/timely-beliefs.svg?branch=master)](https://travis-ci.com/SeitaBV/timely-beliefs)
 [![Python Version](https://img.shields.io/pypi/pyversions/timely-beliefs.svg)](https://pypi.python.org/pypi/timely-beliefs)
 [![Pypi Version](https://img.shields.io/pypi/v/timely-beliefs.svg)](https://pypi.python.org/pypi/timely-beliefs)
@@ -19,8 +20,8 @@ The data model is an extended [pandas](https://pandas.pydata.org/) DataFrame tha
 Getting started (or try one of the [other ways to create a BeliefsDataFrame](timely_beliefs/docs/init.md)):
 
     >>> import timely_beliefs as tb
-    >>> bdf = tb.BeliefsDataFrame([tb.TimedBelief(tb.Sensor("Indoor temperature", "°C"), tb.BeliefSource("Thermometer"), 21, event_time="2000-03-05 11:00Z", belief_horizon="0H")])
-    >>> print(bdf)
+    >>> df = tb.BeliefsDataFrame([tb.TimedBelief(tb.Sensor("Indoor temperature", "°C"), tb.BeliefSource("Thermometer"), 21, event_time="2000-03-05 11:00Z", belief_horizon="0H")])
+    >>> print(df)
                                                                                             event_value
     event_start               belief_time               source      cumulative_probability             
     2000-03-05 11:00:00+00:00 2000-03-05 11:00:00+00:00 Thermometer 0.5                              21
@@ -69,7 +70,7 @@ Because of the sparse representation of index levels (a clever default setting i
 as we show here in a printout of the example BeliefsDataFrame in our examples module:
 
     >>> import timely_beliefs
-    >>> df = timely_beliefs.examples.example_df
+    >>> df = timely_beliefs.examples.get_example_df()
     >>> df.head(8)
                                                                                          event_value
     event_start               belief_time               source   cumulative_probability

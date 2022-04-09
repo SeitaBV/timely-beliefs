@@ -14,7 +14,7 @@ For example, to select all beliefs about events from 11 AM onwards:
 
     >>> from datetime import datetime, timedelta
     >>> from pytz import utc
-    >>> df = timely_beliefs.examples.example_df
+    >>> df = timely_beliefs.examples.get_example_df()
     >>> df[df.index.get_level_values("event_start") >= datetime(2000, 1, 3, 11, tzinfo=utc)]
 
 Besides these, `timely-beliefs` provides custom methods to conveniently slice through time in different ways.

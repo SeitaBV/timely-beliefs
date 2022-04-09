@@ -24,7 +24,12 @@ def parse_timedelta_like(
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("error")
             if isinstance(td, str):
-                td = pd.Timedelta(td)
+                try:
+                    td = pd.Timedelta(td)
+                except ValueError as e:
+                    # catch cases like "H" -> "1H"
+                    if "unit abbreviation w/o a number" in str(e):
+                        td = pd.Timedelta(f"1{td}")
             if isinstance(td, pd.Timedelta):
                 td = td.to_pytimedelta()
     except (ValueError, FutureWarning) as e:

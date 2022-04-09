@@ -12,6 +12,7 @@ from timely_beliefs.beliefs import classes
 from timely_beliefs.beliefs.probabilistic_utils import (
     calculate_crps,
     get_expected_belief,
+    get_median_belief,
     probabilistic_nan_mean,
 )
 from timely_beliefs.sources import utils as source_utils
@@ -22,10 +23,15 @@ def select_most_recent_belief(
 ) -> "classes.BeliefsDataFrame":
     """Drop all but most recent (non-NaN) belief."""
 
+    if df.empty:
+        return df
+
     # Drop NaN beliefs before selecting the most recent
     df = df.for_each_belief(
         lambda x: x.dropna() if x.isnull().all()["event_value"] else x
     )
+    if df.empty:
+        return df
 
     if "belief_horizon" in df.index.names:
         return df.groupby(level=["event_start", "source"], group_keys=False).apply(
@@ -379,7 +385,7 @@ def compute_accuracy_scores(
     the reference observations or the average reference observation, respectively.
     For your convenience, hopefully, we left the column names unchanged.
     For probabilistic reference observations, the CRPS takes into account all possible outcomes.
-    However, the MAPE and WAPE use the expected observation (cp=0.5) as their denominator.
+    However, the MAPE and WAPE use the middle observation (cp=0.5) as their denominator.
     """
 
     # Todo: put back checks when BeliefsDataFrame validation works after an index level becomes an attribute
@@ -420,7 +426,7 @@ def set_reference(
     reference_belief_time: datetime,
     reference_belief_horizon: timedelta,
     reference_source: BeliefSource,
-    return_expected_value: bool = False,
+    return_reference_type: str = "full",
 ) -> "classes.BeliefsDataFrame":
 
     # If applicable, decide which horizon or time provides the beliefs to serve as the reference
@@ -449,16 +455,22 @@ def set_reference(
     if reference_source is not None:
         reference_df = reference_df.set_event_value_from_source(reference_source)
 
-    # Take the expected value of the beliefs as the reference value
-    if return_expected_value is True:
+    # Take a deterministic value of the beliefs as the reference value
+    if return_reference_type == "mean":
         reference_df = reference_df.for_each_belief(get_expected_belief)
+    elif return_reference_type == "median":
+        reference_df = reference_df.for_each_belief(get_median_belief)
+    elif return_reference_type != "full":
+        raise ValueError(
+            f"Unknown return_reference_type {return_reference_type}: use 'full', 'mean' or 'median'."
+        )
 
     belief_timing_col = (
         "belief_time" if "belief_time" in reference_df.index.names else "belief_horizon"
     )
     reference_df = reference_df.droplevel(
         ["event_start", belief_timing_col, "cumulative_probability"]
-        if return_expected_value is True
+        if return_reference_type != "full"
         else ["event_start", belief_timing_col]
     ).rename(columns={"event_value": "reference_value"})
 
@@ -467,7 +479,7 @@ def set_reference(
         [reference_df] * df.lineage.number_of_belief_horizons,
         keys=df.lineage.belief_horizons,
         names=["belief_horizon", "source"]
-        if return_expected_value is True
+        if return_reference_type != "full"
         else ["belief_horizon", "source", "cumulative_probability"],
     )
 
@@ -480,6 +492,7 @@ def read_csv(
     belief_horizon: timedelta = None,
     belief_time: datetime = None,
     cumulative_probability: float = None,
+    resample: bool = False,
     **kwargs,
 ) -> "classes.BeliefsDataFrame":
     """Utility function to load a BeliefsDataFrame from a csv file or xls sheet (see example/temperature.csv).
@@ -493,6 +506,7 @@ def read_csv(
     and the second column has to contain the event values.
     You also need to pass explicit values for the belief horizon/time and cumulative probability,
     in addition to the sensor and source.
+    If needed, the time series may be resampled to the event resolution of the sensor, using resample=True.
 
     Consult pandas documentation for which additional kwargs can be passed to pandas.read_csv or pandas.read_excel.
     Useful examples are parse_dates=True, infer_datetime_format=True (for read_csv)
@@ -519,6 +533,13 @@ def read_csv(
         df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
             sensor.timezone
         )
+        if resample:
+            df = (
+                df.set_index("event_start")
+                .resample(sensor.event_resolution)
+                .mean()
+                .reset_index()
+            )
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:

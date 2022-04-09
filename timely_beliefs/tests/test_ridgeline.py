@@ -2,11 +2,11 @@ from datetime import datetime
 
 import pytz
 
-from timely_beliefs.examples import example_df, temperature_df
+from timely_beliefs.examples import get_example_df, get_temperature_df
 
 
 def test_ridgeline_example():
-    df = example_df
+    df = get_example_df()
     df = df[df.index.get_level_values("source") == df.lineage.sources[0]]
     chart = df.plot_ridgeline_fixed_viewpoint(
         datetime(2000, 1, 3, 9, 0, tzinfo=pytz.utc),
@@ -27,7 +27,7 @@ def test_ridgeline_example():
 
 
 def test_ridgeline_temperature():
-    df = temperature_df
+    df = get_temperature_df()
     df = df[
         df.index.get_level_values("event_start")
         <= datetime(2015, 3, 3, 14, tzinfo=pytz.utc)

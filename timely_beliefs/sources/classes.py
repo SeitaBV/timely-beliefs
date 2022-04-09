@@ -32,7 +32,7 @@ class BeliefSource(object):
 
     def __lt__(self, other):
         """Set a rule for ordering."""
-        return self.name < other.name
+        return self.__str__() < other.__str__()
 
 
 class BeliefSourceDBMixin(BeliefSource):

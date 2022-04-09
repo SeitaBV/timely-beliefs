@@ -7,6 +7,7 @@ install: install-deps install-tb
 install-deps:
 	pip install --upgrade pip-tools
 	pip-sync dev/requirements.txt
+	pip install pre-commit
 
 freeze-deps:
 	pip install --upgrade pip-tools
@@ -14,7 +15,9 @@ freeze-deps:
 
 install-tb:
 	python setup.py develop
+	pre-commit install
 
 test:
-	pip install pytest
+	python setup.py develop
+	pip install setuptools_scm pytest
 	pytest

@@ -56,8 +56,19 @@ def time_slot_sensor(db):
 @pytest.fixture(scope="function", autouse=True)
 def ex_post_time_slot_sensor(db):
     """Define sensor for time slot events known in advance (ex post)."""
+    return create_ex_post_time_slot_sensor("ExPostSensor")
+
+
+@pytest.fixture(scope="function", autouse=False)
+def ex_post_time_slot_sensor_b(db):
+    """Define an almost identical ex-post time slot sensor, just with a different name."""
+    return create_ex_post_time_slot_sensor("ExPostSensor B")
+
+
+def create_ex_post_time_slot_sensor(name: str) -> DBSensor:
+    """Define sensor for time slot events known in advance (ex post)."""
     sensor = DBSensor(
-        name="ExPostSensor",
+        name=name,
         event_resolution=timedelta(minutes=15),
         knowledge_horizon=(
             determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,

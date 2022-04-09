@@ -1,15 +1,31 @@
 import math
+import types
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import altair as alt
+import numpy as np
 import pandas as pd
+import pytz
 from pandas.core.groupby import DataFrameGroupBy
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, Interval
+from pandas.tseries.frequencies import to_offset
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    Interval,
+    and_,
+    func,
+)
 from sqlalchemy.ext.declarative import declared_attr, has_inherited_table
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import Session, backref, relationship
+from sqlalchemy.orm.util import AliasedClass
 from sqlalchemy.schema import UniqueConstraint
+from sqlalchemy.sql.elements import BinaryExpression
+from sqlalchemy.sql.expression import Selectable
 
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
@@ -25,6 +41,12 @@ from timely_beliefs.visualization import utils as visualization_utils
 METADATA = ["sensor", "event_resolution"]
 DatetimeLike = Union[datetime, str, pd.Timestamp]
 TimedeltaLike = Union[timedelta, str, pd.Timedelta]
+JoinTarget = Union[
+    Selectable,
+    type,
+    AliasedClass,
+    types.FunctionType,
+]
 
 
 class TimedBelief(object):
@@ -80,7 +102,7 @@ class TimedBelief(object):
         elif cp is not None:
             self.cumulative_probability = cp
         elif sigma is not None:
-            self.cumulative_probability = 1 / 2 + (math.erf(sigma / 2 ** 0.5)) / 2
+            self.cumulative_probability = 1 / 2 + (math.erf(sigma / 2**0.5)) / 2
         else:
             self.cumulative_probability = 0.5
 
@@ -285,28 +307,51 @@ class TimedBeliefDBMixin(TimedBelief):
         return cls.search_session(*args, **kwargs)
 
     @classmethod
-    def search_session(
+    def search_session(  # noqa: C901  # todo: remove after removing deprecated arguments
         cls,
         session: Session,
-        sensor: SensorDBMixin,
+        sensor: Union[SensorDBMixin, int],
+        sensor_class: Optional[Type[SensorDBMixin]] = DBSensor,
         event_starts_after: Optional[datetime] = None,
         event_ends_before: Optional[datetime] = None,
         beliefs_after: Optional[datetime] = None,
         beliefs_before: Optional[datetime] = None,
+        horizons_at_least: Optional[timedelta] = None,
+        horizons_at_most: Optional[timedelta] = None,
         event_before: Optional[datetime] = None,  # deprecated
         event_not_before: Optional[datetime] = None,  # deprecated
         belief_before: Optional[datetime] = None,  # deprecated
         belief_not_before: Optional[datetime] = None,  # deprecated
         source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
+        most_recent_beliefs_only: bool = False,
+        most_recent_events_only: bool = False,
+        most_recent_only: bool = None,  # deprecated
+        place_beliefs_in_sensor_timezone: bool = True,
+        place_events_in_sensor_timezone: bool = True,
+        custom_filter_criteria: Optional[List[BinaryExpression]] = None,
+        custom_join_targets: Optional[List[JoinTarget]] = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
+
+        The optional arguments represent optional filters, with two exceptions:
+        - sensor_class makes it possible to create a query on sensor subclasses
+        - custom_join_targets makes it possible to add custom filters using other (incl. subclassed) targets
         :param session: the database session to use
-        :param sensor: sensor to which the beliefs pertain
+        :param sensor: sensor to which the beliefs pertain, or its unique sensor id
+        :param sensor_class: optionally pass the sensor (sub)class explicitly (only needed if you pass a sensor id instead of a sensor, and your sensor class is not DBSensor); the class should be mapped to a database table
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
+        :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: only return beliefs formed by the given source or list of sources
+        :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
+        :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
+        :param place_beliefs_in_sensor_timezone: if True (the default), belief times are converted to the timezone of the sensor
+        :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
+        :param custom_filter_criteria: additional filters, such as ones that rely on subclasses
+        :param custom_join_targets: additional join targets, to accommodate filters that rely on other targets (e.g. subclasses)
         :returns: a multi-index DataFrame with all relevant beliefs
         """
 
@@ -342,44 +387,56 @@ class TimedBeliefDBMixin(TimedBelief):
             beliefs_after,
             required_argument=False,
         )
+        # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v1.7.0)
+        most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
+            "most_recent_only",
+            most_recent_only,
+            "most_recent_beliefs_only",
+            most_recent_beliefs_only,
+            required_argument=False,
+        )
 
         # Check for timezone-aware datetime input
-        if event_starts_after is not None:
+        if not pd.isnull(event_starts_after):
             event_starts_after = tb_utils.parse_datetime_like(
                 event_starts_after, "event_not_before"
             )
-        if event_ends_before is not None:
+        if not pd.isnull(event_ends_before):
             event_ends_before = tb_utils.parse_datetime_like(
                 event_ends_before, "event_before"
             )
-        if beliefs_after is not None:
+        if not pd.isnull(beliefs_after):
             beliefs_after = tb_utils.parse_datetime_like(
                 beliefs_after, "belief_not_before"
             )
-        if beliefs_before is not None:
+        if not pd.isnull(beliefs_before):
             beliefs_before = tb_utils.parse_datetime_like(
                 beliefs_before, "belief_before"
             )
 
-        # Query sensor for relevant timing properties
-        event_resolution, knowledge_horizon_fnc, knowledge_horizon_par = (
-            session.query(
-                sensor.__class__.event_resolution,
-                sensor.__class__.knowledge_horizon_fnc,
-                sensor.__class__.knowledge_horizon_par,
+        # Query sensor, required for its timing properties
+        if isinstance(sensor, int):
+            # Check for proper sensor class
+            if not issubclass(sensor_class, SensorDBMixin):
+                raise ValueError(
+                    f"sensor {sensor} is a {type(sensor)}, which is not a subclass of {SensorDBMixin}"
+                )
+            sensor = (
+                session.query(sensor_class)
+                .filter(sensor_class.id == sensor)
+                .one_or_none()
             )
-            .filter(sensor.__class__.id == sensor.id)
-            .one_or_none()
-        )
+            if sensor is None:
+                raise ValueError("No such sensor")
 
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
         (
             knowledge_horizon_min,
             knowledge_horizon_max,
         ) = sensor_utils.eval_verified_knowledge_horizon_fnc(
-            knowledge_horizon_fnc,
-            knowledge_horizon_par,
-            event_resolution=event_resolution,
+            sensor.knowledge_horizon_fnc,
+            sensor.knowledge_horizon_par,
+            event_resolution=sensor.event_resolution,
             get_bounds=True,
         )
 
@@ -387,28 +444,84 @@ class TimedBeliefDBMixin(TimedBelief):
         q = session.query(cls).filter(cls.sensor_id == sensor.id)
 
         # Apply event time filter
-        if event_starts_after is not None:
+        if not pd.isnull(event_starts_after):
             q = q.filter(cls.event_start >= event_starts_after)
-        if event_ends_before is not None:
-            q = q.filter(cls.event_start + event_resolution <= event_ends_before)
+        if not pd.isnull(event_ends_before):
+            q = q.filter(cls.event_start + sensor.event_resolution <= event_ends_before)
 
         # Apply rough belief time filter
-        if beliefs_after is not None:
+        if not pd.isnull(beliefs_after):
             q = q.filter(
                 cls.event_start
                 >= beliefs_after + cls.belief_horizon + knowledge_horizon_min
             )
-        if beliefs_before is not None:
+        if not pd.isnull(beliefs_before):
             q = q.filter(
                 cls.event_start
                 <= beliefs_before + cls.belief_horizon + knowledge_horizon_max
             )
 
+        # Apply belief horizon filter
+        if not pd.isnull(horizons_at_least):
+            q = q.filter(cls.belief_horizon >= horizons_at_least)
+        if not pd.isnull(horizons_at_most):
+            q = q.filter(cls.belief_horizon <= horizons_at_most)
+
         # Apply source filter
-        if source is not None:
+        if source == []:
+            return BeliefsDataFrame(sensor=sensor, beliefs=[])
+        elif source is not None:
             sources: list = [source] if not isinstance(source, list) else source
             source_cls = sources[0].__class__
             q = q.join(source_cls).filter(cls.source_id.in_([s.id for s in sources]))
+
+        # Apply most recent beliefs filter
+        if most_recent_beliefs_only:
+            subq = (
+                session.query(
+                    cls.event_start,
+                    cls.source_id,
+                    func.min(cls.belief_horizon).label("most_recent_belief_horizon"),
+                )
+                .filter(cls.sensor_id == sensor.id)
+                .group_by(cls.event_start, cls.source_id)
+                .subquery()
+            )
+            q = q.join(
+                subq,
+                and_(
+                    cls.event_start == subq.c.event_start,
+                    cls.source_id == subq.c.source_id,
+                    cls.belief_horizon == subq.c.most_recent_belief_horizon,
+                ),
+            )
+
+        # Apply most recent events filter
+        if most_recent_events_only:
+            subq_most_recent_events = (
+                session.query(
+                    cls.source_id,
+                    func.max(cls.event_start).label("most_recent_event_start"),
+                )
+                .filter(cls.sensor_id == sensor.id)
+                .group_by(cls.source_id)
+                .subquery()
+            )
+            q = q.join(
+                subq_most_recent_events,
+                and_(
+                    cls.source_id == subq_most_recent_events.c.source_id,
+                    cls.event_start
+                    == subq_most_recent_events.c.most_recent_event_start,
+                ),
+            )
+
+        # Apply custom filter criteria and join targets
+        if custom_filter_criteria is not None:
+            q = q.filter(*custom_filter_criteria)
+        if custom_join_targets is not None:
+            for target in custom_join_targets:
+                q = q.join(target)
 
         # Build our DataFrame of beliefs
         df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
@@ -417,7 +530,13 @@ class TimedBeliefDBMixin(TimedBelief):
         if beliefs_after is not None:
             df = df[df.index.get_level_values("belief_time") >= beliefs_after]
         if beliefs_before is not None:
-            df = df[df.index.get_level_values("belief_time") < beliefs_before]
+            df = df[df.index.get_level_values("belief_time") <= beliefs_before]
+
+        # Convert timezone of beliefs and events to sensor timezone
+        if place_beliefs_in_sensor_timezone:
+            df = df.convert_timezone_of_belief_timing_index(sensor.timezone)
+        if place_events_in_sensor_timezone:
+            df = df.convert_timezone_of_event_timing_index(sensor.timezone)
 
         return df
 
@@ -486,7 +605,7 @@ class BeliefsSeries(pd.Series):
     @property
     def _constructor(self):
         def f(*args, **kwargs):
-            """ Call __finalize__() after construction to inherit metadata. """
+            """Call __finalize__() after construction to inherit metadata."""
             return BeliefsSeries(*args, **kwargs).__finalize__(self, method="inherit")
 
         return f
@@ -494,7 +613,7 @@ class BeliefsSeries(pd.Series):
     @property
     def _constructor_expanddim(self):
         def f(*args, **kwargs):
-            """ Call __finalize__() after construction to inherit metadata. """
+            """Call __finalize__() after construction to inherit metadata."""
             # adapted from https://github.com/pandas-dev/pandas/issues/19850#issuecomment-367934440
             return BeliefsDataFrame(*args, **kwargs).__finalize__(
                 self, method="inherit"
@@ -550,7 +669,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def _constructor(self):
         def f(*args, **kwargs):
-            """ Call __finalize__() after construction to inherit metadata. """
+            """Call __finalize__() after construction to inherit metadata."""
             return BeliefsDataFrame(*args, **kwargs).__finalize__(
                 self, method="inherit"
             )
@@ -560,7 +679,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def _constructor_sliced(self):
         def f(*args, **kwargs):
-            """ Call __finalize__() after construction to inherit metadata. """
+            """Call __finalize__() after construction to inherit metadata."""
             # adapted from https://github.com/pandas-dev/pandas/issues/19850#issuecomment-367934440
             return BeliefsSeries(*args, **kwargs).__finalize__(self, method="inherit")
 
@@ -663,11 +782,13 @@ class BeliefsDataFrame(pd.DataFrame):
             sensor = list(unique_sensors)[0]
 
             # Check for different sources with the same name
-            unique_sources = set(belief.source for belief in beliefs)
-            unique_source_names = set(source.name for source in unique_sources)
-            if len(unique_source_names) != len(unique_sources):
+            unique_sources = set(str(belief.source) for belief in beliefs)
+            unique_source_string_representations = set(
+                str(source) for source in unique_sources
+            )
+            if len(unique_source_string_representations) != len(unique_sources):
                 raise ValueError(
-                    "Source names must be unique. Cannot initialise BeliefsDataFrame given the following unique sources:\n%s"
+                    "String representations of sources must be unique. Cannot initialise BeliefsDataFrame given the following unique sources:\n%s"
                     % unique_sources
                 )
 
@@ -817,8 +938,45 @@ class BeliefsDataFrame(pd.DataFrame):
             self, "belief_horizon", self.belief_times
         )
 
+    def convert_index_from_event_end_to_start(self) -> "BeliefsDataFrame":
+        return tb_utils.replace_multi_index_level(self, "event_end", self.event_starts)
+
     def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
         return tb_utils.replace_multi_index_level(self, "event_start", self.event_ends)
+
+    def convert_timezone_of_belief_timing_index(
+        self, timezone: Union[str, pytz.timezone]
+    ) -> "BeliefsDataFrame":
+        if "belief_horizon" in self.index.names:
+            return self  # timedeltas don't have timezones
+        elif "belief_time" in self.index.names:
+            return tb_utils.replace_multi_index_level(
+                self,
+                "belief_time",
+                pd.to_datetime(self.belief_times, utc=True).tz_convert(timezone),
+            )
+        else:
+            raise ValueError(
+                "Missing level 'belief_horizon' or 'belief_time' in index."
+            )
+
+    def convert_timezone_of_event_timing_index(
+        self, timezone: Union[str, pytz.timezone]
+    ) -> "BeliefsDataFrame":
+        if "event_end" in self.index.names:
+            return tb_utils.replace_multi_index_level(
+                self,
+                "event_end",
+                pd.to_datetime(self.event_ends, utc=True).tz_convert(timezone),
+            )
+        elif "event_start" in self.index.names:
+            return tb_utils.replace_multi_index_level(
+                self,
+                "event_start",
+                pd.to_datetime(self.event_starts, utc=True).tz_convert(timezone),
+            )
+        else:
+            raise ValueError("Missing level 'event_start' or 'event_end' in index.")
 
     def drop_belief_time_or_horizon_index_level(self) -> "BeliefsDataFrame":
         return self.droplevel(
@@ -866,19 +1024,32 @@ class BeliefsDataFrame(pd.DataFrame):
         if "belief_horizon" in self.index.names:
             return self.index.get_level_values("belief_horizon")
         else:
-            return (self.knowledge_times - self.belief_times).rename("belief_horizon")
+            return (
+                self.knowledge_times.tz_convert("UTC")
+                - self.belief_times.tz_convert("UTC")
+            ).rename("belief_horizon")
 
     @property
     def event_starts(self) -> pd.DatetimeIndex:
-        return pd.DatetimeIndex(self.index.get_level_values("event_start"))
+        if "event_start" in self.index.names:
+            return pd.DatetimeIndex(self.index.get_level_values("event_start"))
+        else:
+            return pd.DatetimeIndex(
+                self.event_ends.to_series(name="event_start").apply(
+                    lambda event_end: event_end - self.event_resolution
+                )
+            )
 
     @property
     def event_ends(self) -> pd.DatetimeIndex:
-        return pd.DatetimeIndex(
-            self.event_starts.to_series(name="event_end").apply(
-                lambda event_start: event_start + self.event_resolution
+        if "event_end" in self.index.names:
+            return pd.DatetimeIndex(self.index.get_level_values("event_end"))
+        else:
+            return pd.DatetimeIndex(
+                self.event_starts.to_series(name="event_end").apply(
+                    lambda event_start: event_start + self.event_resolution
+                )
             )
-        )
 
     @property
     def sources(self) -> pd.Index:
@@ -897,8 +1068,8 @@ class BeliefsDataFrame(pd.DataFrame):
         self, fnc: Callable = None, *args: Any, **kwargs: Any
     ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
         """Convenient function to apply a function to each belief in the BeliefsDataFrame.
-        A belief is a group with unique event start, belief time and source. A deterministic belief is defined by a
-        single row, whereas a probabilistic belief is defined by multiple rows.
+        A belief is a group with unique event start, belief time and source.
+        Each individual belief may be deterministic (defined by a single row), or probabilistic (multiple rows).
         If no function is given, return the GroupBy object.
 
         :Example:
@@ -909,6 +1080,15 @@ class BeliefsDataFrame(pd.DataFrame):
         >>> df.for_each_belief().pipe(some_other_function, True, a=1)
         >>> # If you want to call this method within another groupby function, pass the df group explicitly
         >>> df.for_each_belief(some_function, True, a=1, df=df)
+        """
+        return self._for_each_belief(fnc, False, *args, **kwargs)
+
+    def _for_each_belief(
+        self, fnc: Callable, collective_beliefs: bool, *args: Any, **kwargs: Any
+    ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
+        """
+        If collective_beliefs is True, just group by event start and belief time.
+        Otherwise, group beliefs by source, too.
         """
         df = kwargs.pop("df", self)
         index_names = []
@@ -926,11 +1106,32 @@ class BeliefsDataFrame(pd.DataFrame):
             if "belief_horizon" in df.index.names
             else []
         )
-        index_names.append("source")
+        if collective_beliefs is False:
+            index_names.append("source")
         gr = df.groupby(level=index_names, group_keys=False)
         if fnc is not None:
             return gr.apply(lambda x: fnc(x, *args, **kwargs))
         return gr
+
+    @hybrid_method
+    def for_each_collective_belief(
+        self, fnc: Callable = None, *args: Any, **kwargs: Any
+    ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
+        """Convenient function to apply a function to each collective belief in the BeliefsDataFrame.
+        A collective belief is a group with unique event start and belief time, which may contain multiple sources.
+        Each individual belief may be deterministic (defined by a single row), or probabilistic (multiple rows).
+        If no function is given, return the GroupBy object.
+
+        :Example:
+
+        >>> # Apply some function that accepts a DataFrame, a positional argument and a keyword argument
+        >>> df.for_each_collective_belief(some_function, True, a=1)
+        >>> # Pipe some other function that accepts a GroupBy object, a positional argument and a keyword argument
+        >>> df.for_each_collective_belief().pipe(some_other_function, True, a=1)
+        >>> # If you want to call this method within another groupby function, pass the df group explicitly
+        >>> df.for_each_collective_belief(some_function, True, a=1, df=df)
+        """
+        return self._for_each_belief(fnc, True, *args, **kwargs)
 
     @hybrid_method
     def belief_history(
@@ -1131,11 +1332,16 @@ class BeliefsDataFrame(pd.DataFrame):
         event_resolution: TimedeltaLike,
         distribution: Optional[str] = None,
         keep_only_most_recent_belief: bool = False,
+        keep_nan_values: bool = False,
     ) -> "BeliefsDataFrame":
         """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample).
 
+        Drops NaN values by default.
+
         NB If you need to only keep the most recent belief,
         set keep_only_most_recent_belief=True for a significant speed boost.
+
+        :param keep_nan_values: if True, place back resampled NaN values.
         """
 
         if self.empty:
@@ -1149,10 +1355,17 @@ class BeliefsDataFrame(pd.DataFrame):
             "belief_time" if "belief_time" in df.index.names else "belief_horizon"
         )
 
-        # fast track a common case where each event has only one deterministic belief and only the most recent belief is needed
+        # fast track a common case where each event has only one deterministic belief by the same source, and:
+        # - only the most recent belief is needed, or
+        # - we are upsampling, or
+        # - all beliefs share a common belief time
         if (
             df.lineage.number_of_beliefs == df.lineage.number_of_events
-            and keep_only_most_recent_belief
+            and (
+                keep_only_most_recent_belief
+                or event_resolution < self.event_resolution
+                or df.lineage.number_of_belief_times == 1
+            )
             and df.lineage.number_of_sources == 1
         ):
             if event_resolution > self.event_resolution:
@@ -1163,7 +1376,7 @@ class BeliefsDataFrame(pd.DataFrame):
                     belief_timing_col: "max"
                     if belief_timing_col == "belief_time"
                     else "min",  # keep only most recent belief
-                    "cumulative_probability": "prod",  # assume independent variables
+                    "cumulative_probability": "mean",  # we just have one point on each CDF
                 }
                 df = downsample_beliefs_data_frame(
                     df, event_resolution, column_functions
@@ -1174,13 +1387,57 @@ class BeliefsDataFrame(pd.DataFrame):
                 df = df.reset_index(
                     level=[belief_timing_col, "source", "cumulative_probability"]
                 )
+                resample_ratio = pd.to_timedelta(
+                    to_offset(df.event_resolution)
+                ) / pd.Timedelta(event_resolution)
+                if keep_nan_values:
+                    # back up NaN values
+                    unique_event_value_not_in_df = df["event_value"].abs().sum() + 1
+                    df = df.fillna(unique_event_value_not_in_df)
                 new_index = pd.date_range(
                     start=df.index[0],
-                    periods=len(df) * (self.event_resolution // event_resolution),
+                    end=df.index[-1] + self.event_resolution,
+                    closed="left",
                     freq=event_resolution,
                     name="event_start",
                 )
-                df = df.reindex(new_index).fillna(method="pad")
+                # Reindex to introduce NaN values, then forward fill by the number of steps
+                # needed to have the new resolution cover the old resolution.
+                # For example, when resampling from a resolution of 30 to 20 minutes (NB frequency is 1 hour):
+                # event_start               event_value
+                # 2020-03-29 10:00:00+02:00 1000.0
+                # 2020-03-29 11:00:00+02:00 NaN
+                # 2020-03-29 12:00:00+02:00 2000.0
+                # After reindexing
+                # event_start               event_value
+                # 2020-03-29 10:00:00+02:00 1000.0
+                # 2020-03-29 10:20:00+02:00 NaN
+                # 2020-03-29 10:40:00+02:00 NaN
+                # 2020-03-29 11:00:00+02:00 NaN
+                # 2020-03-29 11:20:00+02:00 NaN
+                # 2020-03-29 11:40:00+02:00 NaN
+                # 2020-03-29 12:00:00+02:00 2000.0
+                # 2020-03-29 12:20:00+02:00 NaN
+                # 2020-03-29 12:40:00+02:00 NaN
+                # After filling a limited number of NaN values (ceil(30/20)-1 == 1)
+                # event_start               event_value
+                # 2020-03-29 10:00:00+02:00 1000.0
+                # 2020-03-29 10:20:00+02:00 1000.0
+                # 2020-03-29 10:40:00+02:00 NaN
+                # 2020-03-29 11:00:00+02:00 NaN
+                # 2020-03-29 11:20:00+02:00 NaN
+                # 2020-03-29 11:40:00+02:00 NaN
+                # 2020-03-29 12:00:00+02:00 2000.0
+                # 2020-03-29 12:20:00+02:00 2000.0
+                # 2020-03-29 12:40:00+02:00 NaN
+                df = df.reindex(new_index).fillna(
+                    method="pad",
+                    limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
+                )
+                df = df.dropna()
+                if keep_nan_values:
+                    # place back original NaN values
+                    df = df.replace(unique_event_value_not_in_df, np.NaN)
                 df.event_resolution = event_resolution
                 df = df.set_index(
                     [belief_timing_col, "source", "cumulative_probability"], append=True
@@ -1228,12 +1485,12 @@ class BeliefsDataFrame(pd.DataFrame):
         """Simply get the accuracy of beliefs about events, at a given time (pass a datetime), at a given horizon
         (pass a timedelta), or as a function of horizon (the default).
 
-        By default the accuracy is determined with respect to the most recent beliefs held by the same source.
+        By default, the accuracy is determined with respect to the most recent beliefs held by the same source.
         Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
 
-        By default the accuracy is determined with respect to the most recent beliefs.
+        By default, the accuracy is determined with respect to the most recent beliefs.
 
-        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        By default, the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
 
         For more options, use df.fixed_viewpoint_accuracy() or df.rolling_viewpoint_accuracy() instead.
@@ -1295,7 +1552,7 @@ class BeliefsDataFrame(pd.DataFrame):
         Alternatively, select the accuracy of beliefs formed within a certain time window. This allows setting a maximum
         acceptable freshness of the data.
 
-        By default the accuracy is determined with respect to the reference values in the `reference_value` column.
+        By default, the accuracy is determined with respect to the reference values in the `reference_value` column.
         This column is created if it does not exist, or if one of the following reference parameters is not None.
         By default, the reference values are the most recent beliefs held by the same source.
         - Optionally, set a reference belief time to determine accuracy with respect to beliefs at a specific time.
@@ -1303,14 +1560,15 @@ class BeliefsDataFrame(pd.DataFrame):
         - Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
         These options allow to define what is considered to be true at a certain time.
 
-        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        By default, the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
 
         :Example:
 
         >>> from datetime import datetime
         >>> from pytz import utc
-        >>> from timely_beliefs.examples import example_df as df
+        >>> from timely_beliefs.examples import get_example_df
+        >>> df = get_example_df()
         >>> # Select the accuracy of beliefs held about each event on June 2nd (midnight)
         >>> df.fixed_viewpoint_accuracy(belief_time=datetime(2013, 6, 2, tzinfo=utc))
         >>> # Or equivalently:
@@ -1377,14 +1635,14 @@ class BeliefsDataFrame(pd.DataFrame):
         knowledge time (with negative horizons indicating post knowledge time).
         This allows setting a maximum acceptable freshness of the data.
 
-        By default the accuracy is determined with respect to the reference values in the `reference_value` column.
+        By default, the accuracy is determined with respect to the reference values in the `reference_value` column.
         This column is created if it does not exist, or if one of the following reference parameters is not None.
         By default, the reference values are the most recent beliefs held by the same source.
         - Optionally, set a reference belief horizon to determine accuracy with respect to beliefs at a specific horizon.
         - Optionally, set a reference source to determine accuracy with respect to beliefs held by a specific source.
-        These options allow to define what is considered to be true at a certain time after an event.
+        These options allow defining what is considered to be true at a certain time after an event.
 
-        By default the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
+        By default, the mean absolute error (MAE), the mean absolute percentage error (MAPE) and
         the weighted absolute percentage error (WAPE) are returned.
 
         :Example:
@@ -1542,14 +1800,15 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_belief_time: datetime = None,
         reference_belief_horizon: timedelta = None,
         reference_source: BeliefSource = None,
-        return_expected_value: bool = False,
+        return_reference_type: str = "full",
+        return_expected_value: Optional[bool] = None,  # deprecated
     ) -> "BeliefsDataFrame":
         """Add a column with reference values.
-        By default the reference will be the expected value of the most recent belief held by the same source.
+        By default, the reference will be the probabilistic value of the most recent belief held by the same source.
+        To set a deterministic reference, use either return_expected_value or return_middle_value.
         Optionally, set a reference belief horizon.
         Optionally, set a reference source present in the BeliefsDataFrame.
-        These options allow to define what is considered to be true at a certain time after an event.
-        Todo: Option to set probabilistic reference values
+        These options allow defining what is considered to be true at a certain time after an event.
 
         :param reference_belief_time: optional datetime to indicate that
                the accuracy should be determined with respect to the latest belief held at this time
@@ -1557,8 +1816,22 @@ class BeliefsDataFrame(pd.DataFrame):
                the accuracy should be determined with respect to the latest belief at this duration past knowledge time
         :param reference_source: optional BeliefSource to indicate that
                the accuracy should be determined with respect to the beliefs held by the given source
-        :param return_expected_value: if True, set a deterministic reference by picking the expected value
+        :param return_reference_type: valid strings are:
+               - "full": a probabilistic reference using the full distribution
+               - "mean": a deterministic reference using the mean value
+               - "median": a deterministic reference using the median value
         """
+
+        # todo: deprecate the 'return_expected_value' argument in favor of 'return_reference_type' (announced v1.9.0)
+        return_expected_value = tb_utils.replace_deprecated_argument(
+            "return_expected_value",
+            return_expected_value,
+            "return_reference_type",
+            return_reference_type,
+            required_argument=False,
+        )
+        if isinstance(return_expected_value, bool):
+            return_reference_type = "mean" if return_expected_value else "full"
 
         df = self
 
@@ -1568,12 +1841,12 @@ class BeliefsDataFrame(pd.DataFrame):
                 reference_belief_time=reference_belief_time,
                 reference_belief_horizon=reference_belief_horizon,
                 reference_source=reference_source,
-                return_expected_value=return_expected_value,
+                return_reference_type=return_reference_type,
             )
         )
 
         # Concat to add a column while keeping original cp index level
-        if return_expected_value is True:
+        if return_reference_type != "full":
             if "belief_time" in df.index.names:
                 df = df.convert_index_from_belief_time_to_horizon()
                 df = pd.concat(
@@ -1592,7 +1865,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
 
 def set_columns_and_indices_for_empty_frame(df, columns, indices, default_types):
-    """ Set appropriate columns and indices for the empty BeliefsDataFrame. """
+    """Set appropriate columns and indices for the empty BeliefsDataFrame."""
     if "belief_horizon" in df and "belief_time" not in df:
         indices = [
             "belief_horizon" if index == "belief_time" else index for index in indices
@@ -1616,7 +1889,7 @@ def set_columns_and_indices_for_empty_frame(df, columns, indices, default_types)
 
 
 def assign_sensor_and_event_resolution(df, sensor, event_resolution):
-    """ Set the Sensor metadata (including timing properties of the sensor). """
+    """Set the Sensor metadata (including timing properties of the sensor)."""
     df.sensor = sensor
     df.event_resolution = (
         event_resolution
