@@ -1491,9 +1491,11 @@ class BeliefsDataFrame(pd.DataFrame):
             None,
             None,
         ),
-        forecaster: BaseForecaster = NaiveForecaster(strategy="last"),
+        forecaster: Optional[BaseForecaster] = None,
         inplace: bool = False,
     ):
+        if forecaster is None:
+            forecaster = NaiveForecaster(strategy="last")
         if event_start is not None:
             if event_time_window != (None, None):
                 raise ValueError(
