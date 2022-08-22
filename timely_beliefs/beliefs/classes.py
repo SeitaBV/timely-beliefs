@@ -1,9 +1,21 @@
 import math
 import types
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
 
-import altair as alt
+if TYPE_CHECKING:
+    import altair as alt
+
 import numpy as np
 import pandas as pd
 import pytz
@@ -1674,7 +1686,7 @@ class BeliefsDataFrame(pd.DataFrame):
         intuitive_forecast_horizon: bool = True,
         interpolate: bool = True,
         event_value_range: Tuple[Optional[float], Optional[float]] = (None, None),
-    ) -> alt.LayerChart:
+    ) -> "alt.LayerChart":
         """Visualize the BeliefsDataFrame in an interactive Altair chart.
 
         :param show_accuracy: Set to False to plot time series data only
@@ -1719,7 +1731,7 @@ class BeliefsDataFrame(pd.DataFrame):
         future_only: bool = False,
         distribution: str = "uniform",
         event_value_window: Tuple[float, float] = None,
-    ) -> alt.FacetChart:
+    ) -> "alt.FacetChart":
         """Create a ridgeline plot of the latest beliefs held at a certain reference time.
 
         :param reference_time: datetime, reference to determine belief horizons
@@ -1751,7 +1763,7 @@ class BeliefsDataFrame(pd.DataFrame):
         past_only: bool = False,
         distribution: str = "uniform",
         event_value_window: Tuple[float, float] = None,
-    ) -> alt.FacetChart:
+    ) -> "alt.FacetChart":
         """Create a ridgeline plot of the belief history about a specific event.
 
         :param event_start: datetime, indicating the start time of the event for which to plot the belief history
