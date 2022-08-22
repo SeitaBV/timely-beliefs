@@ -1549,6 +1549,8 @@ class BeliefsDataFrame(pd.DataFrame):
         )
         df = df.resample(df.event_resolution).mean()
 
+        # todo: if forecaster does not handle missing values, impute intermediate missing values and forecast trailing missing values
+
         # Apply model
         if isinstance(forecaster, BaseForecaster):
             forecast_event_starts = pd.date_range(
