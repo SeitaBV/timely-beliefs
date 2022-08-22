@@ -2,15 +2,10 @@
 
 ## Table of contents
 
-1. [Installation](#installation)
 2. [Derived database classes](#derived-database-classes)
 3. [Table creation and session](#table-creation-and-session)
 4. [Subclassing](#subclassing)
 5. [Queries](#queries)
-
-## Installation
-
-To enable database support, use `pip install timely-beliefs[db]` to install the required dependencies.
 
 ## Derived database classes
 

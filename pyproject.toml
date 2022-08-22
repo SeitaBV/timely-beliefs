@@ -10,6 +10,10 @@ dependencies = [
     "openturns",
     "properscoring",
 
+    # Database support
+    "psycopg2-binary",
+    "SQLAlchemy",
+
     # Conditional
     # numpy's setup requires minimal Python versions
     "numpy==1.19.5; python_version <= '3.6'",
@@ -26,10 +30,6 @@ dependencies = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
-db = [
-    "psycopg2-binary",
-    "SQLAlchemy",
-]
 viz = [
     "altair>=4.0.0",
     "selenium",
