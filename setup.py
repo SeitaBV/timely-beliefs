@@ -52,6 +52,7 @@ setup(
         "properscoring",
         "altair>=4.0.0",
         "selenium",
+        "sktime",
     ],
     setup_requires=["setuptools_scm"],
     use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm

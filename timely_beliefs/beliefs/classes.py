@@ -9,6 +9,8 @@ import pandas as pd
 import pytz
 from pandas.core.groupby import DataFrameGroupBy
 from pandas.tseries.frequencies import to_offset
+from sktime.forecasting.base import BaseForecaster
+from sktime.forecasting.naive import NaiveForecaster
 from sqlalchemy import (
     Column,
     DateTime,
@@ -1474,6 +1476,102 @@ class BeliefsDataFrame(pd.DataFrame):
                 df = df.convert_index_from_belief_time_to_horizon()
 
         return df
+
+    @hybrid_method
+    def form_beliefs(
+        self,
+        belief_time: datetime,
+        source: BeliefSource,
+        event_start: datetime = None,
+        event_time_window: Optional[Tuple[datetime, datetime]] = (
+            None,
+            None,
+        ),
+        forecaster: BaseForecaster = NaiveForecaster(strategy="last"),
+        inplace: bool = False,
+    ):
+        if event_start is not None:
+            if event_time_window != (None, None):
+                raise ValueError(
+                    "Cannot pass both an event start and event start window."
+                )
+            event_time_window = (event_start, event_start + self.event_resolution)
+
+        # Check assumptions
+        if self.sensor.knowledge_time(event_time_window[0]) < belief_time:
+            # No backcasting
+            raise NotImplementedError("Backcasting is not implemented.")
+        if self.empty:
+            # At least 1 belief
+            raise NotImplementedError(
+                "Cannot form new beliefs given an empty data frame."
+            )
+        if self.lineage.number_of_sources != 1:
+            # Single source only
+            raise NotImplementedError(
+                "Cannot form new beliefs given multi-sourced data. Consider picking 1 source, e.g. using: df = df[df.index.get_level_values('source') == df.lineage.sources[0]]"
+            )
+        if self.lineage.probabilistic_depth != 1:
+            # Deterministic beliefs only
+            raise NotImplementedError(
+                "Cannot form new beliefs given probabilistic data. Consider pre-computing deterministic beliefs, e.g. using: df = df.for_each_belief(probabilistic_utils.get_expected_belief)"
+            )
+        if self.lineage.number_of_beliefs != self.lineage.number_of_events:
+            # One belief per event
+            raise NotImplementedError(
+                "Cannot form new beliefs given multiple beliefs about the same event. Consider picking a single belief per event, e.g. using: df = belief_utils.select_most_recent_belief(df)"
+            )
+
+        df = self.copy()
+
+        # Do NOT use future data to predict NOR to fit
+        df = df[df.index.get_level_values("belief_time") < belief_time]
+
+        # Simplify index
+        df = df.reset_index()[["event_start", "event_value"]].set_index("event_start")
+
+        # Convert to local time in UTC, which sktime expects
+        tz = event_time_window[0].tzinfo
+        utc = pytz.utc
+        event_time_window = tuple(
+            dt.astimezone(utc).replace(tzinfo=None) for dt in event_time_window
+        )
+        df.index = df.index.tz_convert(utc).tz_localize(None)
+
+        # Resample to the resolution the data already has, just to set the index frequency, which sktime expects
+        df = df.reindex(
+            pd.date_range(
+                df.index[0],
+                event_time_window[0],
+                freq=df.event_resolution,
+                closed="left",
+            )
+        )
+        df = df.resample(df.event_resolution).mean()
+
+        # Apply model
+        if isinstance(forecaster, BaseForecaster):
+            forecast_event_starts = pd.date_range(
+                event_time_window[0],
+                event_time_window[1],
+                freq=df.event_resolution,
+                closed="left",
+            )
+            forecaster.fit(df["event_value"])
+            y_pred = forecaster.predict(forecast_event_starts)
+        else:
+            raise NotImplementedError("Consider opening a GitHub issue.")
+
+        # Relocalize to requested timezone
+        y_pred.index = y_pred.index.tz_localize("utc").tz_convert(tz)
+
+        # Prepare results as BeliefsDataframe
+        new_df = BeliefsDataFrame(
+            y_pred, source=source, belief_time=belief_time, sensor=df.sensor
+        )
+        if inplace:
+            return pd.concat([self, new_df])
+        return new_df
 
     def accuracy(
         self,
