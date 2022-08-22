@@ -48,7 +48,6 @@ from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.sensors.classes import DBSensor, Sensor, SensorDBMixin
 from timely_beliefs.sources import utils as source_utils
 from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
-from timely_beliefs.visualization import utils as visualization_utils
 
 METADATA = ["sensor", "event_resolution"]
 DatetimeLike = Union[datetime, str, pd.Timestamp]
@@ -1715,6 +1714,8 @@ class BeliefsDataFrame(pd.DataFrame):
             https://altair-viz.github.io
         """
         check_viz_requirements()
+        from timely_beliefs.visualization import utils as visualization_utils
+
         return visualization_utils.plot(
             self,
             show_accuracy=show_accuracy,
@@ -1743,6 +1744,8 @@ class BeliefsDataFrame(pd.DataFrame):
                (e.g. plot temperatures between -1 and 21 degrees Celsius)
         """
         check_viz_requirements()
+        from timely_beliefs.visualization import utils as visualization_utils
+
         if df.lineage.number_of_sources > 1:
             raise ValueError(
                 "Cannot create plot beliefs from multiple sources. BeliefsDataFrame must contain beliefs from a single source."
@@ -1776,6 +1779,8 @@ class BeliefsDataFrame(pd.DataFrame):
                (e.g. plot temperatures between -1 and 21 degrees Celsius)
         """
         check_viz_requirements()
+        from timely_beliefs.visualization import utils as visualization_utils
+
         if df.lineage.number_of_sources > 1:
             raise ValueError(
                 "Cannot create plot beliefs from multiple sources. BeliefsDataFrame must contain beliefs from a single source."
