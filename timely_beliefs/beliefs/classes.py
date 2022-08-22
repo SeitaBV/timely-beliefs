@@ -1520,7 +1520,7 @@ class BeliefsDataFrame(pd.DataFrame):
         if self.lineage.probabilistic_depth != 1:
             # Deterministic beliefs only
             raise NotImplementedError(
-                "Cannot form new beliefs given probabilistic data. Consider pre-computing deterministic beliefs, e.g. using: df = df.for_each_belief(probabilistic_utils.get_expected_belief)"
+                "Cannot form new beliefs given probabilistic data. Consider pre-computing deterministic beliefs, e.g. using: df = df.make_deterministic()"
             )
         if self.lineage.number_of_beliefs != self.lineage.number_of_events:
             # One belief per event
