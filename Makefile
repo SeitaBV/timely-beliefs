@@ -18,6 +18,6 @@ install-tb:
 	pre-commit install
 
 test:
-	python setup.py develop
+	pip install -e .[viz]
 	pip install setuptools_scm pytest
 	pytest
