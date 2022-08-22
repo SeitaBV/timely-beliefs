@@ -42,7 +42,7 @@ from sqlalchemy.sql.expression import Selectable
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
 from timely_beliefs.beliefs import utils as belief_utils
-from timely_beliefs.beliefs.utils import check_viz_requirements, is_pandas_structure, is_tb_structure
+from timely_beliefs.beliefs.utils import is_pandas_structure, is_tb_structure
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.sensors.classes import DBSensor, Sensor, SensorDBMixin
@@ -1713,7 +1713,6 @@ class BeliefsDataFrame(pd.DataFrame):
         Altair: Declarative Visualization in Python.
             https://altair-viz.github.io
         """
-        check_viz_requirements()
         from timely_beliefs.visualization import utils as visualization_utils
 
         return visualization_utils.plot(
@@ -1743,7 +1742,6 @@ class BeliefsDataFrame(pd.DataFrame):
         :param event_value_window: optional tuple specifying an event value window for the x-axis
                (e.g. plot temperatures between -1 and 21 degrees Celsius)
         """
-        check_viz_requirements()
         from timely_beliefs.visualization import utils as visualization_utils
 
         if df.lineage.number_of_sources > 1:
@@ -1778,7 +1776,6 @@ class BeliefsDataFrame(pd.DataFrame):
         :param event_value_window: optional tuple specifying an event value window for the x-axis
                (e.g. plot temperatures between -1 and 21 degrees Celsius)
         """
-        check_viz_requirements()
         from timely_beliefs.visualization import utils as visualization_utils
 
         if df.lineage.number_of_sources > 1:
