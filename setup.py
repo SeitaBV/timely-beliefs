@@ -1,6 +1,5 @@
 from setuptools import find_packages, setup
 
-
 setup(
     name="timely-beliefs",
     description="Data modelled as beliefs (at a certain time) about events (at a certain time).",
