@@ -1525,6 +1525,8 @@ class BeliefsDataFrame(pd.DataFrame):
         df = self.copy()
 
         # Do NOT use future data to predict NOR to fit
+        if "belief_time" not in df.index.names:
+            df = df.convert_index_from_belief_horizon_to_time()
         df = df[df.index.get_level_values("belief_time") < belief_time]
 
         # Simplify index
