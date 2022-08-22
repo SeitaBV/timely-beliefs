@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 
 try:
     import altair as alt
-except ModuleNotFoundError as e:
+except ModuleNotFoundError:
     raise ModuleNotFoundError(
         "Altair is a soft dependency and not included in the base timely-beliefs installation. Please run `pip install altair` to install the altair package. To install all soft dependencies for visualization, run: `pip install timely_beliefs[viz]`."
     )
