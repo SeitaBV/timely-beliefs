@@ -11,15 +11,20 @@ rather than our more precise definition of belief horizon.
 
 ## Table of contents
 
-1. [How to interact with the chart](#how-to-interact-with-the-chart)
+1. [Installation](#installation)
+2. [How to interact with the chart](#how-to-interact-with-the-chart)
     1. [Select a time window](#select-a-time-window)
     1. [Select a belief time](#select-a-belief-time)
     1. [Select a horizon](#select-a-horizon)
     1. [Switch viewpoints](#switch-viewpoints)
-1. [Ridgeline plots](#ridgeline-plots)
+3. [Ridgeline plots](#ridgeline-plots)
     1. [Belief history](#belief-history)
     1. [Fixed viewpoint](#fixed-viewpoint)
-1. [References](#references)
+4. [References](#references)
+
+## Installation
+
+To enable database support, use `pip install timely-beliefs[viz]` to install the required dependencies.
 
 ## How to interact with the chart
 
