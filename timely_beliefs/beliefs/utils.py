@@ -579,3 +579,12 @@ def is_pandas_structure(x):
 
 def is_tb_structure(x):
     return isinstance(x, (classes.BeliefsDataFrame, classes.BeliefsSeries))
+
+
+def check_viz_requirements():
+    try:
+        import altair as alt
+    except ModuleNotFoundError as e:
+        raise ModuleNotFoundError(
+            f"Hint: use `pip install timely_beliefs[viz]`. Original error: {e}"
+        )
