@@ -1,5 +1,42 @@
+[build-system]
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+
+[project]
+name = "timely-beliefs"
+dependencies = [
+    "importlib_metadata",
+    "pytz",
+    "isodate",
+    "openturns",
+    "properscoring",
+
+    # Conditional
+    # numpy's setup requires minimal Python versions
+    "numpy==1.19.5; python_version <= '3.6'",
+    "numpy==1.21.4; python_version <= '3.7'",
+    "numpy; python_version > '3.7'",
+    # https://pandas.pydata.org/pandas-docs/stable/whatsnew/v1.2.0.html#increased-minimum-version-for-python
+    "pandas >= 1.1.5, < 1.2; python_version <= '3.6'",
+    "pandas>=1.1.5; python_version > '3.6'",
+    # scipy's setup requires minimal Python versions
+    "scipy<1.6; python_version <= '3.6'",
+    "scipy<1.8; python_version <= '3.7'",
+    "scipy; python_version > '3.7'",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+db = [
+    "psycopg2-binary",
+    "SQLAlchemy",
+]
+viz = [
+    "altair>=4.0.0",
+    "selenium",
+]
+
 [tool.black]
-line-length = 88  # keep this in sync with the value flake8 and isort
+line-length = 88  # keep this in sync with the value for flake8 and isort
 
 [tool.isort]
 multi_line_output = 3
@@ -10,3 +47,5 @@ line_length = 88
 known_first_party = "timely_beliefs"
 sections = ["FUTURE","STDLIB","THIRDPARTY","FIRSTPARTY","LOCALFOLDER"]
 default_section = "THIRDPARTY"
+
+[tool.setuptools_scm]
