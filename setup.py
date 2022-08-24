@@ -9,7 +9,7 @@ def get_numpy_version():
         return "numpy==1.19.5"
     if sys.version_info[:2] <= (3, 7):
         return "numpy==1.21.4"
-    return "numpy"
+    return "numpy<1.23,>=1.21.0"  # required by sktime==0.13.1
 
 
 def get_scipy_version():
@@ -18,7 +18,7 @@ def get_scipy_version():
         return "scipy<1.6"
     if sys.version_info[:2] == (3, 7):
         return "scipy<1.8"
-    return "scipy<1.9"  # required by sktime
+    return "scipy<1.9"  # required by sktime==0.13.1
 
 
 setup(
