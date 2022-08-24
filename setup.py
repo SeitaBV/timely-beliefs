@@ -18,7 +18,7 @@ def get_scipy_version():
         return "scipy<1.6"
     if sys.version_info[:2] == (3, 7):
         return "scipy<1.8"
-    return "scipy"
+    return "scipy<1.9"  # required by sktime
 
 
 setup(
