@@ -14,7 +14,7 @@ freeze-deps:
 	pip-compile -o dev/requirements.txt	 # use --upgrade or --upgrade-package to actually change versions
 
 install-tb:
-	python setup.py develop
+	pip install -e .
 	pre-commit install
 
 test:
