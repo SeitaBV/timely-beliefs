@@ -21,3 +21,8 @@ test:
 	pip install -e .[viz]
 	pip install setuptools_scm pytest
 	pytest
+
+test-without-viz:
+	pip install -e .
+	pip install setuptools_scm pytest
+	pytest
