@@ -30,9 +30,9 @@ jobs:
         with:
           python-version: ${{ matrix.py_version }}
       - uses: actions/checkout@v2
-      - if: matrix.skip-viz
+      - if: ${{ matrix.skip-viz }}
         run: make test-without-viz
-      - if: ! matrix.skip-viz
+      - if: ${{ ! matrix.skip-viz }}
         run: make test
     env:
       PGHOST: 127.0.0.1
