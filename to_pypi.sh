@@ -10,7 +10,7 @@
 # Usage
 # ------------
 #
-# ./to_pypi --dry-run
+# ./to_pypi [--dry-run]
 #
 # If the --dry-run flag is present, this script will do all steps, but skip the upload to Pypi.
 # 
