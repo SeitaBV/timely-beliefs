@@ -2,10 +2,10 @@
 
 ## Table of contents
 
-2. [Derived database classes](#derived-database-classes)
-3. [Table creation and session](#table-creation-and-session)
-4. [Subclassing](#subclassing)
-5. [Queries](#queries)
+1. [Derived database classes](#derived-database-classes)
+1. [Table creation and session](#table-creation-and-session)
+1. [Subclassing](#subclassing)
+1. [Queries](#queries)
 
 ## Derived database classes
 
