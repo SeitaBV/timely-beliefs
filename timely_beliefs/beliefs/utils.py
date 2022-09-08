@@ -508,6 +508,11 @@ def read_csv(
     in addition to the sensor and source.
     If needed, the time series may be resampled to the event resolution of the sensor, using resample=True.
 
+    Also supports the case of a csv file with just 3 columns and 1 header row.
+    In this case no special header names are required, but the first two columns have to contain the UTC event starts
+    and belief times, respectively, and the third column has to contain the event values.
+    Resampling is not supported in this case.
+
     Consult pandas documentation for which additional kwargs can be passed to pandas.read_csv or pandas.read_excel.
     Useful examples are parse_dates=True, infer_datetime_format=True (for read_csv)
     and sheet_name (sheet number or name, for read_excel).
@@ -527,8 +532,9 @@ def read_csv(
             f"Extension {ext} not recognized. Accepted file extensions are csv, xlsx and xls."
         )
 
-    # Special case for simple time series (UTC datetime in 1st column and value in 2nd column)
+    # Special cases for simple time series
     if len(df.columns) == 2:
+        # UTC datetime in 1st column and value in 2nd column
         df.columns = ["event_start", "event_value"]
         df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
             sensor.timezone
@@ -539,6 +545,19 @@ def read_csv(
                 .resample(sensor.event_resolution)
                 .mean()
                 .reset_index()
+            )
+    elif len(df.columns) == 3:
+        # UTC datetimes in 1st and 2nd column, and value in 3rd column
+        df.columns = ["event_start", "belief_time", "event_value"]
+        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
+            sensor.timezone
+        )
+        df["belief_time"] = pd.to_datetime(df["belief_time"], utc=True).dt.tz_convert(
+            sensor.timezone
+        )
+        if resample:
+            raise NotImplementedError(
+                "Resampling is not supported for this import case."
             )
 
     # Apply optionally set belief timing
