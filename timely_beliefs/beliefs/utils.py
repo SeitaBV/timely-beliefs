@@ -531,6 +531,9 @@ def read_csv(
         raise TypeError(
             f"Extension {ext} not recognized. Accepted file extensions are csv, xlsx and xls."
         )
+    # Preserve order of usecols
+    if "usecols" in kwargs:
+        df = df[kwargs["usecols"]]
 
     # Special cases for simple time series
     if len(df.columns) == 2:
