@@ -29,7 +29,7 @@ dependencies = [
     "scipy<1.8; python_version <= '3.7'",
     "scipy; python_version > '3.7'",
 ]
-dynamic = ["version"]
+dynamic = ["version", "classifiers", "keywords", "authors", "description", "readme"]
 
 [project.optional-dependencies]
 viz = [
