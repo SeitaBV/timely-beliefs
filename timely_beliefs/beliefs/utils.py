@@ -536,32 +536,7 @@ def read_csv(
         df = df[kwargs["usecols"]]
 
     # Special cases for simple time series
-    if len(df.columns) == 2:
-        # UTC datetime in 1st column and value in 2nd column
-        df.columns = ["event_start", "event_value"]
-        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
-            sensor.timezone
-        )
-        if resample:
-            df = (
-                df.set_index("event_start")
-                .resample(sensor.event_resolution)
-                .mean()
-                .reset_index()
-            )
-    elif len(df.columns) == 3:
-        # UTC datetimes in 1st and 2nd column, and value in 3rd column
-        df.columns = ["event_start", "belief_time", "event_value"]
-        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
-            sensor.timezone
-        )
-        df["belief_time"] = pd.to_datetime(df["belief_time"], utc=True).dt.tz_convert(
-            sensor.timezone
-        )
-        if resample:
-            raise NotImplementedError(
-                "Resampling is not supported for this import case."
-            )
+    df = interpret_special_read_cases(df, sensor, resample)
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
@@ -593,6 +568,42 @@ def read_csv(
         df["cumulative_probability"] = cumulative_probability
 
     return classes.BeliefsDataFrame(df, sensor=sensor)
+
+
+def interpret_special_read_cases(
+    df: pd.DataFrame, sensor: "classes.Sensor", resample: bool
+) -> pd.DataFrame:
+    """Interpret the read-in data, either as event starts and event values (2 cols),
+    or as event starts, belief times and event values (3 cols).
+    """
+
+    if len(df.columns) == 2:
+        # UTC datetime in 1st column and value in 2nd column
+        df.columns = ["event_start", "event_value"]
+        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
+            sensor.timezone
+        )
+        if resample:
+            df = (
+                df.set_index("event_start")
+                .resample(sensor.event_resolution)
+                .mean()
+                .reset_index()
+            )
+    elif len(df.columns) == 3:
+        # UTC datetimes in 1st and 2nd column, and value in 3rd column
+        df.columns = ["event_start", "belief_time", "event_value"]
+        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
+            sensor.timezone
+        )
+        df["belief_time"] = pd.to_datetime(df["belief_time"], utc=True).dt.tz_convert(
+            sensor.timezone
+        )
+        if resample:
+            raise NotImplementedError(
+                "Resampling is not supported for this import case."
+            )
+    return df
 
 
 def is_pandas_structure(x):
