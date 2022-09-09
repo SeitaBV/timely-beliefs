@@ -4,7 +4,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "timely-beliefs"
-license = "MIT"
 dependencies = [
     "importlib_metadata",
     "pytz",
