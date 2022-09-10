@@ -156,15 +156,11 @@ def propagate_beliefs(
 
     Requires deterministic data from a single source.
     """
-    if df.lineage.number_of_sources > 1:
-        raise NotImplementedError(
-            "Propagating multi-sourced beliefs is not yet implemented. Please file a GitHub issue."
-        )
     if df.lineage.probabilistic_depth != 1:
         raise NotImplementedError(
             "Propagating probabilistic beliefs is not yet implemented. Please file a GitHub issue."
         )
-    return df.groupby(level="event_start").ffill()
+    return df.groupby(level=["event_start", "source"]).ffill()
 
 
 def align_belief_times(
