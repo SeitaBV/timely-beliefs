@@ -154,7 +154,7 @@ def propagate_beliefs(
 ) -> "classes.BeliefsDataFrame":
     """Propagate beliefs over time.
 
-    Requires deterministic data from a single source.
+    Requires deterministic data.
     """
     if df.lineage.probabilistic_depth != 1:
         raise NotImplementedError(
