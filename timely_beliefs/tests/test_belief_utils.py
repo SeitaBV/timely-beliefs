@@ -1,8 +1,8 @@
 import pandas as pd
 
-from timely_beliefs.examples import get_example_df
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 from timely_beliefs.beliefs.utils import propagate_beliefs
+from timely_beliefs.examples import get_example_df
 
 
 def test_propagate_multi_sourced_deterministic_beliefs():
