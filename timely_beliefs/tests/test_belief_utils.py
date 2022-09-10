@@ -6,6 +6,7 @@ from timely_beliefs.beliefs.utils import propagate_beliefs
 
 
 def test_propagate_multi_sourced_deterministic_beliefs():
+    # Start with a deterministic example frame (4 events, 2 sources and 2 belief times)
     df = get_example_df().for_each_belief(get_median_belief)
 
     # Set the four later beliefs to an unknown value
