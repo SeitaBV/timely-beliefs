@@ -149,6 +149,24 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
     return df
 
 
+def propagate_beliefs(
+    df: "classes.BeliefsDataFrame",
+) -> "classes.BeliefsDataFrame":
+    """Propagate beliefs over time.
+
+    Requires deterministic data from a single source.
+    """
+    if df.lineage.number_of_sources > 1:
+        raise NotImplementedError(
+            "Propagating multi-sourced beliefs is not yet implemented. Please file a GitHub issue."
+        )
+    if df.lineage.probabilistic_depth != 1:
+        raise NotImplementedError(
+            "Propagating probabilistic beliefs is not yet implemented. Please file a GitHub issue."
+        )
+    return df.groupby(level="event_start").ffill()
+
+
 def align_belief_times(
     slice: "classes.BeliefsDataFrame", unique_belief_times
 ) -> "classes.BeliefsDataFrame":
