@@ -507,11 +507,11 @@ def read_csv(
     You also need to pass explicit values for the belief horizon/time and cumulative probability,
     in addition to the sensor and source.
     If needed, the time series may be resampled to the event resolution of the sensor, using resample=True.
+    This is the only case that supports resampling.
 
     Also supports the case of a csv file with just 3 columns and 1 header row.
     In this case no special header names are required, but the first two columns have to contain the UTC event starts
     and belief times, respectively, and the third column has to contain the event values.
-    Resampling is not supported in this case.
 
     Consult pandas documentation for which additional kwargs can be passed to pandas.read_csv or pandas.read_excel.
     Useful examples are parse_dates=True, infer_datetime_format=True (for read_csv)
@@ -531,6 +531,10 @@ def read_csv(
         raise TypeError(
             f"Extension {ext} not recognized. Accepted file extensions are csv, xlsx and xls."
         )
+
+    if resample and len(df.columns) != 2:
+        raise NotImplementedError("Resampling is not supported for this import case.")
+
     # Preserve order of usecols
     if "usecols" in kwargs:
         df = df[kwargs["usecols"]]
@@ -599,10 +603,6 @@ def interpret_special_read_cases(
         df["belief_time"] = pd.to_datetime(df["belief_time"], utc=True).dt.tz_convert(
             sensor.timezone
         )
-        if resample:
-            raise NotImplementedError(
-                "Resampling is not supported for this import case."
-            )
     return df
 
 
