@@ -15,7 +15,7 @@ from timely_beliefs.beliefs.classes import (
     TimedBelief,
     TimedBeliefDBMixin,
 )
-from timely_beliefs.beliefs.utils import load_time_series, read_csv
+from timely_beliefs.beliefs.utils import load_time_series, read_csv, propagate_beliefs
 from timely_beliefs.examples import beliefs_data_frames
 
 
