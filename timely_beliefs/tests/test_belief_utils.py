@@ -20,7 +20,7 @@ def test_propagate_multi_sourced_deterministic_beliefs():
     df = propagate_beliefs(df)
     assert df["event_value"].isnull().sum() == 0
 
-    # After propagating the four later beliefs should be equal to the four earlier beliefs
+    # After propagating, the four later beliefs should be equal to the four earlier beliefs
     pd.testing.assert_frame_equal(
         df[
             df.index.get_level_values("belief_time")
