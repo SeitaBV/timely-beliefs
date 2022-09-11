@@ -532,9 +532,6 @@ def read_csv(
             f"Extension {ext} not recognized. Accepted file extensions are csv, xlsx and xls."
         )
 
-    if resample and len(df.columns) != 2:
-        raise NotImplementedError("Resampling is not supported for this import case.")
-
     # Preserve order of usecols
     if "usecols" in kwargs:
         df = df[kwargs["usecols"]]
@@ -580,6 +577,8 @@ def interpret_special_read_cases(
     """Interpret the read-in data, either as event starts and event values (2 cols),
     or as event starts, belief times and event values (3 cols).
     """
+    if resample and len(df.columns) != 2:
+        raise NotImplementedError("Resampling is not supported for this import case.")
 
     if len(df.columns) == 2:
         # UTC datetime in 1st column and value in 2nd column
