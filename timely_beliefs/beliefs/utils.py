@@ -149,13 +149,46 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
     return df
 
 
+def propagate_beliefs(
+    df: "classes.BeliefsDataFrame",
+) -> "classes.BeliefsDataFrame":
+    """Propagate beliefs over time by filling NaN values.
+
+    We do this by assuming beliefs propagate over time (ceteris paribus, you still believe what you believed before).
+    That is, the most recent belief about an event is valid until a new belief is formed.
+    If no previous belief has been formed for a certain event, the original NaN valued row will be kept.
+    Requires deterministic data.
+
+    For example:
+
+                                                                                          temp_air  wind_speed  cloud_cover
+    event_start               belief_time               source    cumulative_probability
+    2022-07-01 02:00:00+02:00 2022-06-30 15:10:30+02:00 simulator 0.5                          NaN         NaN         0.94
+                              2022-07-01 01:10:41+02:00 simulator 0.5                        13.61         NaN          NaN
+                              2022-07-01 02:10:32+02:00 simulator 0.5                          NaN        2.88          NaN
+
+    Becomes:
+
+                                                                                          temp_air  wind_speed  cloud_cover
+    event_start               belief_time               source    cumulative_probability
+    2022-07-01 02:00:00+02:00 2022-06-30 15:10:30+02:00 simulator 0.5                          NaN         NaN         0.94
+                              2022-07-01 01:10:41+02:00 simulator 0.5                        13.61         NaN         0.94
+                              2022-07-01 02:10:32+02:00 simulator 0.5                        13.61        2.88         0.94
+    """
+    if df.lineage.probabilistic_depth != 1:
+        raise NotImplementedError(
+            "Propagating probabilistic beliefs is not yet implemented. Please file a GitHub issue."
+        )
+    return df.groupby(level=["event_start", "source"]).ffill()
+
+
 def align_belief_times(
     slice: "classes.BeliefsDataFrame", unique_belief_times
 ) -> "classes.BeliefsDataFrame":
-    """Align belief times such that each event has the same set of unique belief times. We do this by assuming beliefs
-    propagate over time (ceteris paribus, you still believe what you believed before).
-    The most recent belief about an event is valid until a new belief is formed.
-    If no previous belief has been formed, a row is still explicitly included with a nan value.
+    """Align belief times such that each event has the same set of unique belief times.
+    We do this by assuming beliefs propagate over time (ceteris paribus, you still believe what you believed before).
+    That is, the most recent belief about an event is valid until a new belief is formed.
+    If no previous belief has been formed, a row is still explicitly included with a NaN value.
     The input BeliefsDataFrame should represent beliefs about a single event formed by a single source.
     """
 

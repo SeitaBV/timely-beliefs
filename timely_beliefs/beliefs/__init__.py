@@ -43,8 +43,6 @@ class BeliefsAccessor(object):
             raise AttributeError("Must have index level 'source'.")
         if "cumulative_probability" not in obj.index.names:
             raise AttributeError("Must have index level 'cumulative_probability'.")
-        if "event_value" not in obj.columns:
-            raise AttributeError("Must have column 'event_value'.")
 
     @property
     def events(self) -> List[int]:
