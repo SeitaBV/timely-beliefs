@@ -88,5 +88,5 @@ default_section = "THIRDPARTY"
 [tool.setuptools_scm]
 local_scheme = "no-local-version"
 
-[tool.setuptools.packages.find]
+[tool.setuptools.packages.find]  # explicitly state which packages we do want in the package (i.e. not dev)"
 include = ["timely_beliefs*"]
