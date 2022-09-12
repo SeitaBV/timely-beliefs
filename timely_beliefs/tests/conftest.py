@@ -13,7 +13,10 @@ from timely_beliefs.tests import engine, session
 
 if sys.version_info[0] == 3 and sys.version_info[1] == 6:
     # Ignore these tests for python==3.6
-    collect_ignore = ["test_ignore_36.py"]
+    collect_ignore = ["test_ignore_36.py", "test_plotting.py", "test_ridgeline.py"]
+if sys.version_info[0] == 3 and sys.version_info[1] == 7:
+    # Ignore these tests for python==3.7
+    collect_ignore = ["test_plotting.py", "test_ridgeline.py"]
 
 
 @pytest.fixture(scope="function")

@@ -21,13 +21,19 @@ jobs:
       fail-fast: false
       matrix:
         py_version: [ '3.7', '3.8', '3.9' ]
+        include:
+          - py_version: '3.7'
+            skip-viz: true
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.py_version }}
       - uses: actions/checkout@v2
-      - run: make test
+      - if: ${{ matrix.skip-viz }}
+        run: make test-without-viz
+      - if: ${{ ! matrix.skip-viz }}
+        run: make test
     env:
       PGHOST: 127.0.0.1
       PGPORT: 5432
