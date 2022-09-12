@@ -149,13 +149,46 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
     return df
 
 
+def propagate_beliefs(
+    df: "classes.BeliefsDataFrame",
+) -> "classes.BeliefsDataFrame":
+    """Propagate beliefs over time by filling NaN values.
+
+    We do this by assuming beliefs propagate over time (ceteris paribus, you still believe what you believed before).
+    That is, the most recent belief about an event is valid until a new belief is formed.
+    If no previous belief has been formed for a certain event, the original NaN valued row will be kept.
+    Requires deterministic data.
+
+    For example:
+
+                                                                                          temp_air  wind_speed  cloud_cover
+    event_start               belief_time               source    cumulative_probability
+    2022-07-01 02:00:00+02:00 2022-06-30 15:10:30+02:00 simulator 0.5                          NaN         NaN         0.94
+                              2022-07-01 01:10:41+02:00 simulator 0.5                        13.61         NaN          NaN
+                              2022-07-01 02:10:32+02:00 simulator 0.5                          NaN        2.88          NaN
+
+    Becomes:
+
+                                                                                          temp_air  wind_speed  cloud_cover
+    event_start               belief_time               source    cumulative_probability
+    2022-07-01 02:00:00+02:00 2022-06-30 15:10:30+02:00 simulator 0.5                          NaN         NaN         0.94
+                              2022-07-01 01:10:41+02:00 simulator 0.5                        13.61         NaN         0.94
+                              2022-07-01 02:10:32+02:00 simulator 0.5                        13.61        2.88         0.94
+    """
+    if df.lineage.probabilistic_depth != 1:
+        raise NotImplementedError(
+            "Propagating probabilistic beliefs is not yet implemented. Please file a GitHub issue."
+        )
+    return df.groupby(level=["event_start", "source"]).ffill()
+
+
 def align_belief_times(
     slice: "classes.BeliefsDataFrame", unique_belief_times
 ) -> "classes.BeliefsDataFrame":
-    """Align belief times such that each event has the same set of unique belief times. We do this by assuming beliefs
-    propagate over time (ceteris paribus, you still believe what you believed before).
-    The most recent belief about an event is valid until a new belief is formed.
-    If no previous belief has been formed, a row is still explicitly included with a nan value.
+    """Align belief times such that each event has the same set of unique belief times.
+    We do this by assuming beliefs propagate over time (ceteris paribus, you still believe what you believed before).
+    That is, the most recent belief about an event is valid until a new belief is formed.
+    If no previous belief has been formed, a row is still explicitly included with a NaN value.
     The input BeliefsDataFrame should represent beliefs about a single event formed by a single source.
     """
 
@@ -507,6 +540,11 @@ def read_csv(
     You also need to pass explicit values for the belief horizon/time and cumulative probability,
     in addition to the sensor and source.
     If needed, the time series may be resampled to the event resolution of the sensor, using resample=True.
+    This is the only case that supports resampling.
+
+    Also supports the case of a csv file with just 3 columns and 1 header row.
+    In this case no special header names are required, but the first two columns have to contain the UTC event starts
+    and belief times, respectively, and the third column has to contain the event values.
 
     Consult pandas documentation for which additional kwargs can be passed to pandas.read_csv or pandas.read_excel.
     Useful examples are parse_dates=True, infer_datetime_format=True (for read_csv)
@@ -527,19 +565,12 @@ def read_csv(
             f"Extension {ext} not recognized. Accepted file extensions are csv, xlsx and xls."
         )
 
-    # Special case for simple time series (UTC datetime in 1st column and value in 2nd column)
-    if len(df.columns) == 2:
-        df.columns = ["event_start", "event_value"]
-        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
-            sensor.timezone
-        )
-        if resample:
-            df = (
-                df.set_index("event_start")
-                .resample(sensor.event_resolution)
-                .mean()
-                .reset_index()
-            )
+    # Preserve order of usecols
+    if "usecols" in kwargs:
+        df = df[kwargs["usecols"]]
+
+    # Special cases for simple time series
+    df = interpret_special_read_cases(df, sensor, resample)
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
@@ -571,6 +602,40 @@ def read_csv(
         df["cumulative_probability"] = cumulative_probability
 
     return classes.BeliefsDataFrame(df, sensor=sensor)
+
+
+def interpret_special_read_cases(
+    df: pd.DataFrame, sensor: "classes.Sensor", resample: bool
+) -> pd.DataFrame:
+    """Interpret the read-in data, either as event starts and event values (2 cols),
+    or as event starts, belief times and event values (3 cols).
+    """
+    if resample and len(df.columns) != 2:
+        raise NotImplementedError("Resampling is not supported for this import case.")
+
+    if len(df.columns) == 2:
+        # UTC datetime in 1st column and value in 2nd column
+        df.columns = ["event_start", "event_value"]
+        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
+            sensor.timezone
+        )
+        if resample:
+            df = (
+                df.set_index("event_start")
+                .resample(sensor.event_resolution)
+                .mean()
+                .reset_index()
+            )
+    elif len(df.columns) == 3:
+        # UTC datetimes in 1st and 2nd column, and value in 3rd column
+        df.columns = ["event_start", "belief_time", "event_value"]
+        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
+            sensor.timezone
+        )
+        df["belief_time"] = pd.to_datetime(df["belief_time"], utc=True).dt.tz_convert(
+            sensor.timezone
+        )
+    return df
 
 
 def is_pandas_structure(x):

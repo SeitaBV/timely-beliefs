@@ -43,8 +43,6 @@ class BeliefsAccessor(object):
             raise AttributeError("Must have index level 'source'.")
         if "cumulative_probability" not in obj.index.names:
             raise AttributeError("Must have index level 'cumulative_probability'.")
-        if "event_value" not in obj.columns:
-            raise AttributeError("Must have column 'event_value'.")
 
     @property
     def events(self) -> List[int]:
@@ -156,5 +154,9 @@ class BeliefsAccessor(object):
           skew normal = 3
              quartile = 3
           percentile = 99
+
+        Empty frames default to 1.
         """
+        if len(self._obj) == 0:
+            return 1
         return len(self._obj) / float(self.number_of_beliefs)
