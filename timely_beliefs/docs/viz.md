@@ -11,6 +11,7 @@ rather than our more precise definition of belief horizon.
 
 ## Table of contents
 
+1. [Installation](#installation)
 1. [How to interact with the chart](#how-to-interact-with-the-chart)
     1. [Select a time window](#select-a-time-window)
     1. [Select a belief time](#select-a-belief-time)
@@ -20,6 +21,10 @@ rather than our more precise definition of belief horizon.
     1. [Belief history](#belief-history)
     1. [Fixed viewpoint](#fixed-viewpoint)
 1. [References](#references)
+
+## Installation
+
+To enable database support, use `pip install timely-beliefs[viz]` to install the required dependencies.
 
 ## How to interact with the chart
 

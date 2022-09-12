@@ -38,7 +38,7 @@ python setup.py egg_info bdist_wheel
 
 if [ "$1" == "--dry-run" ]; then
     echo "[TO_PYPI] Not uploading to Pypi (--dry-run active) ..."
-    exit
+else
+    echo "[TO_PYPI] Uploading to Pypi ..."
+    twine upload dist/*
 fi
-echo "[TO_PYPI] Uploading to Pypi ..."
-twine upload dist/*

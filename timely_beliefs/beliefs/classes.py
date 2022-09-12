@@ -1,9 +1,21 @@
 import math
 import types
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
 
-import altair as alt
+if TYPE_CHECKING:
+    import altair as alt
+
 import numpy as np
 import pandas as pd
 import pytz
@@ -38,7 +50,6 @@ from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.sensors.classes import DBSensor, Sensor, SensorDBMixin
 from timely_beliefs.sources import utils as source_utils
 from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
-from timely_beliefs.visualization import utils as visualization_utils
 
 METADATA = ["sensor", "event_resolution"]
 DatetimeLike = Union[datetime, str, pd.Timestamp]
@@ -1801,7 +1812,7 @@ class BeliefsDataFrame(pd.DataFrame):
         intuitive_forecast_horizon: bool = True,
         interpolate: bool = True,
         event_value_range: Tuple[Optional[float], Optional[float]] = (None, None),
-    ) -> alt.LayerChart:
+    ) -> "alt.LayerChart":
         """Visualize the BeliefsDataFrame in an interactive Altair chart.
 
         :param show_accuracy: Set to False to plot time series data only
@@ -1829,6 +1840,8 @@ class BeliefsDataFrame(pd.DataFrame):
         Altair: Declarative Visualization in Python.
             https://altair-viz.github.io
         """
+        from timely_beliefs.visualization import utils as visualization_utils
+
         return visualization_utils.plot(
             self,
             show_accuracy=show_accuracy,
@@ -1846,7 +1859,7 @@ class BeliefsDataFrame(pd.DataFrame):
         future_only: bool = False,
         distribution: str = "uniform",
         event_value_window: Tuple[float, float] = None,
-    ) -> alt.FacetChart:
+    ) -> "alt.FacetChart":
         """Create a ridgeline plot of the latest beliefs held at a certain reference time.
 
         :param reference_time: datetime, reference to determine belief horizons
@@ -1856,6 +1869,8 @@ class BeliefsDataFrame(pd.DataFrame):
         :param event_value_window: optional tuple specifying an event value window for the x-axis
                (e.g. plot temperatures between -1 and 21 degrees Celsius)
         """
+        from timely_beliefs.visualization import utils as visualization_utils
+
         if df.lineage.number_of_sources > 1:
             raise ValueError(
                 "Cannot create plot beliefs from multiple sources. BeliefsDataFrame must contain beliefs from a single source."
@@ -1878,7 +1893,7 @@ class BeliefsDataFrame(pd.DataFrame):
         past_only: bool = False,
         distribution: str = "uniform",
         event_value_window: Tuple[float, float] = None,
-    ) -> alt.FacetChart:
+    ) -> "alt.FacetChart":
         """Create a ridgeline plot of the belief history about a specific event.
 
         :param event_start: datetime, indicating the start time of the event for which to plot the belief history
@@ -1888,6 +1903,8 @@ class BeliefsDataFrame(pd.DataFrame):
         :param event_value_window: optional tuple specifying an event value window for the x-axis
                (e.g. plot temperatures between -1 and 21 degrees Celsius)
         """
+        from timely_beliefs.visualization import utils as visualization_utils
+
         if df.lineage.number_of_sources > 1:
             raise ValueError(
                 "Cannot create plot beliefs from multiple sources. BeliefsDataFrame must contain beliefs from a single source."

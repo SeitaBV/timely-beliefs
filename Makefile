@@ -14,10 +14,15 @@ freeze-deps:
 	pip-compile -o dev/requirements.txt	 # use --upgrade or --upgrade-package to actually change versions
 
 install-tb:
-	python setup.py develop
+	pip install -e .
 	pre-commit install
 
 test:
-	python setup.py develop
+	pip install -e .[viz]
+	pip install setuptools_scm pytest
+	pytest
+
+test-without-viz:
+	pip install -e .
 	pip install setuptools_scm pytest
 	pytest
