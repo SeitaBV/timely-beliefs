@@ -18,7 +18,7 @@ jsonschema==3.2.0
     # via altair
 markupsafe==1.1.1
     # via jinja2
-numpy==1.19.2
+numpy==1.22.0
     # via
     #   altair
     #   pandas
