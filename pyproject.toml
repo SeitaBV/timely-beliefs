@@ -4,6 +4,35 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "timely-beliefs"
+description = "Data modelled as beliefs (at a certain time) about events (at a certain time)."
+readme = "Model to represent data as beliefs about events, stored in the form of a multi-index pandas DataFrame enriched with attributes to get out convenient representations of the data."
+requires-python = ">=3.8"  # not enforced, just info. 3.6 and 3.7 are possible to install, but we don't support
+authors = [
+  {name = "Seita BV", email = "felix@seita.nl"}
+]
+keywords = [
+    "time series",
+    "forecasting",
+    "analytics",
+    "visualization",
+    "uncertainty",
+    "lineage",
+]
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+urls = [
+    "https://github.com/seitabv/timely-beliefs",
+]
 dependencies = [
     "importlib_metadata",
     "pytz",
@@ -29,7 +58,7 @@ dependencies = [
     "scipy<1.8; python_version <= '3.7'",
     "scipy; python_version > '3.7'",
 ]
-dynamic = ["version", "classifiers", "keywords", "authors", "description", "readme"]
+dynamic = ["version"]
 
 [project.optional-dependencies]
 viz = [
