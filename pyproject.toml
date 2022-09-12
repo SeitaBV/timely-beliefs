@@ -5,7 +5,6 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "timely-beliefs"
 description = "Data modelled as beliefs (at a certain time) about events (at a certain time)."
-readme = "Model to represent data as beliefs about events, stored in the form of a multi-index pandas DataFrame enriched with attributes to get out convenient representations of the data."
 requires-python = ">=3.8"  # not enforced, just info. 3.6 and 3.7 are possible to install, but we don't support
 authors = [
   {name = "Seita BV", email = "felix@seita.nl"}
@@ -29,9 +28,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Information Analysis",
-]
-urls = [
-    "https://github.com/seitabv/timely-beliefs",
 ]
 dependencies = [
     "importlib_metadata",
@@ -64,6 +60,15 @@ dynamic = ["version"]
 viz = [
     "altair>=4.0.0",
 ]
+
+[project.readme]
+text = "Model to represent data as beliefs about events, stored in the form of a multi-index pandas DataFrame enriched with attributes to get out convenient representations of the data."
+content-type = "text/plain"
+
+[project.urls]
+homepage = "https://github.com/seitabv/timely-beliefs"
+documentation = "https://github.com/SeitaBV/timely-beliefs#readme"
+
 
 [tool.black]
 line-length = 88  # keep this in sync with the value for flake8 and isort
