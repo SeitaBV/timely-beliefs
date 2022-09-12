@@ -9,7 +9,7 @@ def get_numpy_version():
         return "numpy==1.19.5"
     if sys.version_info[:2] <= (3, 7):
         return "numpy==1.21.4"
-    return "numpy<1.23,>=1.21.0"  # required by sktime==0.13.1
+    return "numpy<1.23"
 
 
 def get_scipy_version():
@@ -18,7 +18,7 @@ def get_scipy_version():
         return "scipy<1.6"
     if sys.version_info[:2] == (3, 7):
         return "scipy<1.8"
-    return "scipy<1.9"  # required by sktime==0.13.1
+    return "scipy"
 
 
 setup(
@@ -52,7 +52,6 @@ setup(
         "properscoring",
         "altair>=4.0.0",
         "selenium",
-        "sktime",
     ],
     setup_requires=["setuptools_scm"],
     use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
