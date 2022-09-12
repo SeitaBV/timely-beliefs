@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "timely-beliefs"
 description = "Data modelled as beliefs (at a certain time) about events (at a certain time)."
-requires-python = ">=3.8"  # not enforced, just info. 3.6 and 3.7 are possible to install, but we don't support
+requires-python = ">=3.7"  # Please note that we don't actively support 3.7, but only >= 3.8
 authors = [
   {name = "Seita BV", email = "felix@seita.nl"}
 ]
