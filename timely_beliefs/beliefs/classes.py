@@ -1539,7 +1539,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 "Cannot form new beliefs given multiple beliefs about the same event. Consider picking a single belief per event, e.g. using: df = belief_utils.select_most_recent_belief(df)"
             )
 
-        df = self.copy()
+        df = self
 
         # Do NOT use future data to predict NOR to fit
         if "belief_time" not in df.index.names:

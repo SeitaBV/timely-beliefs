@@ -25,12 +25,17 @@ def test_form_single_belief(forecaster, forecast):
     df_in = df_in.make_deterministic()
     df_in = df_in.rolling_viewpoint()
     print(df_in)
+    df_in_copy = df_in.copy()
     df_out = df_in.form_beliefs(
         belief_time=datetime(2000, 1, 1, 2, tzinfo=pytz.utc),
         source=BeliefSource("Source C"),
         event_start=datetime(2000, 1, 3, 13, tzinfo=pytz.utc),
         forecaster=forecaster,
     )
+
+    # Operation should not affect original DataFrame
+    pd.testing.assert_frame_equal(df_in, df_in_copy)
+
     assert df_out.values[0] == forecast
     df = pd.concat([df, df_out])
     print(df)
