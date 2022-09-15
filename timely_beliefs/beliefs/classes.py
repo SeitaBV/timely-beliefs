@@ -1505,6 +1505,17 @@ class BeliefsDataFrame(pd.DataFrame):
         forecaster: Optional[BaseForecaster] = None,
         inplace: bool = False,
     ):
+        """Form new beliefs by applying a given forecaster.
+
+        :param belief_time:       Time at which the forecasts where made
+                                  (any belief after this time will be inaccessible to the forecaster).
+        :param source:            Source to assign the newly formed beliefs to.
+        :param event_start:       Set this to forecast a single event with the given start time.
+        :param event_time_window: Set this to forecast all events within the given time window.
+        :param forecaster:        Forecasting model. Currently, only sktime models are supported.
+        :param inplace:           If True, the new beliefs are added to the BeliefsDataFrame in place.
+                                  If False, the new beliefs are returned (use pd.concat to add them yourself).
+        """
         if forecaster is None:
             forecaster = NaiveForecaster(strategy="last")
         if event_start is not None:
