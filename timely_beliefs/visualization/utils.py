@@ -163,7 +163,7 @@ def plot(
 
 def timedelta_to_human_range(s: pd.Series) -> Tuple[pd.Series, str]:
     """Convert a pandas Series of timedeltas to a pandas Series of floats,
-    and derive a time unit (a string such as "years" or "minutes") that gives a nice human readable range of floats.
+    and derive a time unit (a string such as "years" or "minutes") that gives a nice human-readable range of floats.
     For example:
 
     >>> import timely_beliefs as tb
@@ -182,7 +182,7 @@ def timedelta_to_human_range(s: pd.Series) -> Tuple[pd.Series, str]:
         217   3 days 01:00:00
         Length: 74, dtype: timedelta64[ns]
     >>> from timely_beliefs.visualization.utils import timedelta_to_human_range
-    >>> timedelta_to_human_range(horizons)  # This is human readable range, though
+    >>> timedelta_to_human_range(horizons)  # This is a human-readable range, though
     <<< (0       0.0
         1       1.0
         4       2.0
@@ -196,6 +196,8 @@ def timedelta_to_human_range(s: pd.Series) -> Tuple[pd.Series, str]:
         217    73.0
         Length: 74, dtype: float64, 'hours')
     """
+    if s.empty:
+        return s, "hours"
     timedelta_span = max(s) - min(s)
     if timedelta_span >= timedelta(days=4 * 365.2425):
         s = s.apply(
