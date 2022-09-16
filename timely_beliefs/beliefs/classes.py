@@ -1558,7 +1558,9 @@ class BeliefsDataFrame(pd.DataFrame):
         df = self
 
         # Do NOT use future data to predict NOR to fit
-        if "belief_time" not in df.index.names:
+        belief_horizon_in_index = False
+        if "belief_horizon" in df.index.names:
+            belief_horizon_in_index = True
             df = df.convert_index_from_belief_horizon_to_time()
         df = df[df.index.get_level_values("belief_time") < belief_time]
 
@@ -1606,6 +1608,8 @@ class BeliefsDataFrame(pd.DataFrame):
         new_df = BeliefsDataFrame(
             y_pred, source=source, belief_time=belief_time, sensor=df.sensor
         )
+        if belief_horizon_in_index:
+            new_df = new_df.convert_index_from_belief_time_to_horizon()
         if concatenate:
             return pd.concat([self, new_df])
         return new_df
