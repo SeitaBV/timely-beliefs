@@ -1503,7 +1503,7 @@ class BeliefsDataFrame(pd.DataFrame):
             None,
         ),
         forecaster: Optional[BaseForecaster] = None,
-        inplace: bool = False,
+        concatenate: bool = False,
     ):
         """Form new beliefs by applying a given forecaster.
 
@@ -1518,7 +1518,7 @@ class BeliefsDataFrame(pd.DataFrame):
                                   For example:
                                       >>> periodicity = pd.Timedelta("PT1W")
                                       >>> forecaster = NaiveForecaster(sp=periodicity // df.event_resolution)
-        :param inplace:           If True, the new beliefs are added to the BeliefsDataFrame in place.
+        :param concatenate:       If True, the new beliefs are concatenated with the original BeliefsDataFrame.
                                   If False, the new beliefs are returned (use pd.concat to add them yourself).
         """
         if forecaster is None:
@@ -1606,7 +1606,7 @@ class BeliefsDataFrame(pd.DataFrame):
         new_df = BeliefsDataFrame(
             y_pred, source=source, belief_time=belief_time, sensor=df.sensor
         )
-        if inplace:
+        if concatenate:
             return pd.concat([self, new_df])
         return new_df
 
