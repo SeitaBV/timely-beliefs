@@ -1576,6 +1576,8 @@ class BeliefsDataFrame(pd.DataFrame):
         df.index = df.index.tz_convert(utc).tz_localize(None)
 
         # Resample to the resolution the data already has, just to set the index frequency, which sktime expects
+        # The new index ends just before the start of the first forecast (which may introduce trailing NaN values),
+        # as sktime expects no gap between the indices of the input and forecasts when applying seasonal periodicity.
         df = df.reindex(
             pd.date_range(
                 df.index[0],
