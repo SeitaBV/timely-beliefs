@@ -6,6 +6,7 @@ import pytz
 from sktime.forecasting.naive import NaiveForecaster
 
 from timely_beliefs import BeliefSource
+from timely_beliefs.beliefs import utils as belief_utils
 from timely_beliefs.examples import get_example_df
 
 
@@ -23,7 +24,7 @@ def test_form_single_belief(forecaster, forecast):
     print(df)
     df_in = df[df.index.get_level_values("source") == df.lineage.sources[0]]
     df_in = df_in.make_deterministic()
-    df_in = df_in.rolling_viewpoint()
+    df_in = belief_utils.select_most_recent_belief(df_in)
     df_in_copy = df_in.copy()
     source = BeliefSource("Source C")
     df_out = df_in.form_beliefs(
