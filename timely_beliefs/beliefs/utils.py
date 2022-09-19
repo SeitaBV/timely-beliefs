@@ -4,6 +4,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
+from packaging import version
 from pandas.core.groupby import DataFrameGroupBy
 
 from timely_beliefs import BeliefSource, Sensor
@@ -636,6 +637,23 @@ def interpret_special_read_cases(
             sensor.timezone
         )
     return df
+
+
+def initialize_index(
+    start: datetime, end: datetime, resolution: timedelta, inclusive: str = "left"
+) -> pd.DatetimeIndex:
+    if version.parse(pd.__version__) >= version.parse("1.4.0"):
+        return pd.date_range(
+            start=start,
+            end=end,
+            freq=resolution,
+            inclusive=inclusive,
+            name="event_start",
+        )
+    else:
+        return pd.date_range(
+            start=start, end=end, freq=resolution, closed=inclusive, name="event_start"
+        )
 
 
 def is_pandas_structure(x):

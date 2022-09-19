@@ -1411,12 +1411,10 @@ class BeliefsDataFrame(pd.DataFrame):
                     # back up NaN values
                     unique_event_value_not_in_df = df["event_value"].abs().sum() + 1
                     df = df.fillna(unique_event_value_not_in_df)
-                new_index = pd.date_range(
+                new_index = belief_utils.initialize_index(
                     start=df.index[0],
                     end=df.index[-1] + self.event_resolution,
-                    closed="left",
-                    freq=event_resolution,
-                    name="event_start",
+                    resolution=event_resolution,
                 )
                 # Reindex to introduce NaN values, then forward fill by the number of steps
                 # needed to have the new resolution cover the old resolution.
@@ -1579,11 +1577,10 @@ class BeliefsDataFrame(pd.DataFrame):
         # The new index ends just before the start of the first forecast (which may introduce trailing NaN values),
         # as sktime expects no gap between the indices of the input and forecasts when applying seasonal periodicity.
         df = df.reindex(
-            pd.date_range(
+            belief_utils.initialize_index(
                 df.index[0],
                 event_time_window[0],
-                freq=df.event_resolution,
-                closed="left",
+                resolution=df.event_resolution,
             )
         )
         df = df.resample(df.event_resolution).mean()
@@ -1592,11 +1589,10 @@ class BeliefsDataFrame(pd.DataFrame):
 
         # Apply model
         if isinstance(forecaster, BaseForecaster):
-            forecast_event_starts = pd.date_range(
+            forecast_event_starts = belief_utils.initialize_index(
                 event_time_window[0],
                 event_time_window[1],
-                freq=df.event_resolution,
-                closed="left",
+                resolution=df.event_resolution,
             )
             forecaster.fit(df["event_value"])
             y_pred = forecaster.predict(forecast_event_starts)
