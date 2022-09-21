@@ -1,10 +1,10 @@
 import warnings
 from datetime import datetime, timedelta
-from packaging import version
 from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
+from packaging import version
 from pandas.core.groupby import DataFrameGroupBy
 
 from timely_beliefs import BeliefSource, Sensor
