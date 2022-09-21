@@ -1532,12 +1532,7 @@ class BeliefsDataFrame(pd.DataFrame):
         if self.sensor.knowledge_time(event_time_window[0]) < belief_time:
             # No backcasting
             raise NotImplementedError("Backcasting is not implemented.")
-        if self.empty:
-            # At least 1 belief
-            raise NotImplementedError(
-                "Cannot form new beliefs given an empty data frame."
-            )
-        if self.lineage.number_of_sources != 1:
+        if self.lineage.number_of_sources > 1:
             # Single source only
             raise NotImplementedError(
                 "Cannot form new beliefs given multi-sourced data. Consider picking 1 source, e.g. using: df = df[df.index.get_level_values('source') == df.lineage.sources[0]]"
@@ -1560,47 +1555,62 @@ class BeliefsDataFrame(pd.DataFrame):
         if "belief_horizon" in df.index.names:
             belief_horizon_in_index = True
             df = df.convert_index_from_belief_horizon_to_time()
-        df = df[df.index.get_level_values("belief_time") < belief_time]
+        df = df[df.index.get_level_values("belief_time") <= belief_time]
 
-        # Simplify index
-        df = df.reset_index()[["event_start", "event_value"]].set_index("event_start")
-
-        # Convert to local time in UTC, which sktime expects
-        tz = event_time_window[0].tzinfo
-        utc = pytz.utc
-        event_time_window = tuple(
-            dt.astimezone(utc).replace(tzinfo=None) for dt in event_time_window
-        )
-        df.index = df.index.tz_convert(utc).tz_localize(None)
-
-        # Resample to the resolution the data already has, just to set the index frequency, which sktime expects
-        # The new index ends just before the start of the first forecast (which may introduce trailing NaN values),
-        # as sktime expects no gap between the indices of the input and forecasts when applying seasonal periodicity.
-        df = df.reindex(
-            belief_utils.initialize_index(
-                df.index[0],
-                event_time_window[0],
-                resolution=df.event_resolution,
+        if df.empty:
+            # skip sktime, which expects a non-empty frame
+            y_pred = pd.Series(
+                data=np.nan,
+                index=belief_utils.initialize_index(
+                    start=event_time_window[0],
+                    end=event_time_window[1],
+                    resolution=df.event_resolution,
+                ),
             )
-        )
-        df = df.resample(df.event_resolution).mean()
-
-        # todo: if forecaster does not handle missing values, impute intermediate missing values and forecast trailing missing values
-
-        # Apply model
-        if isinstance(forecaster, BaseForecaster):
-            forecast_event_starts = belief_utils.initialize_index(
-                event_time_window[0],
-                event_time_window[1],
-                resolution=df.event_resolution,
-            )
-            forecaster.fit(df["event_value"])
-            y_pred = forecaster.predict(forecast_event_starts)
         else:
-            raise NotImplementedError("Consider opening a GitHub issue.")
+            # Simplify index
+            df = df.reset_index()[["event_start", "event_value"]].set_index(
+                "event_start"
+            )
 
-        # Relocalize to requested timezone
-        y_pred.index = y_pred.index.tz_localize("utc").tz_convert(tz)
+            # Convert to local time in UTC, which sktime expects
+            tz = event_time_window[0].tzinfo
+            utc = pytz.utc
+            event_time_window = tuple(
+                dt.astimezone(utc).replace(tzinfo=None) for dt in event_time_window
+            )
+            df.index = df.index.tz_convert(utc).tz_localize(None)
+
+            # Resample to the resolution the data already has, just to set the index frequency, which sktime expects
+            # The new index ends just before the start of the first forecast (which may introduce trailing NaN values),
+            # as sktime expects no gap between the indices of the input and forecasts when applying seasonal periodicity.
+            df = df.reindex(
+                belief_utils.initialize_index(
+                    df.index[0],
+                    event_time_window[0],
+                    resolution=df.event_resolution,
+                )
+            )
+            df = df.resample(df.event_resolution).mean()
+
+            # todo: if forecaster does not handle missing values, impute intermediate missing values and forecast trailing missing values
+
+            # Apply model
+            if isinstance(forecaster, BaseForecaster):
+                forecast_event_starts = belief_utils.initialize_index(
+                    event_time_window[0],
+                    event_time_window[1],
+                    resolution=df.event_resolution,
+                )
+                forecaster.fit(
+                    df["event_value"], df.loc[:, df.columns != "event_value"]
+                )
+                y_pred = forecaster.predict(forecast_event_starts)
+            else:
+                raise NotImplementedError("Consider opening a GitHub issue.")
+
+            # Relocalize to requested timezone
+            y_pred.index = y_pred.index.tz_localize("utc").tz_convert(tz)
 
         # Prepare results as BeliefsDataframe
         new_df = BeliefsDataFrame(

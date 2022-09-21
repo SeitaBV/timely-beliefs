@@ -1,11 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import pytest
 import pytz
 from sktime.forecasting.naive import NaiveForecaster
 
-from timely_beliefs import BeliefSource
+from timely_beliefs import BeliefSource, BeliefsDataFrame, Sensor
 from timely_beliefs.beliefs import utils as belief_utils
 from timely_beliefs.examples import get_example_df
 
@@ -53,3 +53,24 @@ def test_form_single_belief(forecaster, forecast):
     assert len(df_concat) == len(df_in) + 1
     assert df_concat.values[-1] == forecast
     pd.testing.assert_frame_equal(df_concat, df_concat_check)
+
+
+def test_form_nan_belief_on_empty_frame():
+    """Check whether forming beliefs on an empty frame leads to NaN values for the requested event time window."""
+    sensor = Sensor(
+        name="Availability",
+        unit="%",
+        event_resolution=timedelta(hours=1),
+    )
+    df_in = BeliefsDataFrame(sensor=sensor)
+    source = BeliefSource("Source C")
+    df_out = df_in.form_beliefs(
+        belief_time=datetime(2000, 1, 1, 2, tzinfo=pytz.utc),
+        source=source,
+        event_time_window=(
+            datetime(2000, 1, 3, tzinfo=pytz.utc),
+            datetime(2000, 1, 4, tzinfo=pytz.utc),
+        ),
+    )
+    assert len(df_out) == len(df_in) + 24
+    assert all(df_out.isnull())
