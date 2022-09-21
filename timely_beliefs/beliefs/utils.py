@@ -642,6 +642,11 @@ def interpret_special_read_cases(
 def initialize_index(
     start: datetime, end: datetime, resolution: timedelta, inclusive: str = "left"
 ) -> pd.DatetimeIndex:
+    """Initialize DatetimeIndex for event starts.
+
+    Supports updated function signature of pd.date_range.
+    From pandas>=1.4.0, it is clear that 'closed' will be replaced by 'inclusive'.
+    """
     if version.parse(pd.__version__) >= version.parse("1.4.0"):
         return pd.date_range(
             start=start,
