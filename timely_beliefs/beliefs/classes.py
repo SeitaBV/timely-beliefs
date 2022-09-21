@@ -1505,6 +1505,8 @@ class BeliefsDataFrame(pd.DataFrame):
     ):
         """Form new beliefs by applying a given forecaster.
 
+        Note that the result may contain NaN values, for example, when the BeliefsDataFrame contains insufficient data.
+
         :param belief_time:       Time at which the forecasts where made
                                   (any belief after this time will be inaccessible to the forecaster).
         :param source:            Source to assign the newly formed beliefs to.
