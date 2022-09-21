@@ -4,6 +4,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
+from packaging import version
 from pandas.core.groupby import DataFrameGroupBy
 
 from timely_beliefs import BeliefSource, Sensor
@@ -133,12 +134,10 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
         # Get the BeliefsDataFrame for a unique belief time and source
         df_slice = group[1]
         if not df_slice.empty:
-            lvl0 = pd.date_range(
+            lvl0 = initialize_index(
                 start=bin_start,
                 end=bin_end,
-                freq=resolution,
-                closed="left",
-                name="event_start",
+                resolution=resolution,
             )
             df = df.append(
                 tb_utils.replace_multi_index_level(
@@ -636,6 +635,28 @@ def interpret_special_read_cases(
             sensor.timezone
         )
     return df
+
+
+def initialize_index(
+    start: datetime, end: datetime, resolution: timedelta, inclusive: str = "left"
+) -> pd.DatetimeIndex:
+    """Initialize DatetimeIndex for event starts.
+
+    Supports updated function signature of pd.date_range.
+    From pandas>=1.4.0, it is clear that 'closed' will be replaced by 'inclusive'.
+    """
+    if version.parse(pd.__version__) >= version.parse("1.4.0"):
+        return pd.date_range(
+            start=start,
+            end=end,
+            freq=resolution,
+            inclusive=inclusive,
+            name="event_start",
+        )
+    else:
+        return pd.date_range(
+            start=start, end=end, freq=resolution, closed=inclusive, name="event_start"
+        )
 
 
 def is_pandas_structure(x):

@@ -1386,12 +1386,10 @@ class BeliefsDataFrame(pd.DataFrame):
                     # back up NaN values
                     unique_event_value_not_in_df = df["event_value"].abs().sum() + 1
                     df = df.fillna(unique_event_value_not_in_df)
-                new_index = pd.date_range(
+                new_index = belief_utils.initialize_index(
                     start=df.index[0],
                     end=df.index[-1] + self.event_resolution,
-                    closed="left",
-                    freq=event_resolution,
-                    name="event_start",
+                    resolution=event_resolution,
                 )
                 # Reindex to introduce NaN values, then forward fill by the number of steps
                 # needed to have the new resolution cover the old resolution.
