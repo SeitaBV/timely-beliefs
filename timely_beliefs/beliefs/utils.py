@@ -134,12 +134,10 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
         # Get the BeliefsDataFrame for a unique belief time and source
         df_slice = group[1]
         if not df_slice.empty:
-            lvl0 = pd.date_range(
+            lvl0 = initialize_index(
                 start=bin_start,
                 end=bin_end,
-                freq=resolution,
-                closed="left",
-                name="event_start",
+                resolution=resolution,
             )
             df = df.append(
                 tb_utils.replace_multi_index_level(
