@@ -637,12 +637,18 @@ def interpret_special_read_cases(
     elif len(df.columns) == 3:
         # datetimes in 1st and 2nd column, and value in 3rd column
         df.columns = ["event_start", "belief_time", "event_value"]
-        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
-            sensor.timezone
-        )
-        df["belief_time"] = pd.to_datetime(df["belief_time"], utc=True).dt.tz_convert(
-            sensor.timezone
-        )
+        df["event_start"] = pd.to_datetime(df["event_start"])
+        if df["event_start"].dt.tz is None:
+            df["event_start"] = df["event_start"].dt.tz_localize(
+                timezone, ambiguous="infer"
+            )
+        df["event_start"] = df["event_start"].dt.tz_convert(sensor.timezone)
+        df["belief_time"] = pd.to_datetime(df["belief_time"])
+        if df["belief_time"].dt.tz is None:
+            df["belief_time"] = df["belief_time"].dt.tz_localize(
+                timezone, ambiguous="infer"
+            )
+        df["belief_time"] = df["belief_time"].dt.tz_convert(sensor.timezone)
     return df
 
 
