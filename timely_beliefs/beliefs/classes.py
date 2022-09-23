@@ -461,12 +461,12 @@ class TimedBeliefDBMixin(TimedBelief):
             q = q.filter(cls.event_start + sensor.event_resolution <= event_ends_before)
 
         # Apply rough belief time filter
-        if not pd.isnull(beliefs_after):
+        if not pd.isnull(beliefs_after) and knowledge_horizon_min != timedelta.min:
             q = q.filter(
                 cls.event_start
                 >= beliefs_after + cls.belief_horizon + knowledge_horizon_min
             )
-        if not pd.isnull(beliefs_before):
+        if not pd.isnull(beliefs_before) and knowledge_horizon_max != timedelta.max:
             q = q.filter(
                 cls.event_start
                 <= beliefs_before + cls.belief_horizon + knowledge_horizon_max
