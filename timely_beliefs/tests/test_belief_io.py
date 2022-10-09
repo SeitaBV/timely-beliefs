@@ -70,7 +70,10 @@ def test_load_beliefs(csv_file):
 
 
 def test_load_timezone_naive_data():
-    """Test loading timezone naive time series data from csv, around a DST transition."""
+    """Test loading timezone naive time series data from csv.
+
+    The test data is around a DST transition that lead to duplicate indices.
+    """
 
     # Load only datetime and value columns with tb.read_csv
     sensor = tb.Sensor("Sensor X")
