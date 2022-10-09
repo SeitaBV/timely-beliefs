@@ -11,9 +11,13 @@ def get_example_df():
 
 def get_temperature_df():
     return tb.read_csv(
-        os.path.dirname(os.path.abspath(__file__)) + "/temperature.csv",
+        os.join(get_examples_path(), "/temperature.csv"),
         sensor=tb.Sensor(
             "Thermometer A", unit="°C", event_resolution=timedelta(hours=1)
         ),
         source=tb.BeliefSource("Source X"),
     )
+
+
+def get_examples_path() -> str:
+    return os.path.dirname(os.path.abspath(__file__))
