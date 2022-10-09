@@ -71,15 +71,29 @@ def test_load_beliefs(csv_file):
 
 def test_load_timezone_naive_data():
     """Test loading timezone naive time series data from csv, around a DST transition."""
-    # Load beliefs with tb.read_csv
+
+    # Load only datetime and value columns with tb.read_csv
     sensor = tb.Sensor("Sensor X")
     source = tb.BeliefSource("Source A")
+    path = os.path.join(get_examples_path(), "timezone_naive_sample.csv")
+    timezone = "Europe/Amsterdam"
     df = tb.read_csv(
-        os.path.join(get_examples_path(), "timezone_naive_sample.csv"),
-        timezone="Europe/Amsterdam",
+        path=path,
+        timezone=timezone,
         sensor=sensor,
         source=source,
         belief_horizon=timedelta(0),
+        usecols=["datetime", "value"],
+    )
+    assert len(df.event_starts.unique()) == 6
+
+    # Load also the column describing when the data was recorded
+    df = tb.read_csv(
+        path=path,
+        timezone=timezone,
+        sensor=sensor,
+        source=source,
+        usecols=["datetime", "recorded", "value"],
     )
     assert len(df.event_starts.unique()) == 6
 
