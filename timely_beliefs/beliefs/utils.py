@@ -665,3 +665,15 @@ def is_pandas_structure(x):
 
 def is_tb_structure(x):
     return isinstance(x, (classes.BeliefsDataFrame, classes.BeliefsSeries))
+
+
+def extreme_timedeltas_not_equal(
+    td_a: Union[timedelta, pd.Timedelta],
+    td_b: timedelta,
+) -> bool:
+    """Workaround for pd.Timedelta(...) != timedelta.max (or min)
+    See pandas GH49021.
+    """
+    if isinstance(td_a, pd.Timedelta):
+        td_a = td_a.to_pytimedelta()
+    return td_a != td_b
