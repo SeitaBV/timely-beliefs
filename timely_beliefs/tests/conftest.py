@@ -93,7 +93,7 @@ def unique_knowledge_time_sensor() -> DBSensor:
         knowledge_horizon=(
             at_date,
             dict(knowledge_time=datetime(1990, 5, 10, 0, tzinfo=utc)),
-        )
+        ),
     )
     session.add(sensor)
     session.flush()
