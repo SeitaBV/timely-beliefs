@@ -19,6 +19,36 @@ from timely_beliefs.tests import session
 
 
 @pytest.fixture(scope="function")
+def belief_recorded_at_unique_knowledge_time(
+    unique_knowledge_time_sensor: DBSensor, test_source_a: DBBeliefSource
+):
+    """Define belief about a future event at its unique knowledge time (e.g. a publication date)."""
+    belief = DBTimedBelief(
+        source=test_source_a,
+        sensor=unique_knowledge_time_sensor,
+        value=10,
+        belief_time=datetime(1990, 5, 10, 0, tzinfo=utc),
+        event_start=datetime(1990, 6, 1, 0, tzinfo=utc),
+    )
+    session.add(belief)
+    return belief
+
+
+def test_query_belief_for_sensor_with_unique_knowledge_time(
+    unique_knowledge_time_sensor: DBSensor,
+    belief_recorded_at_unique_knowledge_time: DBTimedBelief,
+):
+    """Test query of sensor with a unique knowledge time, in combination with a belief time window."""
+    belief_df = DBTimedBelief.search_session(
+        session=session,
+        sensor=unique_knowledge_time_sensor,
+        beliefs_after=pd.Timestamp("1990-04-01 00:00Z"),
+        belief_before=pd.Timestamp("1990-06-01 00:00Z"),
+    ).convert_index_from_belief_time_to_horizon()
+    assert belief_df.belief_horizons[0] == timedelta(0)
+
+
+@pytest.fixture(scope="function")
 def day_ahead_belief_about_ex_post_time_slot_event(
     ex_post_time_slot_sensor: DBSensor, test_source_a: DBBeliefSource
 ):
