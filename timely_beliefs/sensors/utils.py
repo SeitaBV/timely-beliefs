@@ -4,10 +4,10 @@ from typing import Optional, Tuple, Union
 
 from isodate import (
     ISO8601Error,
+    datetime_isoformat,
     duration_isoformat,
     parse_datetime,
     parse_duration,
-    datetime_isoformat,
 )
 from pytz import timezone
 
