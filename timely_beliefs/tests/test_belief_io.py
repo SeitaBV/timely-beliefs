@@ -7,7 +7,7 @@ import pytest
 import pytz
 
 import timely_beliefs as tb
-from timely_beliefs.examples import get_example_df
+from timely_beliefs.examples import get_example_df, get_examples_path
 from timely_beliefs.tests.utils import assert_metadata_is_retained
 
 
@@ -21,7 +21,7 @@ def csv_file(tmpdir_factory):
 
 
 def test_load_beliefs(csv_file):
-    """Test loading BeliefsDataFrame to csv.
+    """Test loading BeliefsDataFrame from csv.
     The saved file does not contain the sensor information, and the sources are saved by their name.
     Therefore, we test the following functionality:
     - The user should specify the sensor upon loading
@@ -67,6 +67,38 @@ def test_load_beliefs(csv_file):
     assert source_b in bdf.index.get_level_values("source")
     assert isinstance(bdf.index.get_level_values("event_start")[0], datetime)
     assert isinstance(bdf.index.get_level_values("belief_time")[0], datetime)
+
+
+def test_load_timezone_naive_data():
+    """Test loading timezone naive time series data from csv.
+
+    The test data is around a DST transition that lead to duplicate indices.
+    """
+
+    # Load only datetime and value columns with tb.read_csv
+    sensor = tb.Sensor("Sensor X")
+    source = tb.BeliefSource("Source A")
+    path = os.path.join(get_examples_path(), "timezone_naive_sample.csv")
+    timezone = "Europe/Amsterdam"
+    df = tb.read_csv(
+        path=path,
+        timezone=timezone,
+        sensor=sensor,
+        source=source,
+        belief_horizon=timedelta(0),
+        usecols=["datetime", "value"],
+    )
+    assert len(df.event_starts.unique()) == 6
+
+    # Load also the column describing when the data was recorded
+    df = tb.read_csv(
+        path=path,
+        timezone=timezone,
+        sensor=sensor,
+        source=source,
+        usecols=["datetime", "recorded", "value"],
+    )
+    assert len(df.event_starts.unique()) == 6
 
 
 @pytest.mark.parametrize(

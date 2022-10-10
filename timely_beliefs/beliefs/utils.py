@@ -525,6 +525,7 @@ def read_csv(
     belief_time: datetime = None,
     cumulative_probability: float = None,
     resample: bool = False,
+    timezone: str = "UTC",
     **kwargs,
 ) -> "classes.BeliefsDataFrame":
     """Utility function to load a BeliefsDataFrame from a csv file or xls sheet (see example/temperature.csv).
@@ -534,16 +535,20 @@ def read_csv(
     Each source name will be replaced by the actual source.
 
     Also supports the case of a csv file with just 2 columns and 1 header row (a quite common time series format).
-    In this case no special header names are required, but the first column has to contain the UTC event starts,
+    In this case no special header names are required, but the first column has to contain the event starts,
     and the second column has to contain the event values.
+    In case the event starts are local times (timezone naive), they are assumed to be in the UTC timezone by default.
+    To localize times to a different timezone, pass the relevant IANA timezone name (e.g. Europe/Amsterdam).
     You also need to pass explicit values for the belief horizon/time and cumulative probability,
     in addition to the sensor and source.
     If needed, the time series may be resampled to the event resolution of the sensor, using resample=True.
     This is the only case that supports resampling.
 
     Also supports the case of a csv file with just 3 columns and 1 header row.
-    In this case no special header names are required, but the first two columns have to contain the UTC event starts
+    In this case no special header names are required, but the first two columns have to contain the event starts
     and belief times, respectively, and the third column has to contain the event values.
+    In case event starts and belief times are local times (timezone naive), they are assumed to be in the UTC timezone
+    by default. To localize times to a different timezone, pass the relevant IANA timezone name (e.g. Europe/Amsterdam).
 
     Consult pandas documentation for which additional kwargs can be passed to pandas.read_csv or pandas.read_excel.
     Useful examples are parse_dates=True, infer_datetime_format=True (for read_csv)
@@ -569,7 +574,7 @@ def read_csv(
         df = df[kwargs["usecols"]]
 
     # Special cases for simple time series
-    df = interpret_special_read_cases(df, sensor, resample)
+    df = interpret_special_read_cases(df, sensor, resample, timezone)
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
@@ -604,7 +609,7 @@ def read_csv(
 
 
 def interpret_special_read_cases(
-    df: pd.DataFrame, sensor: "classes.Sensor", resample: bool
+    df: pd.DataFrame, sensor: "classes.Sensor", resample: bool, timezone: str
 ) -> pd.DataFrame:
     """Interpret the read-in data, either as event starts and event values (2 cols),
     or as event starts, belief times and event values (3 cols).
@@ -613,11 +618,14 @@ def interpret_special_read_cases(
         raise NotImplementedError("Resampling is not supported for this import case.")
 
     if len(df.columns) == 2:
-        # UTC datetime in 1st column and value in 2nd column
+        # datetime in 1st column and value in 2nd column
         df.columns = ["event_start", "event_value"]
-        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
-            sensor.timezone
-        )
+        df["event_start"] = pd.to_datetime(df["event_start"])
+        if df["event_start"].dt.tz is None:
+            df["event_start"] = df["event_start"].dt.tz_localize(
+                timezone, ambiguous="infer"
+            )
+        df["event_start"] = df["event_start"].dt.tz_convert(sensor.timezone)
         if resample:
             df = (
                 df.set_index("event_start")
@@ -626,14 +634,20 @@ def interpret_special_read_cases(
                 .reset_index()
             )
     elif len(df.columns) == 3:
-        # UTC datetimes in 1st and 2nd column, and value in 3rd column
+        # datetimes in 1st and 2nd column, and value in 3rd column
         df.columns = ["event_start", "belief_time", "event_value"]
-        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
-            sensor.timezone
-        )
-        df["belief_time"] = pd.to_datetime(df["belief_time"], utc=True).dt.tz_convert(
-            sensor.timezone
-        )
+        df["event_start"] = pd.to_datetime(df["event_start"])
+        if df["event_start"].dt.tz is None:
+            df["event_start"] = df["event_start"].dt.tz_localize(
+                timezone, ambiguous="infer"
+            )
+        df["event_start"] = df["event_start"].dt.tz_convert(sensor.timezone)
+        df["belief_time"] = pd.to_datetime(df["belief_time"])
+        if df["belief_time"].dt.tz is None:
+            df["belief_time"] = df["belief_time"].dt.tz_localize(
+                timezone, ambiguous="infer"
+            )
+        df["belief_time"] = df["belief_time"].dt.tz_convert(sensor.timezone)
     return df
 
 
