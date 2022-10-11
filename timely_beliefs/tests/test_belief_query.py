@@ -46,6 +46,7 @@ def test_query_belief_for_sensor_with_unique_knowledge_time(
         belief_before=pd.Timestamp("1990-06-01 00:00Z"),
     ).convert_index_from_belief_time_to_horizon()
     assert belief_df.belief_horizons[0] == timedelta(0)
+    assert belief_df.knowledge_horizons[0] == timedelta(days=22)
 
 
 @pytest.fixture(scope="function")
