@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
-from typing import List
 
 import numpy as np
 import pandas as pd
@@ -244,7 +245,7 @@ def test_query_belief_by_belief_time(
 
 def test_query_belief_history(
     ex_post_time_slot_sensor: DBSensor,
-    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
+    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: list[DBTimedBelief],
 ):
     df = DBTimedBelief.search_session(session=session, sensor=ex_post_time_slot_sensor)
     event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
@@ -357,7 +358,7 @@ def _test_empty_frame(time_slot_sensor):
 
 def test_search_by_sensor_id(
     ex_post_time_slot_sensor: DBSensor,
-    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
+    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: list[DBTimedBelief],
 ):
     """Check db query by sensor id, against query by sensor instance, for a non-empty dataset."""
 
@@ -376,8 +377,8 @@ def test_search_by_sensor_id(
 
 def test_select_most_recent_deterministic_beliefs(
     ex_post_time_slot_sensor: DBSensor,
-    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
-    multiple_day_after_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
+    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: list[DBTimedBelief],
+    multiple_day_after_beliefs_about_ex_post_time_slot_event: list[DBTimedBelief],
 ):
     """Check db query filters for most recent beliefs, most recent events, and both at once."""
 
@@ -430,7 +431,7 @@ def test_select_most_recent_deterministic_beliefs(
 
 def test_select_most_recent_probabilistic_beliefs(
     ex_post_time_slot_sensor: DBSensor,
-    multiple_probabilistic_day_ahead_beliefs_about_ex_post_time_slot_event: List[
+    multiple_probabilistic_day_ahead_beliefs_about_ex_post_time_slot_event: list[
         DBTimedBelief
     ],
 ):
