@@ -526,6 +526,7 @@ def read_csv(
     cumulative_probability: float = None,
     resample: bool = False,
     timezone: str = "UTC",
+    filter_by_column: dict = None,
     **kwargs,
 ) -> "classes.BeliefsDataFrame":
     """Utility function to load a BeliefsDataFrame from a csv file or xls sheet (see example/temperature.csv).
@@ -533,6 +534,23 @@ def read_csv(
     You still need to set the sensor and the source for the BeliefsDataFrame; the csv file only contains their names.
     In case the csv file contains multiple source names, you can pass a list of sources.
     Each source name will be replaced by the actual source.
+
+    :param path:                    Path (or url) to the csv file.
+    :param sensor:                  The sensor to which the data pertains.
+    :param source:                  Optionally, set a specific source for the read-in data.
+                                    If not set, the look_up_sources parameter must be used.
+    :param look_up_sources:         Optionally, pass a list of sources used to look up source names from the csv file.
+                                    If not set, the source parameter must be used.
+    :param belief_horizon:          Optionally, set a specific belief horizon for the read-in data.
+    :param belief_time:             Optionally, set a specific belief time for the read-in data.
+    :param cumulative_probability:  Optionally, set a specific cumulative probability for the read-in data.
+    :param resample:                Optionally, resample to the event resolution of the sensor.
+                                    Only implemented for the special read case of 2-column data (see below).
+    :param timezone:                Optionally, localize timezone naive datetimes to a specific timezone.
+                                    Accepts IANA timezone names (e.g. Europe/Amsterdam).
+                                    If not set and timezone naive datetimes are read in, the data is localized to UTC.
+    :param filter_by_column:        Select a subset of rows by filtering on a specific value for a specific column.
+                                    For example: {4: 1995} selects all rows where column 4 contains the value 1995.
 
     Also supports the case of a csv file with just 2 columns and 1 header row (a quite common time series format).
     In this case no special header names are required, but the first column has to contain the event starts,
@@ -559,6 +577,14 @@ def read_csv(
     >>> df.to_csv()
 
     """
+    original_usecols = kwargs.get("usecols", []).copy()
+    if filter_by_column:
+        # Also read in any extra columns used to filter the read-in data
+        kwargs["usecols"] += [
+            col
+            for col in filter_by_column.keys()
+            if col not in kwargs.get("usecols", [])
+        ]
     ext = path.split(".")[-1]
     if ext.lower() == "csv":
         df = pd.read_csv(path, **kwargs)
@@ -568,6 +594,16 @@ def read_csv(
         raise TypeError(
             f"Extension {ext} not recognized. Accepted file extensions are csv, xlsx and xls."
         )
+    if filter_by_column:
+        # Filter the read-in data
+        for col, val in filter_by_column.items():
+            df = df[df[col] == val]
+        # Remove the extra columns used to filter
+        df = df.drop(
+            columns=[
+                col for col in filter_by_column.keys() if col not in original_usecols
+            ]
+        )
 
     # Exclude rows with NaN or NaT values
     if not kwargs.get("keep_default_na", True):
@@ -575,7 +611,7 @@ def read_csv(
 
     # Preserve order of usecols
     if "usecols" in kwargs:
-        df = df[kwargs["usecols"]]
+        df = df[[col for col in kwargs["usecols"] if col in df.columns]]
 
     # Special cases for simple time series
     df = interpret_special_read_cases(df, sensor, resample, timezone)
@@ -588,7 +624,30 @@ def read_csv(
     elif belief_time is not None:
         df["belief_time"] = belief_time
 
-    # Apply optionally set source
+    # Apply optionally set source, or look up sources
+    df = fill_in_sources(df, source, look_up_sources, ext)
+
+    # Apply optionally set cumulative probability
+    if cumulative_probability is not None:
+        df["cumulative_probability"] = cumulative_probability
+
+    return classes.BeliefsDataFrame(df, sensor=sensor)
+
+
+def fill_in_sources(
+    df: pd.DataFrame,
+    source: Union["classes.BeliefSource", None],
+    look_up_sources: Union[List["classes.BeliefSource"], None],
+    ext: str,
+) -> pd.DataFrame:
+    """Fill the 'source' column with BeliefSource objects.
+
+    :param df:              DataFrame whose 'source' column (if there is one), only contains source names.
+    :param source:          If set, the 'source' column is filled with this BeliefSource.
+    :param look_up_sources: If set, the source names in the 'source' column are replaced
+                            with the corresponding BeliefSource from this list.
+    :param ext:             File extension as a string, used in warning or error messages.
+    """
     if source is not None:
         df["source"] = source_utils.ensure_source_exists(source)
     elif "source" in df.columns:
@@ -603,13 +662,8 @@ def read_csv(
                 f"Sources are stored in {ext} file by their name or id. Please specify a list of BeliefSources for looking them up."
             )
     else:
-        raise Exception(f"No source specified in {ext}, please set a source.")
-
-    # Apply optionally set cumulative probability
-    if cumulative_probability is not None:
-        df["cumulative_probability"] = cumulative_probability
-
-    return classes.BeliefsDataFrame(df, sensor=sensor)
+        raise Exception(f"No source specified in {ext} file, please set a source.")
+    return df
 
 
 def interpret_special_read_cases(
