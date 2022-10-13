@@ -20,6 +20,20 @@ def csv_file(tmpdir_factory):
     os.remove("test.csv")
 
 
+@pytest.fixture(scope="module")
+def csv_nat_file(tmpdir_factory):
+    """Save BeliefsDataFrame to csv, after including a NaT value."""
+
+    df = get_example_df().reset_index()
+    df.iloc[0, 1] = pd.NaT
+    df = df.set_index(
+        ["event_start", "belief_time", "source", "cumulative_probability"]
+    )
+    df.to_csv("test_NaT.csv")
+    yield
+    os.remove("test_NaT.csv")
+
+
 def test_load_beliefs(csv_file):
     """Test loading BeliefsDataFrame from csv.
     The saved file does not contain the sensor information, and the sources are saved by their name.
@@ -29,7 +43,7 @@ def test_load_beliefs(csv_file):
     - The user should have the possibility to look up the saved source names by passing a list of sources.
     """
 
-    # Load beliefs with tb.read_csv
+    # Load beliefs with pd.read_csv
     df = pd.read_csv("test.csv")
     df_copy = df.copy()
     with pytest.warns(UserWarning, match="created"):
@@ -40,6 +54,7 @@ def test_load_beliefs(csv_file):
     # GH 34
     pd.testing.assert_frame_equal(df, df_copy)
 
+    # Now load beliefs with tb.read_csv
     # No lookup should issue warning
     with pytest.warns(UserWarning, match="looking them up"):
         bdf = tb.read_csv("test.csv", sensor=tb.Sensor("Sensor Y"))
@@ -67,6 +82,25 @@ def test_load_beliefs(csv_file):
     assert source_b in bdf.index.get_level_values("source")
     assert isinstance(bdf.index.get_level_values("event_start")[0], datetime)
     assert isinstance(bdf.index.get_level_values("belief_time")[0], datetime)
+
+
+def test_load_beliefs_with_nat_values(csv_nat_file):
+    """Test loading BeliefsDataFrame from csv containing one NaT belief_time value.
+
+    The NaT value is an empty cell in the belief time column.
+    The relevant row should be skipped, as requested using the combination of na_values and keep_default_na.
+    """
+
+    # Load beliefs with tb.read_csv
+    df = tb.read_csv(
+        "test_NaT.csv",
+        sensor=tb.Sensor("Sensor Y"),
+        source=tb.BeliefSource("Source A"),
+        timezone="Europe/Amsterdam",
+        na_values=[""],
+        keep_default_na=False,
+    )
+    assert len(df) == len(get_example_df()) - 1
 
 
 def test_load_timezone_naive_data():
