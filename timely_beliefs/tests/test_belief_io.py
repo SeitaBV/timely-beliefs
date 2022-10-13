@@ -97,7 +97,7 @@ def test_load_beliefs_with_nat_values(csv_nat_file):
         sensor=tb.Sensor("Sensor Y"),
         source=tb.BeliefSource("Source A"),
         timezone="Europe/Amsterdam",
-        na_values=[""],
+        na_values=[""],  # tells pd.read_csv to treat empty cells as NaN values
         keep_default_na=False,
     )
     assert len(df) == len(get_example_df()) - 1
