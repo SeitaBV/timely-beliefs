@@ -540,7 +540,7 @@ def read_csv(
     :param source:                  Optionally, set a specific source for the read-in data.
                                     If not set, the look_up_sources parameter must be used.
     :param look_up_sources:         Optionally, pass a list of sources used to look up source names from the csv file.
-                                    If not set, the source parameter most be used.
+                                    If not set, the source parameter must be used.
     :param belief_horizon:          Optionally, set a specific belief horizon for the read-in data.
     :param belief_time:             Optionally, set a specific belief time for the read-in data.
     :param cumulative_probability:  Optionally, set a specific cumulative probability for the read-in data.
