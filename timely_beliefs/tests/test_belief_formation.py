@@ -5,7 +5,7 @@ import pytest
 import pytz
 from sktime.forecasting.naive import NaiveForecaster
 
-from timely_beliefs import BeliefSource, BeliefsDataFrame, Sensor
+from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor
 from timely_beliefs.beliefs import utils as belief_utils
 from timely_beliefs.examples import get_example_df
 
