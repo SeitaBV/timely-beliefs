@@ -569,6 +569,10 @@ def read_csv(
             f"Extension {ext} not recognized. Accepted file extensions are csv, xlsx and xls."
         )
 
+    # Exclude rows with NaN or NaT values
+    if not kwargs.get("keep_default_na", True):
+        df = df.dropna()
+
     # Preserve order of usecols
     if "usecols" in kwargs:
         df = df[kwargs["usecols"]]
