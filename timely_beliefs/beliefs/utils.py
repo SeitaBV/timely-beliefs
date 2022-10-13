@@ -611,7 +611,30 @@ def read_csv(
     elif belief_time is not None:
         df["belief_time"] = belief_time
 
-    # Apply optionally set source
+    # Apply optionally set source, or look up sources
+    df = fill_in_sources(df, source, look_up_sources, ext)
+
+    # Apply optionally set cumulative probability
+    if cumulative_probability is not None:
+        df["cumulative_probability"] = cumulative_probability
+
+    return classes.BeliefsDataFrame(df, sensor=sensor)
+
+
+def fill_in_sources(
+    df: pd.DataFrame,
+    source: Union["classes.BeliefSource", None],
+    look_up_sources: Union[List["classes.BeliefSource"], None],
+    ext: str,
+) -> pd.DataFrame:
+    """Fill the 'source' column with BeliefSource objects.
+
+    :param df:              DataFrame whose 'source' column (if there is one), only contains source names.
+    :param source:          If set, the 'source' column is filled with this BeliefSource.
+    :param look_up_sources: If set, the source names in the 'source' column are replaced
+                            with the corresponding BeliefSource from this list.
+    :param ext:             File extension as a string, used in warning or error messages.
+    """
     if source is not None:
         df["source"] = source_utils.ensure_source_exists(source)
     elif "source" in df.columns:
@@ -626,13 +649,8 @@ def read_csv(
                 f"Sources are stored in {ext} file by their name or id. Please specify a list of BeliefSources for looking them up."
             )
     else:
-        raise Exception(f"No source specified in {ext}, please set a source.")
-
-    # Apply optionally set cumulative probability
-    if cumulative_probability is not None:
-        df["cumulative_probability"] = cumulative_probability
-
-    return classes.BeliefsDataFrame(df, sensor=sensor)
+        raise Exception(f"No source specified in {ext} file, please set a source.")
+    return df
 
 
 def interpret_special_read_cases(
