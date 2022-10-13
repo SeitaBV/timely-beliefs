@@ -578,8 +578,12 @@ def read_csv(
 
     """
     if filter_by_column:
-        # Also read in any columns used to filter the read-in data
-        kwargs["usecols"] += list(filter_by_column.keys())
+        # Also read in any extra columns used to filter the read-in data
+        kwargs["usecols"] += [
+            col
+            for col in filter_by_column.keys()
+            if col not in kwargs.get("usecols", [])
+        ]
     ext = path.split(".")[-1]
     if ext.lower() == "csv":
         df = pd.read_csv(path, **kwargs)
@@ -593,8 +597,14 @@ def read_csv(
         # Filter the read-in data
         for col, val in filter_by_column.items():
             df = df[df[col] == val]
-        # Remove the columns used to filter
-        df = df.drop(columns=filter_by_column.keys())
+        # Remove the extra columns used to filter
+        df = df.drop(
+            columns=[
+                col
+                for col in filter_by_column.keys()
+                if col not in kwargs.get("usecols", [])
+            ]
+        )
 
     # Preserve order of usecols
     if "usecols" in kwargs:
