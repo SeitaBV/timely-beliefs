@@ -570,7 +570,7 @@ def read_csv(
         )
 
     # Exclude rows with NaN or NaT values
-    if "keep_default_na" in kwargs and kwargs.get("keep_default_na") is False:
+    if not kwargs.get("keep_default_na", True):
         df = df.dropna()
 
     # Preserve order of usecols
