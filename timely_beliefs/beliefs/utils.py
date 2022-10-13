@@ -577,6 +577,7 @@ def read_csv(
     >>> df.to_csv()
 
     """
+    original_usecols = kwargs.get("usecols", []).copy()
     if filter_by_column:
         # Also read in any extra columns used to filter the read-in data
         kwargs["usecols"] += [
@@ -600,9 +601,7 @@ def read_csv(
         # Remove the extra columns used to filter
         df = df.drop(
             columns=[
-                col
-                for col in filter_by_column.keys()
-                if col not in kwargs.get("usecols", [])
+                col for col in filter_by_column.keys() if col not in original_usecols
             ]
         )
 
