@@ -4,10 +4,10 @@ from typing import Optional, Tuple, Union
 
 from isodate import (
     ISO8601Error,
+    datetime_isoformat,
     duration_isoformat,
     parse_datetime,
     parse_duration,
-    time_isoformat,
 )
 from pytz import timezone
 
@@ -43,7 +43,7 @@ def jsonify_time_dict(d: dict) -> dict:
     d2 = {}
     for k, v in d.items():
         if isinstance(v, datetime):
-            d2[k] = time_isoformat(v)
+            d2[k] = datetime_isoformat(v)
         elif isinstance(v, timedelta):
             d2[k] = duration_isoformat(v)
         else:

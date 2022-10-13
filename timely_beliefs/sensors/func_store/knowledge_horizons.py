@@ -25,7 +25,7 @@ def at_date(
     """
     if get_bounds:
         return timedelta.min, timedelta.max
-    return event_start - knowledge_time
+    return event_start - knowledge_time.astimezone(event_start.tzinfo)
 
 
 def ex_post(

@@ -134,12 +134,10 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
         # Get the BeliefsDataFrame for a unique belief time and source
         df_slice = group[1]
         if not df_slice.empty:
-            lvl0 = pd.date_range(
+            lvl0 = initialize_index(
                 start=bin_start,
                 end=bin_end,
-                freq=resolution,
-                closed="left",
-                name="event_start",
+                resolution=resolution,
             )
             df = df.append(
                 tb_utils.replace_multi_index_level(
@@ -527,6 +525,7 @@ def read_csv(
     belief_time: datetime = None,
     cumulative_probability: float = None,
     resample: bool = False,
+    timezone: str = "UTC",
     **kwargs,
 ) -> "classes.BeliefsDataFrame":
     """Utility function to load a BeliefsDataFrame from a csv file or xls sheet (see example/temperature.csv).
@@ -536,16 +535,20 @@ def read_csv(
     Each source name will be replaced by the actual source.
 
     Also supports the case of a csv file with just 2 columns and 1 header row (a quite common time series format).
-    In this case no special header names are required, but the first column has to contain the UTC event starts,
+    In this case no special header names are required, but the first column has to contain the event starts,
     and the second column has to contain the event values.
+    In case the event starts are local times (timezone naive), they are assumed to be in the UTC timezone by default.
+    To localize times to a different timezone, pass the relevant IANA timezone name (e.g. Europe/Amsterdam).
     You also need to pass explicit values for the belief horizon/time and cumulative probability,
     in addition to the sensor and source.
     If needed, the time series may be resampled to the event resolution of the sensor, using resample=True.
     This is the only case that supports resampling.
 
     Also supports the case of a csv file with just 3 columns and 1 header row.
-    In this case no special header names are required, but the first two columns have to contain the UTC event starts
+    In this case no special header names are required, but the first two columns have to contain the event starts
     and belief times, respectively, and the third column has to contain the event values.
+    In case event starts and belief times are local times (timezone naive), they are assumed to be in the UTC timezone
+    by default. To localize times to a different timezone, pass the relevant IANA timezone name (e.g. Europe/Amsterdam).
 
     Consult pandas documentation for which additional kwargs can be passed to pandas.read_csv or pandas.read_excel.
     Useful examples are parse_dates=True, infer_datetime_format=True (for read_csv)
@@ -571,7 +574,7 @@ def read_csv(
         df = df[kwargs["usecols"]]
 
     # Special cases for simple time series
-    df = interpret_special_read_cases(df, sensor, resample)
+    df = interpret_special_read_cases(df, sensor, resample, timezone)
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
@@ -606,7 +609,7 @@ def read_csv(
 
 
 def interpret_special_read_cases(
-    df: pd.DataFrame, sensor: "classes.Sensor", resample: bool
+    df: pd.DataFrame, sensor: "classes.Sensor", resample: bool, timezone: str
 ) -> pd.DataFrame:
     """Interpret the read-in data, either as event starts and event values (2 cols),
     or as event starts, belief times and event values (3 cols).
@@ -615,11 +618,14 @@ def interpret_special_read_cases(
         raise NotImplementedError("Resampling is not supported for this import case.")
 
     if len(df.columns) == 2:
-        # UTC datetime in 1st column and value in 2nd column
+        # datetime in 1st column and value in 2nd column
         df.columns = ["event_start", "event_value"]
-        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
-            sensor.timezone
-        )
+        df["event_start"] = pd.to_datetime(df["event_start"])
+        if df["event_start"].dt.tz is None:
+            df["event_start"] = df["event_start"].dt.tz_localize(
+                timezone, ambiguous="infer"
+            )
+        df["event_start"] = df["event_start"].dt.tz_convert(sensor.timezone)
         if resample:
             df = (
                 df.set_index("event_start")
@@ -628,20 +634,31 @@ def interpret_special_read_cases(
                 .reset_index()
             )
     elif len(df.columns) == 3:
-        # UTC datetimes in 1st and 2nd column, and value in 3rd column
+        # datetimes in 1st and 2nd column, and value in 3rd column
         df.columns = ["event_start", "belief_time", "event_value"]
-        df["event_start"] = pd.to_datetime(df["event_start"], utc=True).dt.tz_convert(
-            sensor.timezone
-        )
-        df["belief_time"] = pd.to_datetime(df["belief_time"], utc=True).dt.tz_convert(
-            sensor.timezone
-        )
+        df["event_start"] = pd.to_datetime(df["event_start"])
+        if df["event_start"].dt.tz is None:
+            df["event_start"] = df["event_start"].dt.tz_localize(
+                timezone, ambiguous="infer"
+            )
+        df["event_start"] = df["event_start"].dt.tz_convert(sensor.timezone)
+        df["belief_time"] = pd.to_datetime(df["belief_time"])
+        if df["belief_time"].dt.tz is None:
+            df["belief_time"] = df["belief_time"].dt.tz_localize(
+                timezone, ambiguous="infer"
+            )
+        df["belief_time"] = df["belief_time"].dt.tz_convert(sensor.timezone)
     return df
 
 
 def initialize_index(
     start: datetime, end: datetime, resolution: timedelta, inclusive: str = "left"
 ) -> pd.DatetimeIndex:
+    """Initialize DatetimeIndex for event starts.
+
+    Supports updated function signature of pd.date_range.
+    From pandas>=1.4.0, it is clear that 'closed' will be replaced by 'inclusive'.
+    """
     if version.parse(pd.__version__) >= version.parse("1.4.0"):
         return pd.date_range(
             start=start,
@@ -662,3 +679,15 @@ def is_pandas_structure(x):
 
 def is_tb_structure(x):
     return isinstance(x, (classes.BeliefsDataFrame, classes.BeliefsSeries))
+
+
+def extreme_timedeltas_not_equal(
+    td_a: Union[timedelta, pd.Timedelta],
+    td_b: timedelta,
+) -> bool:
+    """Workaround for pd.Timedelta(...) != timedelta.max (or min)
+    See pandas GH49021.
+    """
+    if isinstance(td_a, pd.Timedelta):
+        td_a = td_a.to_pytimedelta()
+    return td_a != td_b
