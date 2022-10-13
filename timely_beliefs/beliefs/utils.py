@@ -535,6 +535,23 @@ def read_csv(
     In case the csv file contains multiple source names, you can pass a list of sources.
     Each source name will be replaced by the actual source.
 
+    :param path:                    Path (or url) to the csv file.
+    :param sensor:                  The sensor to which the data pertains.
+    :param source:                  Optionally, set a specific source for the read-in data.
+                                    If not set, the look_up_sources parameter must be used.
+    :param look_up_sources:         Optionally, pass a list of sources used to look up source names from the csv file.
+                                    If not set, the source parameter most be used.
+    :param belief_horizon:          Optionally, set a specific belief horizon for the read-in data.
+    :param belief_time:             Optionally, set a specific belief time for the read-in data.
+    :param cumulative_probability:  Optionally, set a specific cumulative probability for the read-in data.
+    :param resample:                Optionally, resample to the event resolution of the sensor.
+                                    Only implemented for the special read case of 2-column data (see below).
+    :param timezone:                Optionally, localize timezone naive datetimes to a specific timezone.
+                                    Accepts IANA timezone names (e.g. Europe/Amsterdam).
+                                    If not set and timezone naive datetimes are read in, the data is localized to UTC.
+    :param filter_by_column:        Select a subset of rows by filtering on a specific value for a specific column.
+                                    For example: {4: 1995} selects all rows where column 4 contains the value 1995.
+
     Also supports the case of a csv file with just 2 columns and 1 header row (a quite common time series format).
     In this case no special header names are required, but the first column has to contain the event starts,
     and the second column has to contain the event values.
