@@ -526,6 +526,7 @@ def read_csv(
     cumulative_probability: float = None,
     resample: bool = False,
     timezone: str = "UTC",
+    filter_by_column: dict = None,
     **kwargs,
 ) -> "classes.BeliefsDataFrame":
     """Utility function to load a BeliefsDataFrame from a csv file or xls sheet (see example/temperature.csv).
@@ -559,6 +560,9 @@ def read_csv(
     >>> df.to_csv()
 
     """
+    if filter_by_column:
+        # Also read in any columns used to filter the read-in data
+        kwargs["usecols"] += list(filter_by_column.keys())
     ext = path.split(".")[-1]
     if ext.lower() == "csv":
         df = pd.read_csv(path, **kwargs)
@@ -568,10 +572,16 @@ def read_csv(
         raise TypeError(
             f"Extension {ext} not recognized. Accepted file extensions are csv, xlsx and xls."
         )
+    if filter_by_column:
+        # Filter the read-in data
+        for col, val in filter_by_column.items():
+            df = df[df[col] == val]
+        # Remove the columns used to filter
+        df = df.drop(columns=filter_by_column.keys())
 
     # Preserve order of usecols
     if "usecols" in kwargs:
-        df = df[kwargs["usecols"]]
+        df = df[[col for col in kwargs["usecols"] if col in df.columns]]
 
     # Special cases for simple time series
     df = interpret_special_read_cases(df, sensor, resample, timezone)
