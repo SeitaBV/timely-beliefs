@@ -7,6 +7,7 @@ from pytz import utc
 from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
+    at_date,
     determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
 )
 from timely_beliefs.tests import engine, session
@@ -76,6 +77,22 @@ def create_ex_post_time_slot_sensor(name: str) -> DBSensor:
         knowledge_horizon=(
             determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
             dict(x=1, y=12, z="Europe/Amsterdam"),
+        ),
+    )
+    session.add(sensor)
+    session.flush()
+    return sensor
+
+
+@pytest.fixture(scope="function", autouse=False)
+def unique_knowledge_time_sensor() -> DBSensor:
+    """Define sensor recording events with a unique knowledge time."""
+    sensor = DBSensor(
+        name="SinglePublicationSensor",
+        event_resolution=timedelta(hours=1),
+        knowledge_horizon=(
+            at_date,
+            dict(knowledge_time=datetime(1990, 5, 10, 0, tzinfo=utc)),
         ),
     )
     session.add(sensor)

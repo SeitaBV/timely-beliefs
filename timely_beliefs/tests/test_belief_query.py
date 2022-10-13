@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
-from typing import List
 
 import numpy as np
 import pandas as pd
@@ -16,6 +17,42 @@ from timely_beliefs import (
     TimedBelief,
 )
 from timely_beliefs.tests import session
+
+
+@pytest.fixture(scope="function")
+def beliefs_recorded_at_unique_knowledge_time(
+    unique_knowledge_time_sensor: DBSensor, test_source_a: DBBeliefSource
+) -> list[DBTimedBelief]:
+    """Define beliefs about a future event at its unique knowledge time (e.g. a publication date)."""
+    beliefs = [
+        DBTimedBelief(
+            source=test_source_a,
+            sensor=unique_knowledge_time_sensor,
+            value=10 + i,
+            belief_time=datetime(1990, 5, 10, 0, tzinfo=utc),
+            event_start=datetime(1990, 6, 1 + i, 0, tzinfo=utc),
+        )
+        for i in range(2)
+    ]
+    session.add_all(beliefs)
+    return beliefs
+
+
+def test_query_belief_for_sensor_with_unique_knowledge_time(
+    unique_knowledge_time_sensor: DBSensor,
+    beliefs_recorded_at_unique_knowledge_time: list[DBTimedBelief],
+):
+    """Test query of sensor with a unique knowledge time, in combination with a belief time window."""
+    belief_df = DBTimedBelief.search_session(
+        session=session,
+        sensor=unique_knowledge_time_sensor,
+        beliefs_after=pd.Timestamp("1990-04-01 00:00Z"),
+        belief_before=pd.Timestamp("1990-06-01 00:00Z"),
+    ).convert_index_from_belief_time_to_horizon()
+    assert belief_df.belief_horizons[0] == timedelta(0)
+    assert belief_df.belief_horizons[1] == timedelta(0)
+    assert belief_df.knowledge_horizons[0] == timedelta(days=22)
+    assert belief_df.knowledge_horizons[1] == timedelta(days=23)
 
 
 @pytest.fixture(scope="function")
@@ -208,7 +245,7 @@ def test_query_belief_by_belief_time(
 
 def test_query_belief_history(
     ex_post_time_slot_sensor: DBSensor,
-    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
+    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: list[DBTimedBelief],
 ):
     df = DBTimedBelief.search_session(session=session, sensor=ex_post_time_slot_sensor)
     event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
@@ -321,7 +358,7 @@ def _test_empty_frame(time_slot_sensor):
 
 def test_search_by_sensor_id(
     ex_post_time_slot_sensor: DBSensor,
-    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
+    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: list[DBTimedBelief],
 ):
     """Check db query by sensor id, against query by sensor instance, for a non-empty dataset."""
 
@@ -340,8 +377,8 @@ def test_search_by_sensor_id(
 
 def test_select_most_recent_deterministic_beliefs(
     ex_post_time_slot_sensor: DBSensor,
-    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
-    multiple_day_after_beliefs_about_ex_post_time_slot_event: List[DBTimedBelief],
+    multiple_day_ahead_beliefs_about_ex_post_time_slot_event: list[DBTimedBelief],
+    multiple_day_after_beliefs_about_ex_post_time_slot_event: list[DBTimedBelief],
 ):
     """Check db query filters for most recent beliefs, most recent events, and both at once."""
 
@@ -394,7 +431,7 @@ def test_select_most_recent_deterministic_beliefs(
 
 def test_select_most_recent_probabilistic_beliefs(
     ex_post_time_slot_sensor: DBSensor,
-    multiple_probabilistic_day_ahead_beliefs_about_ex_post_time_slot_event: List[
+    multiple_probabilistic_day_ahead_beliefs_about_ex_post_time_slot_event: list[
         DBTimedBelief
     ],
 ):
