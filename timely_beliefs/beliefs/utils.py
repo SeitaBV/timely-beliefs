@@ -624,7 +624,11 @@ def interpret_special_read_cases(
     if len(df.columns) == 2:
         # datetime in 1st column and value in 2nd column
         df.columns = ["event_start", "event_value"]
+        # Convert to datetime (works for timezone naive datetimes, and timezone aware datetime with a shared offset)
         df["event_start"] = pd.to_datetime(df["event_start"])
+        if df["event_start"].dtype == "object":
+            # Reattempt conversion for timezone aware datetimes with a mixed offset
+            df["event_start"] = pd.to_datetime(df["event_start"], utc=True)
         if df["event_start"].dt.tz is None:
             df["event_start"] = df["event_start"].dt.tz_localize(
                 timezone, ambiguous="infer"
@@ -640,13 +644,21 @@ def interpret_special_read_cases(
     elif len(df.columns) == 3:
         # datetimes in 1st and 2nd column, and value in 3rd column
         df.columns = ["event_start", "belief_time", "event_value"]
+        # Convert to datetime (works for timezone naive datetimes, and timezone aware datetime with a shared offset)
         df["event_start"] = pd.to_datetime(df["event_start"])
+        if df["event_start"].dtype == "object":
+            # Reattempt conversion for timezone aware datetimes with a mixed offset
+            df["event_start"] = pd.to_datetime(df["event_start"], utc=True)
         if df["event_start"].dt.tz is None:
             df["event_start"] = df["event_start"].dt.tz_localize(
                 timezone, ambiguous="infer"
             )
         df["event_start"] = df["event_start"].dt.tz_convert(sensor.timezone)
+        # Convert to datetime (works for timezone naive datetimes, and timezone aware datetime with a shared offset)
         df["belief_time"] = pd.to_datetime(df["belief_time"])
+        if df["belief_time"].dtype == "object":
+            # Reattempt conversion for timezone aware datetimes with a mixed offset
+            df["belief_time"] = pd.to_datetime(df["belief_time"], utc=True)
         if df["belief_time"].dt.tz is None:
             df["belief_time"] = df["belief_time"].dt.tz_localize(
                 timezone, ambiguous="infer"
