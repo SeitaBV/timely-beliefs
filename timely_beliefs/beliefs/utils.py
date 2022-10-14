@@ -714,7 +714,11 @@ def to_sensor_timezone(
     if s.dt.tz is None:
         if timezone is None:
             raise TypeError(
-                "The timely-beliefs package does not work with timezone-naive datetimes. Please specify a timezone to which to localize your data (e.g. 'UTC' or 'Europe/Amsterdam')."
+                f"The timely-beliefs package does not work with timezone-naive datetimes. Please specify a timezone to which to localize your data (e.g. the timezone of the sensor, which is '{sensor.timezone}')."
+            )
+        elif timezone != sensor.timezone:
+            warnings.warn(
+                f"Converting the timezone of the data from {timezone} to {sensor.timezone}."
             )
         s = s.dt.tz_localize(timezone, ambiguous="infer")
     return s.dt.tz_convert(sensor.timezone)
