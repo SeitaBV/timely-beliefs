@@ -525,7 +525,7 @@ def read_csv(
     belief_time: datetime = None,
     cumulative_probability: float = None,
     resample: bool = False,
-    timezone: str = "UTC",
+    timezone: Optional[str] = None,
     **kwargs,
 ) -> "classes.BeliefsDataFrame":
     """Utility function to load a BeliefsDataFrame from a csv file or xls sheet (see example/temperature.csv).
@@ -537,8 +537,8 @@ def read_csv(
     Also supports the case of a csv file with just 2 columns and 1 header row (a quite common time series format).
     In this case no special header names are required, but the first column has to contain the event starts,
     and the second column has to contain the event values.
-    In case the event starts are local times (timezone naive), they are assumed to be in the UTC timezone by default.
-    To localize times to a different timezone, pass the relevant IANA timezone name (e.g. Europe/Amsterdam).
+    In case the event starts are local times (timezone naive), they must be localized to a timezone,
+    by passing the relevant IANA timezone name (e.g. timezone='Europe/Amsterdam').
     You also need to pass explicit values for the belief horizon/time and cumulative probability,
     in addition to the sensor and source.
     If needed, the time series may be resampled to the event resolution of the sensor, using resample=True.
@@ -547,8 +547,8 @@ def read_csv(
     Also supports the case of a csv file with just 3 columns and 1 header row.
     In this case no special header names are required, but the first two columns have to contain the event starts
     and belief times, respectively, and the third column has to contain the event values.
-    In case event starts and belief times are local times (timezone naive), they are assumed to be in the UTC timezone
-    by default. To localize times to a different timezone, pass the relevant IANA timezone name (e.g. Europe/Amsterdam).
+    In case event starts and belief times are local times (timezone naive), they must be localized to a timezone,
+    by passing the relevant IANA timezone name (e.g. timezone='Europe/Amsterdam').
 
     Consult pandas documentation for which additional kwargs can be passed to pandas.read_csv or pandas.read_excel.
     Useful examples are parse_dates=True, infer_datetime_format=True (for read_csv)
@@ -613,7 +613,7 @@ def read_csv(
 
 
 def interpret_special_read_cases(
-    df: pd.DataFrame, sensor: "classes.Sensor", resample: bool, timezone: str
+    df: pd.DataFrame, sensor: "classes.Sensor", resample: bool, timezone: Optional[str]
 ) -> pd.DataFrame:
     """Interpret the read-in data, either as event starts and event values (2 cols),
     or as event starts, belief times and event values (3 cols).
@@ -641,7 +641,7 @@ def interpret_special_read_cases(
 
 
 def to_sensor_timezone(
-    s: pd.Series, sensor: "classes.Sensor", timezone: str
+    s: pd.Series, sensor: "classes.Sensor", timezone: Optional[str]
 ) -> pd.Series:
     """Localize or convert the timezone of the series to the timezone of the sensor."""
     # Convert to datetime (works for timezone naive datetimes, and timezone aware datetime with a shared offset)
@@ -650,6 +650,10 @@ def to_sensor_timezone(
         # Reattempt conversion for timezone aware datetimes with a mixed offset
         s = pd.to_datetime(s, utc=True)
     if s.dt.tz is None:
+        if timezone is None:
+            raise TypeError(
+                f"The timely-beliefs package does not work with timezone-naive datetimes. Please specify a timezone to which to localize your data."
+            )
         s = s.dt.tz_localize(timezone, ambiguous="infer")
     return s.dt.tz_convert(sensor.timezone)
 
