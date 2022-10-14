@@ -538,7 +538,7 @@ def read_csv(
     In this case no special header names are required, but the first column has to contain the event starts,
     and the second column has to contain the event values.
     In case the event starts are local times (timezone naive), they must be localized to a timezone,
-    by passing the relevant IANA timezone name (e.g. timezone='Europe/Amsterdam').
+    by passing the relevant IANA timezone name (e.g. timezone='UTC' or timezone='Europe/Amsterdam').
     You also need to pass explicit values for the belief horizon/time and cumulative probability,
     in addition to the sensor and source.
     If needed, the time series may be resampled to the event resolution of the sensor, using resample=True.
@@ -548,7 +548,7 @@ def read_csv(
     In this case no special header names are required, but the first two columns have to contain the event starts
     and belief times, respectively, and the third column has to contain the event values.
     In case event starts and belief times are local times (timezone naive), they must be localized to a timezone,
-    by passing the relevant IANA timezone name (e.g. timezone='Europe/Amsterdam').
+    by passing the relevant IANA timezone name (e.g. timezone='UTC' or timezone='Europe/Amsterdam').
 
     Consult pandas documentation for which additional kwargs can be passed to pandas.read_csv or pandas.read_excel.
     Useful examples are parse_dates=True, infer_datetime_format=True (for read_csv)
@@ -652,7 +652,7 @@ def to_sensor_timezone(
     if s.dt.tz is None:
         if timezone is None:
             raise TypeError(
-                "The timely-beliefs package does not work with timezone-naive datetimes. Please specify a timezone to which to localize your data."
+                "The timely-beliefs package does not work with timezone-naive datetimes. Please specify a timezone to which to localize your data (e.g. 'UTC' or 'Europe/Amsterdam')."
             )
         s = s.dt.tz_localize(timezone, ambiguous="infer")
     return s.dt.tz_convert(sensor.timezone)
