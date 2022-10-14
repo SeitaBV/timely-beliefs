@@ -134,6 +134,29 @@ def test_load_timezone_naive_data():
     )
     assert len(df.event_starts.unique()) == 6
 
+    # Reload while filtering by a column that ends up in the BeliefsDataFrame
+    df = tb.read_csv(
+        path=path,
+        timezone=timezone,
+        sensor=sensor,
+        source=source,
+        usecols=["datetime", "recorded", "value"],
+        filter_by_column={"recorded": "2022-10-09 00:00"},
+    )
+    assert len(df.event_starts.unique()) == 5
+
+    # Reload while filtering by a column that does not end up in the BeliefsDataFrame
+    df = tb.read_csv(
+        path=path,
+        timezone=timezone,
+        sensor=sensor,
+        source=source,
+        usecols=["datetime", "recorded", "value"],
+        filter_by_column={"sensor": "X"},
+    )
+    assert len(df.event_starts.unique()) == 5
+    assert "sensor" not in df.columns.names
+
 
 @pytest.mark.parametrize(
     "args, kwargs",
