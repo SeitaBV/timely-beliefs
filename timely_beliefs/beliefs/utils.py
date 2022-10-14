@@ -697,7 +697,9 @@ def interpret_special_read_cases(
 def to_sensor_timezone(
     s: pd.Series, sensor: "classes.Sensor", timezone: Optional[str]
 ) -> pd.Series:
-    """Localize or convert the timezone of the series to the timezone of the sensor.
+    """Convert the timezone of the series to the timezone of the sensor.
+
+    In case the series contains naive datetimes, they are first localized using the 'timezone' parameter.
 
     :param s:           series with datetime representations
     :param sensor:      object with a timezone property to which all datetimes are converted
