@@ -678,7 +678,11 @@ def interpret_special_read_cases(
     if len(df.columns) == 2:
         # datetime in 1st column and value in 2nd column
         df.columns = ["event_start", "event_value"]
-        df["event_start"] = to_sensor_timezone(df["event_start"], sensor, timezone)
+        df["event_start"] = convert_to_timezone(
+            df["event_start"],
+            timezone_to_convert_to=sensor.timezone,
+            timezone_to_localize_to=timezone,
+        )
         if resample:
             df = (
                 df.set_index("event_start")
@@ -689,22 +693,30 @@ def interpret_special_read_cases(
     elif len(df.columns) == 3:
         # datetimes in 1st and 2nd column, and value in 3rd column
         df.columns = ["event_start", "belief_time", "event_value"]
-        df["event_start"] = to_sensor_timezone(df["event_start"], sensor, timezone)
-        df["belief_time"] = to_sensor_timezone(df["belief_time"], sensor, timezone)
+        df["event_start"] = convert_to_timezone(
+            df["event_start"],
+            timezone_to_convert_to=sensor.timezone,
+            timezone_to_localize_to=timezone,
+        )
+        df["belief_time"] = convert_to_timezone(
+            df["belief_time"],
+            timezone_to_convert_to=sensor.timezone,
+            timezone_to_localize_to=timezone,
+        )
     return df
 
 
-def to_sensor_timezone(
-    s: pd.Series, sensor: "classes.Sensor", timezone: Optional[str]
+def convert_to_timezone(
+    s: pd.Series, timezone_to_convert_to: str, timezone_to_localize_to: Optional[str]
 ) -> pd.Series:
-    """Convert the timezone of the series to the timezone of the sensor.
+    """Convert the timezone of the series to the given timezone.
 
-    In case the series contains naive datetimes, they are first localized using the 'timezone' parameter.
+    In case the series contains naive datetimes, they are first localized using the 'timezone_to_localize_to' parameter.
 
-    :param s:           series with datetime representations
-    :param sensor:      object with a timezone property to which all datetimes are converted
-    :param timezone:    optional timezone for localizing timezone naive datetimes
-    :raises:            TypeError in case naive datetimes are passed without a timezone to localize to
+    :param s:                           series with datetime representations
+    :param timezone_to_convert_to:      timezone to which all datetimes are converted
+    :param timezone_to_localize_to:     optional timezone for localizing timezone naive datetimes
+    :raises:                            TypeError in case naive datetimes are passed without a timezone to localize to
     """
     # Convert to datetime (works for timezone naive datetimes, and timezone aware datetime with a shared offset)
     s = pd.to_datetime(s)
@@ -712,16 +724,16 @@ def to_sensor_timezone(
         # Reattempt conversion for timezone aware datetimes with a mixed offset
         s = pd.to_datetime(s, utc=True)
     if s.dt.tz is None:
-        if timezone is None:
+        if timezone_to_localize_to is None:
             raise TypeError(
-                f"The timely-beliefs package does not work with timezone-naive datetimes. Please specify a timezone to which to localize your data (e.g. the timezone of the sensor, which is '{sensor.timezone}')."
+                f"The timely-beliefs package does not work with timezone-naive datetimes. Please specify a timezone to which to localize your data (e.g. the timezone of the sensor, which is '{timezone_to_convert_to}')."
             )
-        elif timezone != sensor.timezone:
+        elif timezone_to_localize_to != timezone_to_convert_to:
             warnings.warn(
-                f"Converting the timezone of the data from {timezone} to {sensor.timezone}."
+                f"Converting the timezone of the data from {timezone_to_localize_to} to {timezone_to_convert_to}."
             )
-        s = s.dt.tz_localize(timezone, ambiguous="infer")
-    return s.dt.tz_convert(sensor.timezone)
+        s = s.dt.tz_localize(timezone_to_localize_to, ambiguous="infer")
+    return s.dt.tz_convert(timezone_to_convert_to)
 
 
 def initialize_index(
