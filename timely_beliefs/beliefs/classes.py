@@ -1367,7 +1367,9 @@ class BeliefsDataFrame(pd.DataFrame):
             if event_resolution > self.event_resolution:
                 # downsample
                 column_functions = {
-                    "event_value": "mean",
+                    "event_value": "mean"
+                    if self.event_resolution != timedelta(0)
+                    else "first",
                     "source": "first",  # keep the only source
                     belief_timing_col: "max"
                     if belief_timing_col == "belief_time"
