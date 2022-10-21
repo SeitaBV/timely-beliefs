@@ -52,6 +52,7 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
 1. [Database storage](#database-storage)
 1. [Accuracy](#accuracy)
 1. [Visualisation](#visualisation)
+1. [Generating new forecasts](#generating-new-forecasts)
 1. [Development](#development)
 
 ## The data model
@@ -143,6 +144,14 @@ For an intuitive representation of accuracy that works in many cases, we suggest
     >>> `df["accuracy"] = 1 - df["wape"]`
 
 [A more detailed discussion of accuracy and error metrics can be found here.](timely_beliefs/docs/accuracy.md)
+
+## Generating new forecasts
+
+New forecasts can be generated from a given BeliefsDataFrame by passing an `sktime` forecaster to the `form_beliefs` method.
+This method takes a `belief_time` and an `event_start` (for a single forecast) or `event_time_window` (for a number of forecasts from a fixed viewpoint).
+The `source` defines how the forecast should be attributed in the resulting BeliefsDataFrame.
+
+This feature currently only supports BeliefsDataFrames containing a single deterministic belief per event, by a single source.
 
 ## Visualisation
 

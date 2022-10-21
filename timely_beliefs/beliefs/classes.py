@@ -21,6 +21,8 @@ import pandas as pd
 import pytz
 from pandas.core.groupby import DataFrameGroupBy
 from pandas.tseries.frequencies import to_offset
+from sktime.forecasting.base import BaseForecaster
+from sktime.forecasting.naive import NaiveForecaster
 from sqlalchemy import (
     Column,
     DateTime,
@@ -703,6 +705,25 @@ class BeliefsDataFrame(pd.DataFrame):
     def __finalize__(self, other, method=None, **kwargs):
         """Propagate metadata from other to self."""
         # merge operation: using metadata of the left object
+
+        # Check if sources have unique names
+        if hasattr(other, "objs"):
+            sources = []
+            for df in other.objs:
+                if "source" in df.index:
+                    sources.extend(
+                        df.index.get_level_values(level="source")
+                        .unique()
+                        .to_numpy(dtype="object")
+                    )
+            sources = set(sources)
+            source_names = set(source.name for source in sources)
+            if len(source_names) != len(sources):
+                raise ValueError(
+                    "Source names must be unique. Cannot initialise BeliefsDataFrame given the following unique sources:\n%s"
+                    % sources
+                )
+
         if method == "merge":
             for name in self._metadata:
                 object.__setattr__(self, name, getattr(other.left, name, None))
@@ -1130,6 +1151,10 @@ class BeliefsDataFrame(pd.DataFrame):
         return self._for_each_belief(fnc, True, *args, **kwargs)
 
     @hybrid_method
+    def make_deterministic(self):
+        return self.for_each_belief(probabilistic_utils.get_expected_belief)
+
+    @hybrid_method
     def belief_history(
         self,
         event_start: DatetimeLike,
@@ -1468,6 +1493,140 @@ class BeliefsDataFrame(pd.DataFrame):
                 df = df.convert_index_from_belief_time_to_horizon()
 
         return df
+
+    @hybrid_method
+    def form_beliefs(
+        self,
+        belief_time: datetime,
+        source: BeliefSource,
+        event_start: datetime = None,
+        event_time_window: Optional[Tuple[datetime, datetime]] = (
+            None,
+            None,
+        ),
+        forecaster: Optional[BaseForecaster] = None,
+        concatenate: bool = False,
+    ):
+        """Form new beliefs by applying a given forecaster.
+
+        Note that the result may contain NaN values, for example, when the BeliefsDataFrame contains insufficient data.
+
+        :param belief_time:       Time at which the forecasts where made
+                                  (any belief after this time will be inaccessible to the forecaster).
+        :param source:            Source to assign the newly formed beliefs to.
+        :param event_start:       Set this to forecast a single event with the given start time.
+        :param event_time_window: Set this to forecast all events within the given time window.
+        :param forecaster:        Forecasting model. Currently, only sktime models are supported.
+                                  The default forecaster simply repeats the last known value.
+                                  Hint: set a seasonal periodicity to obtain a more reasonable (baseline) forecast.
+                                  For example:
+                                      >>> periodicity = pd.Timedelta("PT1W")
+                                      >>> forecaster = NaiveForecaster(sp=periodicity // df.event_resolution)
+        :param concatenate:       If True, the new beliefs are concatenated with the original BeliefsDataFrame.
+                                  If False, the new beliefs are returned (use pd.concat to add them yourself).
+        """
+        if forecaster is None:
+            forecaster = NaiveForecaster(strategy="last")
+        if event_start is not None:
+            if event_time_window != (None, None):
+                raise ValueError(
+                    "Cannot pass both an event start and event start window."
+                )
+            event_time_window = (event_start, event_start + self.event_resolution)
+
+        # Check assumptions
+        if self.sensor.knowledge_time(event_time_window[0]) < belief_time:
+            # No backcasting
+            raise NotImplementedError("Backcasting is not implemented.")
+        if self.lineage.number_of_sources > 1:
+            # Single source only
+            raise NotImplementedError(
+                "Cannot form new beliefs given multi-sourced data. Consider picking 1 source, e.g. using: df = df[df.index.get_level_values('source') == df.lineage.sources[0]]"
+            )
+        if self.lineage.probabilistic_depth != 1:
+            # Deterministic beliefs only
+            raise NotImplementedError(
+                "Cannot form new beliefs given probabilistic data. Consider pre-computing deterministic beliefs, e.g. using: df = df.make_deterministic()"
+            )
+        if self.lineage.number_of_beliefs != self.lineage.number_of_events:
+            # One belief per event
+            raise NotImplementedError(
+                "Cannot form new beliefs given multiple beliefs about the same event. Consider picking a single belief per event, e.g. using: df = belief_utils.select_most_recent_belief(df)"
+            )
+
+        df = self
+
+        # Do NOT use future data to predict NOR to fit
+        belief_horizon_in_index = False
+        if "belief_horizon" in df.index.names:
+            belief_horizon_in_index = True
+            df = df.convert_index_from_belief_horizon_to_time()
+        df = df[df.index.get_level_values("belief_time") <= belief_time]
+
+        if df.empty:
+            # skip sktime, which expects a non-empty frame
+            y_pred = pd.Series(
+                data=np.nan,
+                index=belief_utils.initialize_index(
+                    start=event_time_window[0],
+                    end=event_time_window[1],
+                    resolution=df.event_resolution,
+                ),
+            )
+        else:
+            # Simplify index
+            df = df.reset_index()[["event_start", "event_value"]].set_index(
+                "event_start"
+            )
+
+            # Convert to local time in UTC, which sktime expects
+            tz = event_time_window[0].tzinfo
+            utc = pytz.utc
+            event_time_window = tuple(
+                dt.astimezone(utc).replace(tzinfo=None) for dt in event_time_window
+            )
+            df.index = df.index.tz_convert(utc).tz_localize(None)
+
+            # Resample to the resolution the data already has, just to set the index frequency, which sktime expects
+            # The new index ends just before the start of the first forecast (which may introduce trailing NaN values),
+            # as sktime expects no gap between the indices of the input and forecasts when applying seasonal periodicity.
+            df = df.reindex(
+                belief_utils.initialize_index(
+                    df.index[0],
+                    event_time_window[0],
+                    resolution=df.event_resolution,
+                )
+            )
+            df = df.resample(df.event_resolution).mean()
+
+            # todo: if forecaster does not handle missing values, impute intermediate missing values and forecast trailing missing values
+
+            # Apply model
+            if isinstance(forecaster, BaseForecaster):
+                forecast_event_starts = belief_utils.initialize_index(
+                    event_time_window[0],
+                    event_time_window[1],
+                    resolution=df.event_resolution,
+                )
+                forecaster.fit(
+                    df["event_value"], df.loc[:, df.columns != "event_value"]
+                )
+                y_pred = forecaster.predict(forecast_event_starts)
+            else:
+                raise NotImplementedError("Consider opening a GitHub issue.")
+
+            # Relocalize to requested timezone
+            y_pred.index = y_pred.index.tz_localize("utc").tz_convert(tz)
+
+        # Prepare results as BeliefsDataframe
+        new_df = BeliefsDataFrame(
+            y_pred, source=source, belief_time=belief_time, sensor=df.sensor
+        )
+        if belief_horizon_in_index:
+            new_df = new_df.convert_index_from_belief_time_to_horizon()
+        if concatenate:
+            return pd.concat([self, new_df])
+        return new_df
 
     def accuracy(
         self,

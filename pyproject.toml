@@ -60,6 +60,11 @@ dynamic = ["version"]
 viz = [
     "altair>=4.0.0",
 ]
+forecast = [
+    "sktime",
+    "numpy<1.23,>=1.21.0; python_version > '3.7'",  # required by sktime==0.13.1
+    "scipy<1.9; python_version > '3.7'",  # required by sktime==0.13.1
+]
 
 [project.readme]
 text = "Model to represent data as beliefs about events, stored in the form of a multi-index pandas DataFrame enriched with attributes to get out convenient representations of the data."
