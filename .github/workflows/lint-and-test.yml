@@ -30,10 +30,13 @@ jobs:
         with:
           python-version: ${{ matrix.py_version }}
       - uses: actions/checkout@v2
-      - if: ${{ matrix.skip-viz }}
-        run: make test-without-viz
-      - if: ${{ ! matrix.skip-viz }}
+      - name: Run main tests
         run: make test
+      - name: Run forecast tests
+        run: make test-forecast
+      - name: Run viz tests
+        if: ${{ ! matrix.skip-viz }}
+        run: make test-viz
     env:
       PGHOST: 127.0.0.1
       PGPORT: 5432
