@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import warnings
 from datetime import datetime, timedelta
 from typing import List, Optional, Union
@@ -749,3 +751,18 @@ def extreme_timedeltas_not_equal(
     if isinstance(td_a, pd.Timedelta):
         td_a = td_a.to_pytimedelta()
     return td_a != td_b
+
+
+def downsample_first(
+    series: pd.Series | pd.DataFrame, resolution: timedelta | pd.Timedelta | str
+) -> pd.Series | pd.DataFrame:
+    """An extended time slot in the fall, and a shortened time slot in the spring."""
+    if isinstance(resolution, str):
+        resolution = pd.Timedelta(resolution)
+    ds_index = series.index.floor(
+        resolution, ambiguous=[True] * len(series), nonexistent="shift_forward"
+    ).drop_duplicates()
+    ds_series = series[series.index.isin(series.index.join(ds_index, how="inner"))]
+    if ds_series.index.freq is None and len(ds_series) > 2:
+        ds_series.index.freq = pd.infer_freq(ds_series.index)
+    return ds_series

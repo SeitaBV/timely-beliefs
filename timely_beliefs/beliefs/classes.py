@@ -1347,6 +1347,15 @@ class BeliefsDataFrame(pd.DataFrame):
             return self
         df = self
 
+        # Resample instantaneous sensors
+        # The event resolution stays zero, but the data frequency updates
+        if df.event_resolution == timedelta(0):
+            index_names = df.index.names
+            df = df.reset_index().set_index("event_start")
+            df = belief_utils.downsample_first(df, event_resolution)
+            df = df.reset_index().set_index(index_names)
+            return df
+
         belief_timing_col = (
             "belief_time" if "belief_time" in df.index.names else "belief_horizon"
         )
@@ -1367,9 +1376,7 @@ class BeliefsDataFrame(pd.DataFrame):
             if event_resolution > self.event_resolution:
                 # downsample
                 column_functions = {
-                    "event_value": "mean"
-                    if self.event_resolution != timedelta(0)
-                    else "first",
+                    "event_value": "mean",
                     "source": "first",  # keep the only source
                     belief_timing_col: "max"
                     if belief_timing_col == "belief_time"
