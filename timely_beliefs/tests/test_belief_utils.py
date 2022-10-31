@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
-from timely_beliefs.beliefs.utils import propagate_beliefs, downsample_first
+from timely_beliefs.beliefs.utils import downsample_first, propagate_beliefs
 from timely_beliefs.examples import get_example_df
 from timely_beliefs.tests.utils import equal_lists
 
