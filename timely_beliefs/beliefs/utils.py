@@ -754,7 +754,14 @@ def extreme_timedeltas_not_equal(
 
 
 def downsample_first(df: pd.DataFrame, resolution: timedelta) -> pd.DataFrame:
-    """An extended time slot in the fall, and a shortened time slot in the spring."""
+    """Resample data representing instantaneous events.
+
+    Updates the data frequency, while keeping the event resolution.
+
+    Note that the data frequency may not be constant due to DST transitions
+    The duration between observations is longer for the fall DST transition,
+    and shorter for the spring DST transition.
+    """
     ds_index = df.index.floor(
         resolution, ambiguous=[True] * len(df), nonexistent="shift_forward"
     ).drop_duplicates()
