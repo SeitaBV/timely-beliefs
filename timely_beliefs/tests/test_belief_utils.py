@@ -1,8 +1,10 @@
 import pandas as pd
+import pytest
 
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
-from timely_beliefs.beliefs.utils import propagate_beliefs
+from timely_beliefs.beliefs.utils import propagate_beliefs, downsample_first
 from timely_beliefs.examples import get_example_df
+from timely_beliefs.tests.utils import equal_lists
 
 
 def test_propagate_multi_sourced_deterministic_beliefs():
@@ -31,3 +33,55 @@ def test_propagate_multi_sourced_deterministic_beliefs():
             == pd.Timestamp("2000-01-01 01:00:00+00:00")
         ].droplevel("belief_time"),
     )
+
+
+@pytest.mark.parametrize(
+    ("start", "periods", "resolution", "exp_event_values"),
+    [
+        (
+            "2022-03-27 01:00+01",
+            7,
+            "PT2H",
+            [2, 3, 5, 7],
+        ),  # DST transition from +01 to +02 (spring forward, contracted event)
+        (
+            "2022-10-30 01:00+02",
+            7,
+            "PT2H",
+            [2, 5, 7],
+        ),  # DST transition from +02 to +01 (fall back -> extended event)
+        (
+            "2022-03-26 01:00+01",
+            23 + 23 + 23,
+            "PT24H",
+            [24, 47],
+        ),  # midnight of 1 full (contracted) day, plus the following midnight of 1 partial day
+        (
+            "2022-03-26 01:00+01",
+            23 + 23 + 23,
+            "P1D",
+            [24, 47],
+        ),  # midnight of 1 full (contracted) day, plus the following midnight of 1 partial day
+        (
+            "2022-10-29 01:00+02",
+            23 + 25 + 23,
+            "PT24H",
+            [24, 49],
+        ),  # midnight of 1 full (extended) day, plus the following midnight of 1 partial day
+        (
+            "2022-10-29 01:00+02",
+            23 + 25 + 24 + 23,
+            "P1D",
+            [24, 49, 73],
+        ),  # midnight of 1 full (extended) day and 1 full (regular) day, plus the following midnight of 1 partial day
+    ],
+)
+def test_downsample_first(start, periods, resolution, exp_event_values):
+    """Enumerate the events and check whether downsampling returns the expected events."""
+    index = pd.date_range(start, periods=periods, freq="1H").tz_convert(
+        "Europe/Amsterdam"
+    )
+    series = pd.Series(list(range(1, periods + 1)), index=index)
+    ds_series = downsample_first(series, resolution)
+    print(ds_series)
+    assert equal_lists(ds_series.values, exp_event_values)
