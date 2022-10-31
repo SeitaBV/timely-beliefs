@@ -285,7 +285,9 @@ def join_beliefs(
     if output_resolution > input_resolution:
 
         # Create new BeliefsDataFrame with downsampled event_start
-        if output_resolution % input_resolution != timedelta(0):
+        if input_resolution == timedelta(
+            0
+        ) or output_resolution % input_resolution != timedelta(0):
             raise NotImplementedError(
                 "Cannot downsample from resolution %s to %s."
                 % (input_resolution, output_resolution)
