@@ -1503,7 +1503,7 @@ class BeliefsDataFrame(pd.DataFrame):
             None,
             None,
         ),
-        forecaster: Optional[BaseForecaster] = None,
+        forecaster: Optional["BaseForecaster"] = None,
         concatenate: bool = False,
     ):
         """Form new beliefs by applying a given forecaster.
