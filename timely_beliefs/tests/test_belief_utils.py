@@ -81,7 +81,7 @@ def test_downsample_first(start, periods, resolution, exp_event_values):
     index = pd.date_range(start, periods=periods, freq="1H").tz_convert(
         "Europe/Amsterdam"
     )
-    series = pd.Series(list(range(1, periods + 1)), index=index)
-    ds_series = downsample_first(series, resolution)
-    print(ds_series)
-    assert equal_lists(ds_series.values, exp_event_values)
+    df = pd.DataFrame(list(range(1, periods + 1)), index=index)
+    ds_df = downsample_first(df, pd.Timedelta(resolution))
+    print(ds_df)
+    assert equal_lists(ds_df.values, exp_event_values)
