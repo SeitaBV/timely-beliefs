@@ -20,14 +20,14 @@ install-tb:
 test:
 	pip install -e .
 	pip install setuptools_scm pytest
-	pytest --ignore test_forecast --ignore test_viz
+	pytest --ignore test_forecast__ --ignore test_viz__
 
 test-forecast:
 	pip install -e .[forecast]
 	pip install setuptools_scm pytest
-	pytest -k test_forecast
+	pytest -k test_forecast__
 
 test-viz:
 	pip install -e .[viz]
 	pip install setuptools_scm pytest
-	pytest -k test_viz
+	pytest -k test_viz__
