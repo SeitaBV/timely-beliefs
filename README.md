@@ -147,6 +147,8 @@ For an intuitive representation of accuracy that works in many cases, we suggest
 
 ## Generating new forecasts
 
+To enable forecast support, use `pip install timely-beliefs[forecast]` to install the required dependencies.
+
 New forecasts can be generated from a given BeliefsDataFrame by passing an `sktime` forecaster to the `form_beliefs` method.
 This method takes a `belief_time` and an `event_start` (for a single forecast) or `event_time_window` (for a number of forecasts from a fixed viewpoint).
 The `source` defines how the forecast should be attributed in the resulting BeliefsDataFrame.

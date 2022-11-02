@@ -15,14 +15,13 @@ from typing import (
 
 if TYPE_CHECKING:
     import altair as alt
+    from sktime.forecasting.base import BaseForecaster
 
 import numpy as np
 import pandas as pd
 import pytz
 from pandas.core.groupby import DataFrameGroupBy
 from pandas.tseries.frequencies import to_offset
-from sktime.forecasting.base import BaseForecaster
-from sktime.forecasting.naive import NaiveForecaster
 from sqlalchemy import (
     Column,
     DateTime,
@@ -1504,7 +1503,7 @@ class BeliefsDataFrame(pd.DataFrame):
             None,
             None,
         ),
-        forecaster: Optional[BaseForecaster] = None,
+        forecaster: Optional["BaseForecaster"] = None,
         concatenate: bool = False,
     ):
         """Form new beliefs by applying a given forecaster.
@@ -1525,7 +1524,11 @@ class BeliefsDataFrame(pd.DataFrame):
         :param concatenate:       If True, the new beliefs are concatenated with the original BeliefsDataFrame.
                                   If False, the new beliefs are returned (use pd.concat to add them yourself).
         """
+        from sktime.forecasting.base import BaseForecaster
+
         if forecaster is None:
+            from sktime.forecasting.naive import NaiveForecaster
+
             forecaster = NaiveForecaster(strategy="last")
         if event_start is not None:
             if event_time_window != (None, None):

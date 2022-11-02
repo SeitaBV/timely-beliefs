@@ -18,11 +18,16 @@ install-tb:
 	pre-commit install
 
 test:
-	pip install -e .[viz,forecast]
+	pip install -e .
 	pip install setuptools_scm pytest
-	pytest
+	pytest --ignore test_forecast__ --ignore test_viz__
 
-test-without-viz:
+test-forecast:
 	pip install -e .[forecast]
 	pip install setuptools_scm pytest
-	pytest
+	pytest -k test_forecast__
+
+test-viz:
+	pip install -e .[viz]
+	pip install setuptools_scm pytest
+	pytest -k test_viz__

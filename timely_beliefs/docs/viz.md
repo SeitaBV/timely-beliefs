@@ -24,7 +24,7 @@ rather than our more precise definition of belief horizon.
 
 ## Installation
 
-To enable database support, use `pip install timely-beliefs[viz]` to install the required dependencies.
+To enable visualization support, use `pip install timely-beliefs[viz]` to install the required dependencies.
 
 ## How to interact with the chart
 
@@ -47,7 +47,7 @@ Double click to select all horizons.
 ### Switch viewpoints
 
 The chart allows you to switch between a fixed and rolling viewpoint as follows:
-- **Fixed viewpoint**: first select all horizons by double clicking in `Select forecasting horizon`, then click anywhere in `Model results` to travel through time.
+- **Fixed viewpoint**: first select all horizons by double-clicking in `Select forecasting horizon`, then click anywhere in `Model results` to travel through time.
 - **Rolling viewpoint**: first click somewhere on the far right in `Model results` to look back at the full range of your data, then select a specific horizon by clicking in `Select forecasting horizon`.
 
 ## Ridgeline plots

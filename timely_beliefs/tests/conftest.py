@@ -1,3 +1,4 @@
+import importlib.util
 import sys
 from datetime import datetime, timedelta
 
@@ -12,12 +13,19 @@ from timely_beliefs.sensors.func_store.knowledge_horizons import (
 )
 from timely_beliefs.tests import engine, session
 
+collect_ignore_glob = []
 if sys.version_info[0] == 3 and sys.version_info[1] == 6:
     # Ignore these tests for python==3.6
-    collect_ignore = ["test_ignore_36.py", "test_plotting.py", "test_ridgeline.py"]
-if sys.version_info[0] == 3 and sys.version_info[1] == 7:
-    # Ignore these tests for python==3.7
-    collect_ignore = ["test_plotting.py", "test_ridgeline.py"]
+    print("Ignoring optional test modules prepended with 'test_ignore_36__'.")
+    collect_ignore_glob += ["test_ignore_36__*.py"]
+if importlib.util.find_spec("altair") is None:
+    # Ignore these tests if altair is not installed
+    print("Ignoring optional test modules prepended with 'test_viz__'.")
+    collect_ignore_glob += ["test_viz__*.py"]
+if importlib.util.find_spec("sktime") is None:
+    # Ignore these tests if sktime is not installed
+    print("Ignoring optional test modules prepended with 'test_forecast__'")
+    collect_ignore_glob += ["test_forecast__*.py"]
 
 
 @pytest.fixture(scope="function")
