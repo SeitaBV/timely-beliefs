@@ -47,6 +47,7 @@ from timely_beliefs.beliefs.utils import is_pandas_structure, is_tb_structure
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.sensors.classes import DBSensor, Sensor, SensorDBMixin
+from timely_beliefs.sensors.func_store.knowledge_horizons import ex_ante, ex_post
 from timely_beliefs.sources import utils as source_utils
 from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 
@@ -492,7 +493,13 @@ class TimedBeliefDBMixin(TimedBelief):
             q = q.join(source_cls).filter(cls.source_id.in_([s.id for s in sources]))
 
         # Apply most recent beliefs filter
-        if most_recent_beliefs_only:
+        most_recent_beliefs_only_incompatible_criteria = (
+            beliefs_before is not None or beliefs_after is not None
+        ) and sensor.knowledge_horizon_fnc not in (ex_ante.__name__, ex_post.__name__)
+        if (
+            most_recent_beliefs_only
+            and not most_recent_beliefs_only_incompatible_criteria
+        ):
             subq = (
                 session.query(
                     cls.event_start,
@@ -547,6 +554,10 @@ class TimedBeliefDBMixin(TimedBelief):
             df = df[df.index.get_level_values("belief_time") >= beliefs_after]
         if beliefs_before is not None:
             df = df[df.index.get_level_values("belief_time") <= beliefs_before]
+
+        # Select most recent beliefs using postprocessing in case of incompatible search criteria
+        if most_recent_beliefs_only and most_recent_beliefs_only_incompatible_criteria:
+            df = belief_utils.select_most_recent_belief(df)
 
         # Convert timezone of beliefs and events to sensor timezone
         if place_beliefs_in_sensor_timezone:
