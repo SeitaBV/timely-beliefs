@@ -412,11 +412,11 @@ class TimedBeliefDBMixin(TimedBelief):
         # Check for timezone-aware datetime input
         if not pd.isnull(event_starts_after):
             event_starts_after = tb_utils.parse_datetime_like(
-                event_starts_after, "event_not_before"
+                event_starts_after, "event_starts_after"
             )
         if not pd.isnull(event_ends_before):
             event_ends_before = tb_utils.parse_datetime_like(
-                event_ends_before, "event_before"
+                event_ends_before, "event_ends_before"
             )
         if not pd.isnull(beliefs_after):
             beliefs_after = tb_utils.parse_datetime_like(
