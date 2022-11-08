@@ -2036,6 +2036,16 @@ class BeliefsDataFrame(pd.DataFrame):
             return df.convert_index_from_belief_horizon_to_time()
         return pd.concat([df, reference_df], axis=1)
 
+    def __repr__(self):
+        """Add the sensor and event resolution to the string representation of the BeliefsDataFrame."""
+        return (
+            super().__repr__()
+            + "\nsensor: "
+            + self.sensor.__repr__()
+            + ", event_resolution: "
+            + self.event_resolution.__repr__()
+        )
+
 
 def set_columns_and_indices_for_empty_frame(df, columns, indices, default_types):
     """Set appropriate columns and indices for the empty BeliefsDataFrame."""
