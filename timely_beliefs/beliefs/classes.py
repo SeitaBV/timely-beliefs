@@ -663,6 +663,16 @@ class BeliefsSeries(pd.Series):
         super().__init__(*args, **kwargs)
         return
 
+    def __repr__(self):
+        """Add the sensor and event resolution to the string representation of the BeliefsSeries."""
+        return (
+            super().__repr__()
+            + "\nsensor: "
+            + self.sensor.__repr__()
+            + ", event_resolution: "
+            + self.event_resolution.__repr__()
+        )
+
 
 class BeliefsDataFrame(pd.DataFrame):
     """Beliefs about a sensor.
