@@ -776,3 +776,14 @@ def extreme_timedeltas_not_equal(
     if isinstance(td_a, pd.Timedelta):
         td_a = td_a.to_pytimedelta()
     return td_a != td_b
+
+
+def meta_repr(
+    tb_structure: Union["classes.BeliefsDataFrame", "classes.BeliefsSeries"]
+) -> str:
+    return (
+        "sensor: "
+        + tb_structure.sensor.__repr__()
+        + ", event_resolution: "
+        + tb_structure.event_resolution.__repr__()
+    )

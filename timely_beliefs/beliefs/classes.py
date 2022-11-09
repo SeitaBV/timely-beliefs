@@ -43,7 +43,7 @@ from sqlalchemy.sql.expression import Selectable
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
 from timely_beliefs.beliefs import utils as belief_utils
-from timely_beliefs.beliefs.utils import is_pandas_structure, is_tb_structure
+from timely_beliefs.beliefs.utils import is_pandas_structure, is_tb_structure, meta_repr
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.sensors.classes import DBSensor, Sensor, SensorDBMixin
@@ -665,13 +665,7 @@ class BeliefsSeries(pd.Series):
 
     def __repr__(self):
         """Add the sensor and event resolution to the string representation of the BeliefsSeries."""
-        return (
-            super().__repr__()
-            + "\nsensor: "
-            + self.sensor.__repr__()
-            + ", event_resolution: "
-            + self.event_resolution.__repr__()
-        )
+        return super().__repr__() + "\n" + meta_repr(self)
 
 
 class BeliefsDataFrame(pd.DataFrame):
@@ -2048,13 +2042,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
     def __repr__(self):
         """Add the sensor and event resolution to the string representation of the BeliefsDataFrame."""
-        return (
-            super().__repr__()
-            + "\nsensor: "
-            + self.sensor.__repr__()
-            + ", event_resolution: "
-            + self.event_resolution.__repr__()
-        )
+        return super().__repr__() + "\n" + meta_repr(self)
 
 
 def set_columns_and_indices_for_empty_frame(df, columns, indices, default_types):
