@@ -772,7 +772,7 @@ def downsample_first(
 
     ds_index = df.index.floor(
         resolution, ambiguous=[True] * len(df), nonexistent="shift_forward"
-    ).drop_duplicates()
+    )
     ds_df = df[df.index.isin(df.index.join(ds_index, how="inner"))]
     if ds_df.index.freq is None and len(ds_df) > 2:
         ds_df.index.freq = pd.infer_freq(ds_df.index)
