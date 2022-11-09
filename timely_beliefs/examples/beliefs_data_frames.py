@@ -9,7 +9,7 @@ def sixteen_probabilistic_beliefs() -> BeliefsDataFrame:
     """Nice BeliefsDataFrame to show.
     For a single sensor, it contains 4 events, for each of which 2 beliefs by 2 sources each, described by 2 or 3
     probabilistic values, depending on the source.
-    Note that the event resolution of the sensor is 15 minutes.
+    Note that the event resolution of the sensor is 15 minutes, while the event start frequency is 1 hour.
     """
 
     n_events = 4
@@ -17,7 +17,9 @@ def sixteen_probabilistic_beliefs() -> BeliefsDataFrame:
     n_sources = 2
     true_value = 100
 
-    example_sensor = Sensor(event_resolution=timedelta(minutes=15), name="Sensor 1")
+    example_sensor = Sensor(
+        event_resolution=timedelta(minutes=15), name="weight", unit="kg"
+    )
     example_source_a = BeliefSource(name="Source A")
     example_source_b = BeliefSource(name="Source B")
 

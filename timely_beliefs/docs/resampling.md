@@ -29,7 +29,7 @@ Upsample to events with a resolution of 5 minutes:
     2000-01-03 09:10:00+00:00 2000-01-01 00:00:00+00:00 Source A 0.1587                         90.0
                                                                  0.5000                        100.0
                                                                  0.8413                        110.0
-    sensor: <Sensor: Sensor 1>, event_resolution: datetime.timedelta(seconds=300)
+    sensor: <Sensor: weight>, event_resolution: datetime.timedelta(seconds=300)
 
 When resampling, the event resolution of the underlying sensor remains the same (it's still a fixed property of the sensor):
 
@@ -68,7 +68,7 @@ Downsample to events with a resolution of 2 hours:
     2000-01-03 12:00:00+00:00 2000-01-01 00:00:00+00:00 Source A 0.158700                      360.0
                                                                  0.500000                      400.0
                                                                  1.000000                      440.0
-    sensor: <Sensor: Sensor 1>, event_resolution: datetime.timedelta(seconds=7200)
+    sensor: <Sensor: weight>, event_resolution: datetime.timedelta(seconds=7200)
     >>> -df2h.knowledge_horizons[0]
     Timedelta('0 days 02:00:00')
 

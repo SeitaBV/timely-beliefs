@@ -787,7 +787,7 @@ def meta_repr(
     >>> from timely_beliefs.examples import get_example_df
     >>> df = get_example_df()
     >>> print(meta_repr(df))
-    sensor: <Sensor: Sensor 1>, event_resolution: datetime.timedelta(seconds=900)
+    sensor: <Sensor: weight>, event_resolution: datetime.timedelta(seconds=900)
     """
     return ", ".join(
         [

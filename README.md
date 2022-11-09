@@ -83,7 +83,7 @@ as we show here in a printout of the example BeliefsDataFrame in our examples mo
                               2000-01-01 01:00:00+00:00 Source A 0.1587                           99
                                                                  0.5000                          100
                                                                  0.8413                          101
-    sensor: <Sensor: Sensor 1>, event_resolution: datetime.timedelta(seconds=900)
+    sensor: <Sensor: weight>, event_resolution: datetime.timedelta(seconds=900)
 
 The first 8 entries of this BeliefsDataFrame show beliefs about a single event.
 Beliefs were formed by two distinct sources (A and B), with the first updating its beliefs at a later time.
@@ -94,8 +94,8 @@ Source B thought the value would be equally likely to be 0 or 100.
 More information about what actually constitutes an event is stored as metadata in the BeliefsDataFrame, which is printed out just below the frame.
 The sensor property keeps track of invariable information such as the unit of the data and the resolution of events.
 
-    >>> df.sensor
-    <Sensor: Sensor 1>
+    >>> df.sensor.unit
+    'kg'
 
 Currently, a BeliefsDataFrame contains data about a single sensor only.
 _For a future release we are considering adding the sensor as another index level,
@@ -133,7 +133,7 @@ for example, some days before each event ends.
     source
     Source A    1.482075  0.014821  0.005928
     Source B  125.853250  0.503413  0.503413
-    sensor: <Sensor: Sensor 1>, event_resolution: datetime.timedelta(seconds=900)
+    sensor: <Sensor: weight>, event_resolution: datetime.timedelta(seconds=900)
 
 With a fixed viewpoint, you get the accuracy of beliefs held at a certain `belief_time`.
 
@@ -144,7 +144,7 @@ With a fixed viewpoint, you get the accuracy of beliefs held at a certain `belie
     source
     Source A    0.00000  0.000000  0.000000
     Source B  125.85325  0.503413  0.503413
-    sensor: <Sensor: Sensor 1>, event_resolution: datetime.timedelta(seconds=900)
+    sensor: <Sensor: weight>, event_resolution: datetime.timedelta(seconds=900)
 
 For an intuitive representation of accuracy that works in many cases, we suggest to use:
 
