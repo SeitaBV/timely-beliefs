@@ -786,8 +786,8 @@ def meta_repr(
     For example:
     >>> from timely_beliefs.examples import get_example_df
     >>> df = get_example_df()
-    >>> print(meta_repr(df))
-    sensor: <Sensor: weight>, event_resolution: 0:15:00
+    >>> meta_repr(df)
+    'sensor: <Sensor: weight>, event_resolution: 0:15:00'
     """
     return ", ".join(
         [
