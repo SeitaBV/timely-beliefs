@@ -781,9 +781,9 @@ def extreme_timedeltas_not_equal(
 def meta_repr(
     tb_structure: Union["classes.BeliefsDataFrame", "classes.BeliefsSeries"]
 ) -> str:
-    return (
-        "sensor: "
-        + tb_structure.sensor.__repr__()
-        + ", event_resolution: "
-        + tb_structure.event_resolution.__repr__()
+    return ", ".join(
+        [
+            ": ".join([attr, getattr(tb_structure, attr).__repr__()])
+            for attr in tb_structure._metadata
+        ]
     )
