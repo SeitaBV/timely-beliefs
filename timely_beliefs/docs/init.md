@@ -42,7 +42,7 @@ Required arguments:
     event_start               belief_horizon source cumulative_probability             
     2000-01-03 09:00:00+00:00 0 days         EPEX   0.5                              63
     2000-01-04 09:00:00+00:00 0 days         EPEX   0.5                              60
-    sensor: <Sensor: EPEX SPOT day-ahead price>, event_resolution: datetime.timedelta(seconds=3600)
+    sensor: <Sensor: EPEX SPOT day-ahead price>, event_resolution: 1:00:00
 
 ## From a Pandas DataFrame
 
@@ -55,7 +55,7 @@ Pass a Pandas DataFrame with columns ["event_start", "belief_time", "source", "c
     event_start               belief_horizon source cumulative_probability             
     2000-01-03 09:00:00+00:00 0 days         EPEX   0.5                              63
     2000-01-03 10:00:00+00:00 0 days         EPEX   0.5                              60
-    sensor: <Sensor: EPEX SPOT day-ahead price>, event_resolution: datetime.timedelta(seconds=3600)
+    sensor: <Sensor: EPEX SPOT day-ahead price>, event_resolution: 1:00:00
 
 Alternatively, a keyword argument can be used to replace a column that contains the same value for each belief.
 
@@ -66,7 +66,7 @@ Alternatively, a keyword argument can be used to replace a column that contains 
     event_start               belief_horizon source cumulative_probability             
     2000-01-03 09:00:00+00:00 0 days         EPEX   0.5                              63
     2000-01-03 10:00:00+00:00 0 days         EPEX   0.5                              60
-    sensor: <Sensor: EPEX SPOT day-ahead price>, event_resolution: datetime.timedelta(seconds=3600)
+    sensor: <Sensor: EPEX SPOT day-ahead price>, event_resolution: 1:00:00
 
 ## From a CSV file
 
@@ -103,4 +103,4 @@ Create a list of `TimedBelief` or `DBTimedBelief` objects and use it to initiali
     event_start               belief_time               source cumulative_probability             
     2000-01-03 09:00:00+00:00 2000-01-03 10:00:00+00:00 EPEX   0.5                              63
     2000-01-03 10:00:00+00:00 2000-01-03 11:00:00+00:00 EPEX   0.5                              60
-    sensor: <Sensor: EPEX SPOT day-ahead price>, event_resolution: datetime.timedelta(seconds=3600)
+    sensor: <Sensor: EPEX SPOT day-ahead price>, event_resolution: 1:00:00
