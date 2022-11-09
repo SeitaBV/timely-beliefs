@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import warnings
 from datetime import datetime, timedelta
 from typing import List, Optional, Union
@@ -753,7 +755,9 @@ def extreme_timedeltas_not_equal(
     return td_a != td_b
 
 
-def downsample_first(df: pd.DataFrame, resolution: timedelta) -> pd.DataFrame:
+def downsample_first(
+    df: pd.DataFrame | "classes.BeliefsDataFrame", resolution: timedelta
+) -> pd.DataFrame | "classes.BeliefsDataFrame":
     """Resample data representing instantaneous events.
 
     Updates the data frequency, while keeping the event resolution.
@@ -762,10 +766,17 @@ def downsample_first(df: pd.DataFrame, resolution: timedelta) -> pd.DataFrame:
     The duration between observations is longer for the fall DST transition,
     and shorter for the spring DST transition.
     """
+    # Use event_start as the only index level
+    index_names = df.index.names
+    df = df.reset_index().set_index("event_start")
+
     ds_index = df.index.floor(
         resolution, ambiguous=[True] * len(df), nonexistent="shift_forward"
     ).drop_duplicates()
     ds_df = df[df.index.isin(df.index.join(ds_index, how="inner"))]
     if ds_df.index.freq is None and len(ds_df) > 2:
         ds_df.index.freq = pd.infer_freq(ds_df.index)
+
+    # Restore the original index levels
+    ds_df = ds_df.reset_index().set_index(index_names)
     return ds_df

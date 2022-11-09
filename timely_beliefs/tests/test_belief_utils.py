@@ -90,9 +90,9 @@ def test_propagate_multi_sourced_deterministic_beliefs():
 )
 def test_downsample_first(start, periods, resolution, exp_event_values):
     """Enumerate the events and check whether downsampling returns the expected events."""
-    index = pd.date_range(start, periods=periods, freq="1H").tz_convert(
-        "Europe/Amsterdam"
-    )
+    index = pd.date_range(
+        start, periods=periods, freq="1H", name="event_start"
+    ).tz_convert("Europe/Amsterdam")
     df = pd.DataFrame(list(range(1, periods + 1)), index=index)
     ds_df = downsample_first(df, pd.Timedelta(resolution))
     print(ds_df)
