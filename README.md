@@ -25,6 +25,7 @@ Getting started (or try one of the [other ways to create a BeliefsDataFrame](tim
                                                                                             event_value
     event_start               belief_time               source      cumulative_probability             
     2000-03-05 11:00:00+00:00 2000-03-05 11:00:00+00:00 Thermometer 0.5                              21
+    sensor: <Sensor: Indoor temperature>, event_resolution: 0:00:00
 
 The package contains the following functionality:
 
@@ -52,6 +53,7 @@ These visuals are created simply by calling the plot method on our BeliefsDataFr
 1. [Database storage](#database-storage)
 1. [Accuracy](#accuracy)
 1. [Visualisation](#visualisation)
+1. [Generating new forecasts](#generating-new-forecasts)
 1. [Development](#development)
 
 ## The data model
@@ -68,8 +70,8 @@ Together these index levels describe data points as probabilistic beliefs.
 Because of the sparse representation of index levels (a clever default setting in pandas) we get clean-looking data,
 as we show here in a printout of the example BeliefsDataFrame in our examples module:
 
-    >>> import timely_beliefs
-    >>> df = timely_beliefs.examples.get_example_df()
+    >>> import timely_beliefs as tb
+    >>> df = tb.examples.get_example_df()
     >>> df.head(8)
                                                                                          event_value
     event_start               belief_time               source   cumulative_probability
@@ -81,6 +83,7 @@ as we show here in a printout of the example BeliefsDataFrame in our examples mo
                               2000-01-01 01:00:00+00:00 Source A 0.1587                           99
                                                                  0.5000                          100
                                                                  0.8413                          101
+    sensor: <Sensor: weight>, event_resolution: 0:15:00
 
 The first 8 entries of this BeliefsDataFrame show beliefs about a single event.
 Beliefs were formed by two distinct sources (A and B), with the first updating its beliefs at a later time.
@@ -88,13 +91,13 @@ Source A first thought the value of this event would be 100 ± 10 (the probabili
 and then increased its accuracy by lowering the standard deviation to 1.
 Source B thought the value would be equally likely to be 0 or 100.
 
-More information about what actually constitutes an event is stored as metadata in the BeliefsDataFrame.
+More information about what actually constitutes an event is stored as metadata in the BeliefsDataFrame, which is printed out just below the frame.
 The sensor property keeps track of invariable information such as the unit of the data and the resolution of events.
 
-    >>> df.sensor
-    <Sensor: Sensor 1>
+    >>> df.sensor.unit
+    'kg'
 
-Currently a BeliefsDataFrame contains data about a single sensor only.
+Currently, a BeliefsDataFrame contains data about a single sensor only.
 _For a future release we are considering adding the sensor as another index level,
 to offer out-of-the-box support for aggregating over multiple sensors._
 
@@ -124,25 +127,40 @@ each with a different viewpoint.
 With a rolling viewpoint, you get the accuracy of beliefs at a certain `belief_horizon` before (or after) `knowledge_time`,
 for example, some days before each event ends.
 
+    >>> from datetime import timedelta
     >>> df.rolling_viewpoint_accuracy(timedelta(days=2, hours=9), reference_source=df.lineage.sources[0])
                      mae      mape      wape
     source
     Source A    1.482075  0.014821  0.005928
     Source B  125.853250  0.503413  0.503413
+    sensor: <Sensor: weight>, event_resolution: 0:15:00
 
 With a fixed viewpoint, you get the accuracy of beliefs held at a certain `belief_time`.
 
-    >>> df.fixed_viewpoint_accuracy(datetime(2000, 1, 2, tzinfo=utc), reference_source=df.lineage.sources[0])
+    >>> from datetime import datetime
+    >>> import pytz
+    >>> df = df.fixed_viewpoint_accuracy(datetime(2000, 1, 2, tzinfo=pytz.utc), reference_source=df.lineage.sources[0])
                     mae      mape      wape
     source
     Source A    0.00000  0.000000  0.000000
     Source B  125.85325  0.503413  0.503413
+    sensor: <Sensor: weight>, event_resolution: 0:15:00
 
 For an intuitive representation of accuracy that works in many cases, we suggest to use:
 
-    >>> `df["accuracy"] = 1 - df["wape"]`
+    >>> df["accuracy"] = 1 - df["wape"]
 
 [A more detailed discussion of accuracy and error metrics can be found here.](timely_beliefs/docs/accuracy.md)
+
+## Generating new forecasts
+
+To enable forecast support, use `pip install timely-beliefs[forecast]` to install the required dependencies.
+
+New forecasts can be generated from a given BeliefsDataFrame by passing an `sktime` forecaster to the `form_beliefs` method.
+This method takes a `belief_time` and an `event_start` (for a single forecast) or `event_time_window` (for a number of forecasts from a fixed viewpoint).
+The `source` defines how the forecast should be attributed in the resulting BeliefsDataFrame.
+
+This feature currently only supports BeliefsDataFrames containing a single deterministic belief per event, by a single source.
 
 ## Visualisation
 
