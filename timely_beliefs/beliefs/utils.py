@@ -776,3 +776,22 @@ def extreme_timedeltas_not_equal(
     if isinstance(td_a, pd.Timedelta):
         td_a = td_a.to_pytimedelta()
     return td_a != td_b
+
+
+def meta_repr(
+    tb_structure: Union["classes.BeliefsDataFrame", "classes.BeliefsSeries"]
+) -> str:
+    """Returns a string representation of all metadata.
+
+    For example:
+    >>> from timely_beliefs.examples import get_example_df
+    >>> df = get_example_df()
+    >>> meta_repr(df)
+    'sensor: <Sensor: weight>, event_resolution: 0:15:00'
+    """
+    return ", ".join(
+        [
+            ": ".join([attr, str(getattr(tb_structure, attr))])
+            for attr in tb_structure._metadata
+        ]
+    )
