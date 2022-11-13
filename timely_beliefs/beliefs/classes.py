@@ -73,7 +73,7 @@ class TimedBelief(object):
     - a cumulative probability (the likelihood of the value being equal or lower than stated)*
 
     * The default assumption is that the mean value is given (cp=0.5), but if no beliefs about possible other outcomes
-    are given, then this will be treated as a deterministic belief (cp=1). As an alternative to specifying an cumulative
+    are given, then this will be treated as a deterministic belief (cp=1). As an alternative to specifying a cumulative
     probability explicitly, you can specify an integer number of standard deviations which is translated
     into a cumulative probability assuming a normal distribution (e.g. sigma=-1 becomes cp=0.1587).
     """
