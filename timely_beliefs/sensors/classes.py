@@ -97,8 +97,10 @@ class SensorDBMixin(Sensor):
     Mixin class for a table with sensors.
     """
 
+    # db field that is not a Sensor attribute
     id = Column(Integer, primary_key=True)
-    # overwriting name as db field
+
+    # db fields that overwrite Sensor attributes
     name = Column(String(120), nullable=False, default="")
     unit = Column(String(80), nullable=False, default="")
     timezone = Column(String(80), nullable=False, default="UTC")
