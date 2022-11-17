@@ -798,7 +798,16 @@ def downsample_first(
     df = df.reset_index().set_index("event_start")
 
     ds_index = df.index.floor(
-        resolution, ambiguous=[True] * len(df), nonexistent="shift_forward"
+        resolution,
+        # Policy for handling the DST transition in fall:
+        # fall back and wait out the 'ambiguous' fold before continuing to the next event,
+        # which creates an extended duration between events.
+        # Note that Pandas does not apply the True value to any datetime that is not ambiguous
+        ambiguous=[True] * len(df),
+        # Policy for handling the DST transition in spring:
+        # spring forward and hop over the 'nonexistent' gap to continue with the next event,
+        # which creates a contracted duration between events.
+        nonexistent="shift_forward",
     )
     ds_df = df[df.index.isin(df.index.join(ds_index, how="inner"))]
     if ds_df.index.freq is None and len(ds_df) > 2:
