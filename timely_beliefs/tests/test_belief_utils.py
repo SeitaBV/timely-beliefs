@@ -45,6 +45,12 @@ def test_propagate_multi_sourced_deterministic_beliefs():
             [1, 3, 5, 7],
         ),  # From 1h frequency to 2h frequency
         (
+            "2022-01-01 22:00+01",
+            7,
+            "PT30M",
+            [1, 2, 3, 4, 5, 6, 7],
+        ),  # From 1h frequency to 30m frequency
+        (
             "2022-03-27 01:00+01",
             7,
             "PT2H",
