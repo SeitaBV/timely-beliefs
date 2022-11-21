@@ -836,9 +836,6 @@ def resample_instantaneous_events(
         resampled_df_offsets.append(resampled_df_timezone)
     resampled_df = pd.concat(resampled_df_offsets).sort_index()
 
-    # If possible, return values in their original dtype
-    resampled_df = resampled_df.astype(df.dtypes, errors="ignore")
-
     # If possible, infer missing frequency
     if resampled_df.index.freq is None and len(resampled_df) > 2:
         resampled_df.index.freq = pd.infer_freq(resampled_df.index)
