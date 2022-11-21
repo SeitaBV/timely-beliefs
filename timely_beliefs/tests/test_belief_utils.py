@@ -242,7 +242,7 @@ def test_downsample_first(start, periods, frequency, method, exp_event_values):
     index = pd.date_range(
         start, periods=periods, freq="1H", name="event_start"
     ).tz_convert("Europe/Amsterdam")
-    df = pd.DataFrame(list(range(1, periods + 1)), index=index)
+    df = pd.DataFrame(list(range(1, periods + 1)), index=index, columns=["event_value"])
     print(df)
     ds_df = resample_instantaneous_events(
         df, pd.Timedelta(frequency), method, dropna=False
