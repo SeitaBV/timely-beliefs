@@ -4,8 +4,8 @@ import pytest
 
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 from timely_beliefs.beliefs.utils import (
-    resample_instantaneous_events,
     propagate_beliefs,
+    resample_instantaneous_events,
 )
 from timely_beliefs.examples import get_example_df
 from timely_beliefs.tests.utils import equal_lists

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import pytz
 import warnings
 from datetime import datetime, timedelta
 from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
+import pytz
 from packaging import version
 from pandas.core.groupby import DataFrameGroupBy
 

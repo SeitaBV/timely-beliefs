@@ -9,8 +9,8 @@ import pytz
 from pytest import approx
 
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief
+from timely_beliefs.beliefs.utils import resample_instantaneous_events
 from timely_beliefs.examples.beliefs_data_frames import sixteen_probabilistic_beliefs
-from timely_beliefs.beliefs.utils import resample_instantaneous_events, initialize_index
 from timely_beliefs.utils import replace_multi_index_level
 
 
