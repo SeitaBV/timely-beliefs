@@ -1407,7 +1407,7 @@ class BeliefsDataFrame(pd.DataFrame):
         # Resample instantaneous sensors
         # The event resolution stays zero, but the data frequency updates
         if df.event_resolution == timedelta(0):
-            return belief_utils.downsample_first(df, event_resolution)
+            return belief_utils.resample_instantaneous_events(df, event_resolution)
 
         belief_timing_col = (
             "belief_time" if "belief_time" in df.index.names else "belief_horizon"

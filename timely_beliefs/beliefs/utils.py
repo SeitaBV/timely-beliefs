@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytz
 import warnings
 from datetime import datetime, timedelta
 from typing import List, Optional, Union
@@ -782,40 +783,106 @@ def extreme_timedeltas_not_equal(
     return td_a != td_b
 
 
-def downsample_first(
-    df: pd.DataFrame | "classes.BeliefsDataFrame", resolution: timedelta
+def resample_instantaneous_events(
+    df: pd.DataFrame | "classes.BeliefsDataFrame",
+    resolution: timedelta,
+    method: str | None = None,
 ) -> pd.DataFrame | "classes.BeliefsDataFrame":
     """Resample data representing instantaneous events.
 
-    Updates the data frequency, while keeping the event resolution.
+    Updates the event frequency of the resulting data frame, and possibly also its event resolution.
+    The event resolution is only updated if the resampling method computes a characteristic of a period of events,
+    like 'mean' or 'first'.
 
-    Note that the data frequency may not be constant due to DST transitions
-    The duration between observations is longer for the fall DST transition,
-    and shorter for the spring DST transition.
+    Note that, for resolutions over 1 hour, the data frequency may not turn out to be constant per se.
+    This is due to DST transitions:
+    - The duration between events is typically longer for the fall DST transition.
+    - The duration between events is typically shorter for the spring DST transition.
+    This is done to keep the data frequency in step with midnight in the sensor's timezone.
     """
+
+    # Default resampling method for instantaneous sensors
+    if method is None:
+        method = "asfreq"
+
     # Use event_start as the only index level
     index_names = df.index.names
     df = df.reset_index().set_index("event_start")
 
-    ds_index = df.index.floor(
-        resolution,
-        # Policy for handling the DST transition in fall:
-        # fall back and wait out the 'ambiguous' fold before continuing to the next event,
-        # which creates an extended duration between events.
-        # Note that Pandas does not apply the True value to any datetime that is not ambiguous
-        ambiguous=[True] * len(df),
-        # Policy for handling the DST transition in spring:
-        # spring forward and hop over the 'nonexistent' gap to continue with the next event,
-        # which creates a contracted duration between events.
-        nonexistent="shift_forward",
-    )
-    ds_df = df[df.index.isin(df.index.join(ds_index, how="inner"))]
-    if ds_df.index.freq is None and len(ds_df) > 2:
-        ds_df.index.freq = pd.infer_freq(ds_df.index)
+    # Resample the data in each unique fixed timezone offset that belongs to the given IANA timezone, then recombine
+    unique_offsets = df.index.map(lambda x: x.utcoffset()).unique()
+    resampled_df_offsets = []
+    for offset in unique_offsets:
+        df_offset = df.copy()
+        # Convert all the data to given timezone offset
+        df_offset.index = df.index.tz_convert(
+            pytz.FixedOffset(offset.seconds // 60)
+        )  # offset is max 1439 minutes, so we don't need to check offset.days
+        # Resample all the data in the given timezone offset, using the given method
+        resampled_df_offset = getattr(df_offset.resample(resolution), method)()
+        # Convert back to the original timezone
+        if isinstance(df.index, pd.DatetimeIndex) and df.index.tz is not None:
+            resampled_df_timezone = resampled_df_offset.tz_convert(df.index.tz)
+        elif isinstance(df, classes.BeliefsDataFrame):
+            # As a backup, use the original timezone from the BeliefsDataFrame's sensor
+            resampled_df_timezone = resampled_df_offset.tz_convert(df.sensor.timezone)
+        else:
+            ValueError("Missing original timezone.")
+        # See which resampled rows still fall in the given offset, in this timezone
+        resampled_df_timezone = resampled_df_timezone[
+            resampled_df_timezone.index.map(lambda x: x.utcoffset()) == offset
+        ]
+        resampled_df_offsets.append(resampled_df_timezone)
+    resampled_df = pd.concat(resampled_df_offsets).sort_index()
+
+    # If possible, infer missing frequency
+    if resampled_df.index.freq is None and len(resampled_df) > 2:
+        resampled_df.index.freq = pd.infer_freq(resampled_df.index)
 
     # Restore the original index levels
-    ds_df = ds_df.reset_index().set_index(index_names)
-    return ds_df
+    resampled_df = resampled_df.reset_index().set_index(index_names)
+
+    if method in (
+        "mean",
+        "max",
+        "min",
+        "median",
+        "count",
+        "nunique",
+        "first",
+        "last",
+        "ohlc",
+        "prod",
+        "size",
+        "sem",
+        "std",
+        "sum",
+        "var",
+        "quantile",
+    ):
+        # These methods derive properties of a period of events.
+        # Therefore, the event resolution is updated.
+        # The methods are typically used for downsampling.
+        resampled_df.event_resolution = resolution
+    elif method in (
+        "asfreq",
+        "interpolate",
+        "ffill",
+        "bfill",
+        "pad",
+        "backfill",
+        "nearest",
+    ):
+        # These methods derive intermediate events.
+        # Therefore, the event resolution is unaffected.
+        # The methods are typically used for upsampling.
+        pass
+    else:
+        raise NotImplementedError(
+            f"Please file a GitHub ticket for timely-beliefs to support the '{method}' method."
+        )
+
+    return resampled_df.dropna()
 
 
 def meta_repr(

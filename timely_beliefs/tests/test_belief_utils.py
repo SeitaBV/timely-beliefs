@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
-from timely_beliefs.beliefs.utils import downsample_first, propagate_beliefs
+from timely_beliefs.beliefs.utils import resample_instantaneous_events, propagate_beliefs
 from timely_beliefs.examples import get_example_df
 from timely_beliefs.tests.utils import equal_lists
 
@@ -88,12 +88,12 @@ def test_propagate_multi_sourced_deterministic_beliefs():
         ),  # midnight of 1 full (extended) day and 1 full (regular) day, plus the following midnight of 1 partial day
     ],
 )
-def test_downsample_first(start, periods, resolution, exp_event_values):
+def test_downsample_first(start, periods, frequency, exp_event_values):
     """Enumerate the events and check whether downsampling returns the expected events."""
     index = pd.date_range(
         start, periods=periods, freq="1H", name="event_start"
     ).tz_convert("Europe/Amsterdam")
     df = pd.DataFrame(list(range(1, periods + 1)), index=index)
-    ds_df = downsample_first(df, pd.Timedelta(resolution))
+    ds_df = resample_instantaneous_events(df, pd.Timedelta(frequency))
     print(ds_df)
     assert equal_lists(ds_df.values, exp_event_values)
