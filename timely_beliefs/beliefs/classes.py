@@ -674,7 +674,7 @@ class BeliefsSeries(pd.Series):
         :returns: a timedelta for regularly spaced observations
                   None for irregularly spaced observations
         """
-        return pd.Timedelta(self.index.get_level_values("event_start").freq)
+        return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
 
 
 class BeliefsDataFrame(pd.DataFrame):
@@ -1039,7 +1039,7 @@ class BeliefsDataFrame(pd.DataFrame):
         :returns: a timedelta for regularly spaced observations
                   None for irregularly spaced observations
         """
-        return pd.Timedelta(self.index.get_level_values("event_start").freq)
+        return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
 
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:

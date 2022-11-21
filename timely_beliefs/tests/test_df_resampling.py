@@ -70,7 +70,7 @@ def df_4323(
 
 
 @pytest.fixture(scope="function", autouse=True)
-def df_instantaneous_4323(
+def df_instantaneous_8323(
     instantaneous_sensor: Sensor,
     test_source_a: BeliefSource,
     test_source_b: BeliefSource,
@@ -79,12 +79,12 @@ def df_instantaneous_4323(
     ],
 ) -> BeliefsDataFrame:
     """Convenient BeliefsDataFrame to run tests on.
-    For a single sensor, it contains 4 events, for each of which 3 beliefs by 2 sources each, described by 3
+    For a single sensor, it contains 8 events, for each of which 3 beliefs by 2 sources each, described by 3
     probabilistic values.
-    Note that the event resolution of the sensor is 15 minutes.
+    Note that the event resolution of the sensor is 15 minutes, while the event frequency is 1 hour.
     """
     start = pytz.timezone("utc").localize(datetime(2000, 1, 3, 9))
-    return df_wxyz(instantaneous_sensor, 4, 3, 2, 3, start)
+    return df_wxyz(instantaneous_sensor, 8, 3, 2, 3, start)
 
 
 def test_replace_index_level_with_intersect(df_4323):
@@ -339,20 +339,30 @@ def test_groupby_preserves_metadata(df_4323: BeliefsDataFrame):
     assert df_2.sensor == df.sensor
 
 
-def test_downsample_instantaneous(df_instantaneous_4323):
+def test_downsample_instantaneous(df_instantaneous_8323):
     """Check resampling instantaneous events from hourly readings to 2-hourly readings.
 
-    Given data for 9, 10, 11 and 12 o'clock, we expect to get out only data for 10 and 12 o'clock.
+    Given data for 9, 10, 11, 12, 13, 14, 15 and 16 o'clock,
+    we expect to get out only data for 10, 12, 14 and 16 o'clock.
     """
     pd.set_option("display.max_rows", None)
-    print(df_instantaneous_4323)
+    print(df_instantaneous_8323)
     # Downsample the original frame
     downsampled_event_resolution = timedelta(hours=2)
-    df_resampled_1 = df_instantaneous_4323.resample_events(downsampled_event_resolution)
+    df_resampled_1 = df_instantaneous_8323.resample_events(downsampled_event_resolution)
     print(df_resampled_1)
-    df_expected = df_instantaneous_4323[
-        df_instantaneous_4323.index.get_level_values("event_start").isin(
-            ["2000-01-03 10:00:00+00:00", "2000-01-03 12:00:00+00:00"]
+    df_expected = df_instantaneous_8323[
+        df_instantaneous_8323.index.get_level_values("event_start").isin(
+            [
+                "2000-01-03 10:00:00+00:00",
+                "2000-01-03 12:00:00+00:00",
+                "2000-01-03 14:00:00+00:00",
+                "2000-01-03 16:00:00+00:00",
+            ]
         )
     ]
-    pd.testing.assert_frame_equal(df_resampled_1, df_expected)
+    pd.testing.assert_frame_equal(df_resampled_1, df_expected, check_dtype=False)
+    # original resolution kept
+    assert df_resampled_1.event_resolution == df_instantaneous_8323.event_resolution
+    # frequency updated
+    assert df_resampled_1.event_frequency == downsampled_event_resolution
