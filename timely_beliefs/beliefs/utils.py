@@ -686,10 +686,13 @@ def interpret_special_read_cases(
         if resample:
             df = df.set_index("event_start")
             if df.index.freq is None and len(df) > 2:
+                # Try to infer the event resolution from the event frequency
                 df.index.freq = pd.infer_freq(df.index)
             if df.index.freq is not None and df.index.freq > sensor.event_resolution:
+                # Upsample by forward filling
                 df = df.resample(sensor.event_resolution).ffill()
             else:
+                # Downsample by computing the mean
                 df = df.resample(sensor.event_resolution).mean()
             df = df.reset_index()
     elif len(df.columns) == 3:
