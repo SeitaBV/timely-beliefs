@@ -1407,6 +1407,8 @@ class BeliefsDataFrame(pd.DataFrame):
         # Resample instantaneous sensors
         # The event resolution stays zero, but the event frequency is updated
         if df.event_resolution == timedelta(0):
+            if df.lineage.number_of_events != len(df):
+                raise NotImplementedError("Please file a GitHub ticket.")
             return belief_utils.resample_instantaneous_events(df, event_resolution)
 
         belief_timing_col = (
