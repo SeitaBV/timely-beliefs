@@ -10,6 +10,7 @@ from pytest import approx
 
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief
 from timely_beliefs.examples.beliefs_data_frames import sixteen_probabilistic_beliefs
+from timely_beliefs.beliefs.utils import resample_instantaneous_events, initialize_index
 from timely_beliefs.utils import replace_multi_index_level
 
 
@@ -343,7 +344,10 @@ def test_downsample_instantaneous(df_instantaneous_8323):
     """Check resampling instantaneous events from hourly readings to 2-hourly readings.
 
     Given data for 9, 10, 11, 12, 13, 14, 15 and 16 o'clock,
-    we expect to get out only data for 10, 12, 14 and 16 o'clock.
+    we expect to get out only data for 10, 12, 14 and 16 o'clock, with the original event resolution.
+
+    Then try again with the resampling method 'first', which takes the first reading within 2-hour periods.
+    We then expect to get out data for 8, 10, 12, 14 and 16 o'clock, with an updated event resolution.
     """
     pd.set_option("display.max_rows", None)
     print(df_instantaneous_8323)
@@ -351,7 +355,7 @@ def test_downsample_instantaneous(df_instantaneous_8323):
     downsampled_event_resolution = timedelta(hours=2)
     df_resampled_1 = df_instantaneous_8323.resample_events(downsampled_event_resolution)
     print(df_resampled_1)
-    df_expected = df_instantaneous_8323[
+    df_expected_1 = df_instantaneous_8323[
         df_instantaneous_8323.index.get_level_values("event_start").isin(
             [
                 "2000-01-03 10:00:00+00:00",
@@ -361,8 +365,39 @@ def test_downsample_instantaneous(df_instantaneous_8323):
             ]
         )
     ]
-    pd.testing.assert_frame_equal(df_resampled_1, df_expected, check_dtype=False)
+    pd.testing.assert_frame_equal(
+        df_resampled_1, df_expected_1, check_dtype=False
+    )  # dtype is converted to float, due to introduction of np.nan values
     # original resolution kept
     assert df_resampled_1.event_resolution == df_instantaneous_8323.event_resolution
     # frequency updated
     assert df_resampled_1.event_frequency == downsampled_event_resolution
+
+    df_resampled_2 = resample_instantaneous_events(
+        df_instantaneous_8323, downsampled_event_resolution, method="first"
+    )
+    print(df_resampled_2)
+    df_expected_2 = df_instantaneous_8323[
+        df_instantaneous_8323.index.get_level_values("event_start").isin(
+            [
+                "2000-01-03 9:00:00+00:00",
+                "2000-01-03 10:00:00+00:00",
+                "2000-01-03 12:00:00+00:00",
+                "2000-01-03 14:00:00+00:00",
+                "2000-01-03 16:00:00+00:00",
+            ]
+        )
+    ]
+    # replace 9 AM with 8 AM
+    index_levels = df_expected_2.index.names
+    df_expected_2 = df_expected_2.reset_index()
+    df_expected_2.loc[
+        df_expected_2["event_start"] == "2000-01-03 9:00:00+00:00", "event_start"
+    ] = pd.Timestamp("2000-01-03 8:00:00+00:00")
+    df_expected_2 = df_expected_2.set_index(index_levels)
+
+    pd.testing.assert_frame_equal(df_resampled_2, df_expected_2, check_dtype=True)
+    # resolution updated
+    assert df_resampled_2.event_resolution == downsampled_event_resolution
+    # frequency updated
+    assert df_resampled_2.event_frequency == downsampled_event_resolution
