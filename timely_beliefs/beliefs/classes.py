@@ -326,6 +326,8 @@ class TimedBeliefDBMixin(TimedBelief):
         sensor: Union[SensorDBMixin, int],
         sensor_class: Optional[Type[SensorDBMixin]] = DBSensor,
         event_starts_after: Optional[datetime] = None,
+        event_ends_after: Optional[datetime] = None,
+        event_starts_before: Optional[datetime] = None,
         event_ends_before: Optional[datetime] = None,
         beliefs_after: Optional[datetime] = None,
         beliefs_before: Optional[datetime] = None,
@@ -353,6 +355,10 @@ class TimedBeliefDBMixin(TimedBelief):
         :param sensor: sensor to which the beliefs pertain, or its unique sensor id
         :param sensor_class: optionally pass the sensor (sub)class explicitly (only needed if you pass a sensor id instead of a sensor, and your sensor class is not DBSensor); the class should be mapped to a database table
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_after: only return beliefs about events that end after this datetime (exclusive for non-instantaneous events, inclusive for instantaneous events)
+                                 note that the first event may transpire partially before this datetime
+        :param event_starts_before: only return beliefs about events that start before this datetime (exclusive for non-instantaneous events, inclusive for instantaneous events)
+                                    note that the last event may transpire partially after this datetime
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
@@ -412,11 +418,19 @@ class TimedBeliefDBMixin(TimedBelief):
         # Check for timezone-aware datetime input
         if not pd.isnull(event_starts_after):
             event_starts_after = tb_utils.parse_datetime_like(
-                event_starts_after, "event_not_before"
+                event_starts_after, "event_starts_after"
+            )
+        if not pd.isnull(event_ends_after):
+            event_ends_after = tb_utils.parse_datetime_like(
+                event_ends_after, "event_ends_after"
+            )
+        if not pd.isnull(event_starts_before):
+            event_starts_before = tb_utils.parse_datetime_like(
+                event_starts_before, "event_starts_before"
             )
         if not pd.isnull(event_ends_before):
             event_ends_before = tb_utils.parse_datetime_like(
-                event_ends_before, "event_before"
+                event_ends_before, "event_ends_before"
             )
         if not pd.isnull(beliefs_after):
             beliefs_after = tb_utils.parse_datetime_like(
@@ -459,6 +473,22 @@ class TimedBeliefDBMixin(TimedBelief):
         # Apply event time filter
         if not pd.isnull(event_starts_after):
             q = q.filter(cls.event_start >= event_starts_after)
+        if not pd.isnull(event_ends_after):
+            if sensor.event_resolution == timedelta(0):
+                # inclusive
+                q = q.filter(cls.event_start >= event_ends_after)
+            else:
+                # exclusive
+                q = q.filter(
+                    cls.event_start + sensor.event_resolution > event_ends_after
+                )
+        if not pd.isnull(event_starts_before):
+            if sensor.event_resolution == timedelta(0):
+                # inclusive
+                q = q.filter(cls.event_start <= event_starts_before)
+            else:
+                # exclusive
+                q = q.filter(cls.event_start < event_starts_before)
         if not pd.isnull(event_ends_before):
             q = q.filter(cls.event_start + sensor.event_resolution <= event_ends_before)
 
@@ -695,7 +725,7 @@ class BeliefsDataFrame(pd.DataFrame):
     In addition to the standard DataFrame constructor arguments,
     BeliefsDataFrame also accepts the following keyword arguments:
 
-    :param beliefs: a list of TimedBelief objects used to initialise the BeliefsDataFrame
+    :param beliefs: a list of TimedBelief objects used to initialize the BeliefsDataFrame
     :param sensor: the Sensor object that each belief pertains to
     :param source: the source of each belief in the input DataFrame (a BeliefSource, str or int)
     :param event_start: the start of the event that each belief pertains to (a datetime)
