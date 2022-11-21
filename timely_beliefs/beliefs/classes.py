@@ -667,6 +667,15 @@ class BeliefsSeries(pd.Series):
         """Add the sensor and event resolution to the string representation of the BeliefsSeries."""
         return super().__repr__() + "\n" + meta_repr(self)
 
+    @property
+    def event_frequency(self) -> Optional[timedelta]:
+        """Duration between observations of events.
+
+        :returns: a timedelta for regularly spaced observations
+                  None for irregularly spaced observations
+        """
+        return pd.Timedelta(self.index.get_level_values("event_start").freq)
+
 
 class BeliefsDataFrame(pd.DataFrame):
     """Beliefs about a sensor.
@@ -1022,6 +1031,15 @@ class BeliefsDataFrame(pd.DataFrame):
                 probabilistic_utils.set_truth, reference_source
             )
         )
+
+    @property
+    def event_frequency(self) -> Optional[timedelta]:
+        """Duration between observations of events.
+
+        :returns: a timedelta for regularly spaced observations
+                  None for irregularly spaced observations
+        """
+        return pd.Timedelta(self.index.get_level_values("event_start").freq)
 
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:
