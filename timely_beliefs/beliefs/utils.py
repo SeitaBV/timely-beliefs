@@ -787,6 +787,7 @@ def resample_instantaneous_events(
     df: pd.DataFrame | "classes.BeliefsDataFrame",
     resolution: timedelta,
     method: str | None = None,
+    dropna: bool = True,
 ) -> pd.DataFrame | "classes.BeliefsDataFrame":
     """Resample data representing instantaneous events.
 
@@ -882,7 +883,9 @@ def resample_instantaneous_events(
             f"Please file a GitHub ticket for timely-beliefs to support the '{method}' method."
         )
 
-    return resampled_df.dropna()
+    if dropna:
+        return resampled_df.dropna()
+    return resampled_df
 
 
 def meta_repr(
