@@ -1419,12 +1419,13 @@ class BeliefsDataFrame(pd.DataFrame):
     ) -> "BeliefsDataFrame":
         """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample).
 
-        Drops NaN values by default.
-
-        NB If you need to only keep the most recent belief,
-        set keep_only_most_recent_belief=True for a significant speed boost.
-
-        :param keep_nan_values: if True, place back resampled NaN values.
+        :param event_resolution: duration of events after resampling (except for instantaneous sensors, in which case
+                                 it is the duration between events after resampling: the event frequency).
+        :param distribution: Type of probability distribution to assume when taking the mean over probabilistic values.
+                             Supported distributions are 'discrete', 'normal' and 'uniform'.
+        :param keep_only_most_recent_belief: If True, assign the most recent belief time to each event after resampling.
+                                             Only applies in case of multiple beliefs per event.
+        :param keep_nan_values: If True, place back resampled NaN values. Drops NaN values by default.
         """
 
         if self.empty:
