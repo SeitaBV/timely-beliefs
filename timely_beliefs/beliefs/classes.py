@@ -1419,6 +1419,46 @@ class BeliefsDataFrame(pd.DataFrame):
     ) -> "BeliefsDataFrame":
         """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample).
 
+        Resampling events in a BeliefsDataFrames can be quite a slow operation, depending on the complexity of the data.
+        In general, resampling events may need to deal with:
+        - the distinction between event resolution (the duration of events) and event frequency (the duration between event starts)
+          todo: this distinction was introduced in timely-beliefs==1.15.0 and still needs to be incorporated in code
+        - upsampling or downsampling
+          note: this function supports both
+        - different resampling methods (e.g. 'mean', 'interpolate' or 'first')
+          note: this function defaults to 'mean' for downsampling and 'pad' for upsampling
+          todo: allow to set this explicitly, and derive a default from a sensor attribute
+        - different event resolutions (e.g. instantaneous recordings vs. hourly averages)
+          note: this function only supports few less complex cases of resampling instantaneous sensors
+        - daylight savings time (DST) transitions
+          note: this function resamples such that events coincide with midnight in both DST and non-DST
+          note: only tested for instantaneous sensors
+          todo: streamline how DST transitions are handled for instantaneous and non-instantaneous sensors
+        - combining beliefs with different belief times
+          note: for BeliefsDataFrames with multiple belief times per event, consider keep_only_most_recent_belief=True for a significant speed boost
+        - combining beliefs from different sources
+          note: resampling is currently done separately for each source
+        - joining marginal probability distributions
+
+        Each of the above aspects needs a carefully thought out and tested implementation.
+        Quite a few cases have been implemented in detail already, such as:
+        - a quite general (but slow) implementation for sensors recording average flows.
+        - a much faster implementation for some less complex cases
+        - a separate implementation for less complex BeliefsDataFrames with instantaneous recordings,
+          which is robust against DST transitions.
+
+        If you encounter a case that is not supported yet, we invite you to open a GitHub ticket and describe your case.
+
+        Finally, a note on why we named this function 'resample_events'.
+        BeliefsDataFrames record the timing of events, the timing of beliefs, sources and probabilities.
+        It is conceivable to resample any of these, for example:
+        - resample belief times to show how beliefs about an event change every day
+        - resample sources to show how model versions improved accuracy
+        - resample probabilities given some distribution to show how that affects extreme outcomes and risk
+
+        Although the term, when applied to time series, usually is about resampling events,
+        we wanted the function name to be explicit about what we resample.
+
         :param event_resolution: duration of events after resampling (except for instantaneous sensors, in which case
                                  it is the duration between events after resampling: the event frequency).
         :param distribution: Type of probability distribution to assume when taking the mean over probabilistic values.
