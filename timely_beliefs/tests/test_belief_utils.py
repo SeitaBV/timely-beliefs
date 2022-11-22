@@ -237,7 +237,9 @@ def test_propagate_multi_sourced_deterministic_beliefs():
         ),  # Downsample across 'fall back' (+02 to +01) DST transition (no difference between P1D and PT24H)
     ],
 )
-def test_downsample_first(start, periods, frequency, method, exp_event_values):
+def test_resample_instantaneous_events(
+    start, periods, frequency, method, exp_event_values
+):
     """Enumerate the events and check whether downsampling returns the expected events."""
     index = pd.date_range(
         start, periods=periods, freq="1H", name="event_start"
