@@ -338,7 +338,7 @@ def align_belief_horizons(
                 slice_with_existing_belief_horizon
             )
     df2 = df.copy().iloc[0:0]
-    df2 = df2.append(pd.DataFrame(data, columns=df2.columns))
+    df2 = pd.concat([df2, pd.DataFrame(data, columns=df2.columns)], axis=0)
     return df2
 
 
