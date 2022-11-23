@@ -142,10 +142,14 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
                 end=bin_end,
                 resolution=resolution,
             )
-            df = df.append(
-                tb_utils.replace_multi_index_level(
-                    df_slice, level="event_start", index=lvl0, intersection=True
-                )
+            df = pd.concat(
+                [
+                    df,
+                    tb_utils.replace_multi_index_level(
+                        df_slice, level="event_start", index=lvl0, intersection=True
+                    ),
+                ],
+                axis=0,
             )
 
     return df
@@ -239,17 +243,21 @@ def align_belief_times(
     # Create new BeliefsDataFrame
     df = slice.copy().reset_index().iloc[0:0]
     sensor = df.sensor
-    df = df.append(
-        pd.DataFrame(
-            data,
-            columns=[
-                "event_start",
-                "belief_time",
-                "source",
-                "cumulative_probability",
-                "event_value",
-            ],
-        )
+    df = pd.concat(
+        [
+            df,
+            pd.DataFrame(
+                data,
+                columns=[
+                    "event_start",
+                    "belief_time",
+                    "source",
+                    "cumulative_probability",
+                    "event_value",
+                ],
+            ),
+        ],
+        axis=0,
     )
     df.sensor = sensor
     df = df.set_index(
