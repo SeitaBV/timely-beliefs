@@ -17,7 +17,7 @@ def equal_lists(list_a: Union[list, np.ndarray], list_b: Union[list, np.ndarray]
     But:
         None == np.nan  # False
     """
-    return all(
+    return len(list_a) == len(list_b) and all(
         a == b or np.isclose(a, b, equal_nan=True) for a, b in zip(list_a, list_b)
     )
 
