@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import warnings
 from datetime import datetime, timedelta
 from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
+import pytz
 from packaging import version
 from pandas.core.groupby import DataFrameGroupBy
 
@@ -139,10 +142,14 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
                 end=bin_end,
                 resolution=resolution,
             )
-            df = df.append(
-                tb_utils.replace_multi_index_level(
-                    df_slice, level="event_start", index=lvl0, intersection=True
-                )
+            df = pd.concat(
+                [
+                    df,
+                    tb_utils.replace_multi_index_level(
+                        df_slice, level="event_start", index=lvl0, intersection=True
+                    ),
+                ],
+                axis=0,
             )
 
     return df
@@ -236,17 +243,21 @@ def align_belief_times(
     # Create new BeliefsDataFrame
     df = slice.copy().reset_index().iloc[0:0]
     sensor = df.sensor
-    df = df.append(
-        pd.DataFrame(
-            data,
-            columns=[
-                "event_start",
-                "belief_time",
-                "source",
-                "cumulative_probability",
-                "event_value",
-            ],
-        )
+    df = pd.concat(
+        [
+            df,
+            pd.DataFrame(
+                data,
+                columns=[
+                    "event_start",
+                    "belief_time",
+                    "source",
+                    "cumulative_probability",
+                    "event_value",
+                ],
+            ),
+        ],
+        axis=0,
     )
     df.sensor = sensor
     df = df.set_index(
@@ -283,7 +294,9 @@ def join_beliefs(
     if output_resolution > input_resolution:
 
         # Create new BeliefsDataFrame with downsampled event_start
-        if output_resolution % input_resolution != timedelta(0):
+        if input_resolution == timedelta(
+            0
+        ) or output_resolution % input_resolution != timedelta(0):
             raise NotImplementedError(
                 "Cannot downsample from resolution %s to %s."
                 % (input_resolution, output_resolution)
@@ -781,6 +794,111 @@ def extreme_timedeltas_not_equal(
     if isinstance(td_a, pd.Timedelta):
         td_a = td_a.to_pytimedelta()
     return td_a != td_b
+
+
+def resample_instantaneous_events(
+    df: pd.DataFrame | "classes.BeliefsDataFrame",
+    resolution: timedelta,
+    method: str | None = None,
+    dropna: bool = True,
+) -> pd.DataFrame | "classes.BeliefsDataFrame":
+    """Resample data representing instantaneous events.
+
+    Updates the event frequency of the resulting data frame, and possibly also its event resolution.
+    The event resolution is only updated if the resampling method computes a characteristic of a period of events,
+    like 'mean' or 'first'.
+
+    Note that, for resolutions over 1 hour, the data frequency may not turn out to be constant per se.
+    This is due to DST transitions:
+    - The duration between events is typically longer for the fall DST transition.
+    - The duration between events is typically shorter for the spring DST transition.
+    This is done to keep the data frequency in step with midnight in the sensor's timezone.
+    """
+
+    # Default resampling method for instantaneous sensors
+    if method is None:
+        method = "asfreq"
+
+    # Use event_start as the only index level
+    index_names = df.index.names
+    df = df.reset_index().set_index("event_start")
+
+    # Resample the data in each unique fixed timezone offset that belongs to the given IANA timezone, then recombine
+    unique_offsets = df.index.map(lambda x: x.utcoffset()).unique()
+    resampled_df_offsets = []
+    for offset in unique_offsets:
+        df_offset = df.copy()
+        # Convert all the data to given timezone offset
+        df_offset.index = df.index.tz_convert(
+            pytz.FixedOffset(offset.seconds // 60)
+        )  # offset is max 1439 minutes, so we don't need to check offset.days
+        # Resample all the data in the given timezone offset, using the given method
+        resampled_df_offset = getattr(df_offset.resample(resolution), method)()
+        # Convert back to the original timezone
+        if isinstance(df.index, pd.DatetimeIndex) and df.index.tz is not None:
+            resampled_df_timezone = resampled_df_offset.tz_convert(df.index.tz)
+        elif isinstance(df, classes.BeliefsDataFrame):
+            # As a backup, use the original timezone from the BeliefsDataFrame's sensor
+            resampled_df_timezone = resampled_df_offset.tz_convert(df.sensor.timezone)
+        else:
+            ValueError("Missing original timezone.")
+        # See which resampled rows still fall in the given offset, in this timezone
+        resampled_df_timezone = resampled_df_timezone[
+            resampled_df_timezone.index.map(lambda x: x.utcoffset()) == offset
+        ]
+        resampled_df_offsets.append(resampled_df_timezone)
+    resampled_df = pd.concat(resampled_df_offsets).sort_index()
+
+    # If possible, infer missing frequency
+    if resampled_df.index.freq is None and len(resampled_df) > 2:
+        resampled_df.index.freq = pd.infer_freq(resampled_df.index)
+
+    # Restore the original index levels
+    resampled_df = resampled_df.reset_index().set_index(index_names)
+
+    if method in (
+        "mean",
+        "max",
+        "min",
+        "median",
+        "count",
+        "nunique",
+        "first",
+        "last",
+        "ohlc",
+        "prod",
+        "size",
+        "sem",
+        "std",
+        "sum",
+        "var",
+        "quantile",
+    ):
+        # These methods derive properties of a period of events.
+        # Therefore, the event resolution is updated.
+        # The methods are typically used for downsampling.
+        resampled_df.event_resolution = resolution
+    elif method in (
+        "asfreq",
+        "interpolate",
+        "ffill",
+        "bfill",
+        "pad",
+        "backfill",
+        "nearest",
+    ):
+        # These methods derive intermediate events.
+        # Therefore, the event resolution is unaffected.
+        # The methods are typically used for upsampling.
+        pass
+    else:
+        raise NotImplementedError(
+            f"Please file a GitHub ticket for timely-beliefs to support the '{method}' method."
+        )
+
+    if dropna:
+        return resampled_df.dropna()
+    return resampled_df
 
 
 def meta_repr(

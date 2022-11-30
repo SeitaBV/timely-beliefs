@@ -73,7 +73,7 @@ class TimedBelief(object):
     - a cumulative probability (the likelihood of the value being equal or lower than stated)*
 
     * The default assumption is that the mean value is given (cp=0.5), but if no beliefs about possible other outcomes
-    are given, then this will be treated as a deterministic belief (cp=1). As an alternative to specifying an cumulative
+    are given, then this will be treated as a deterministic belief (cp=1). As an alternative to specifying a cumulative
     probability explicitly, you can specify an integer number of standard deviations which is translated
     into a cumulative probability assuming a normal distribution (e.g. sigma=-1 becomes cp=0.1587).
     """
@@ -326,6 +326,8 @@ class TimedBeliefDBMixin(TimedBelief):
         sensor: Union[SensorDBMixin, int],
         sensor_class: Optional[Type[SensorDBMixin]] = DBSensor,
         event_starts_after: Optional[datetime] = None,
+        event_ends_after: Optional[datetime] = None,
+        event_starts_before: Optional[datetime] = None,
         event_ends_before: Optional[datetime] = None,
         beliefs_after: Optional[datetime] = None,
         beliefs_before: Optional[datetime] = None,
@@ -353,6 +355,10 @@ class TimedBeliefDBMixin(TimedBelief):
         :param sensor: sensor to which the beliefs pertain, or its unique sensor id
         :param sensor_class: optionally pass the sensor (sub)class explicitly (only needed if you pass a sensor id instead of a sensor, and your sensor class is not DBSensor); the class should be mapped to a database table
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_after: only return beliefs about events that end after this datetime (exclusive for non-instantaneous events, inclusive for instantaneous events)
+                                 note that the first event may transpire partially before this datetime
+        :param event_starts_before: only return beliefs about events that start before this datetime (exclusive for non-instantaneous events, inclusive for instantaneous events)
+                                    note that the last event may transpire partially after this datetime
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
@@ -412,11 +418,19 @@ class TimedBeliefDBMixin(TimedBelief):
         # Check for timezone-aware datetime input
         if not pd.isnull(event_starts_after):
             event_starts_after = tb_utils.parse_datetime_like(
-                event_starts_after, "event_not_before"
+                event_starts_after, "event_starts_after"
+            )
+        if not pd.isnull(event_ends_after):
+            event_ends_after = tb_utils.parse_datetime_like(
+                event_ends_after, "event_ends_after"
+            )
+        if not pd.isnull(event_starts_before):
+            event_starts_before = tb_utils.parse_datetime_like(
+                event_starts_before, "event_starts_before"
             )
         if not pd.isnull(event_ends_before):
             event_ends_before = tb_utils.parse_datetime_like(
-                event_ends_before, "event_before"
+                event_ends_before, "event_ends_before"
             )
         if not pd.isnull(beliefs_after):
             beliefs_after = tb_utils.parse_datetime_like(
@@ -459,6 +473,22 @@ class TimedBeliefDBMixin(TimedBelief):
         # Apply event time filter
         if not pd.isnull(event_starts_after):
             q = q.filter(cls.event_start >= event_starts_after)
+        if not pd.isnull(event_ends_after):
+            if sensor.event_resolution == timedelta(0):
+                # inclusive
+                q = q.filter(cls.event_start >= event_ends_after)
+            else:
+                # exclusive
+                q = q.filter(
+                    cls.event_start + sensor.event_resolution > event_ends_after
+                )
+        if not pd.isnull(event_starts_before):
+            if sensor.event_resolution == timedelta(0):
+                # inclusive
+                q = q.filter(cls.event_start <= event_starts_before)
+            else:
+                # exclusive
+                q = q.filter(cls.event_start < event_starts_before)
         if not pd.isnull(event_ends_before):
             q = q.filter(cls.event_start + sensor.event_resolution <= event_ends_before)
 
@@ -667,6 +697,15 @@ class BeliefsSeries(pd.Series):
         """Add the sensor and event resolution to the string representation of the BeliefsSeries."""
         return super().__repr__() + "\n" + meta_repr(self)
 
+    @property
+    def event_frequency(self) -> Optional[timedelta]:
+        """Duration between observations of events.
+
+        :returns: a timedelta for regularly spaced observations
+                  None for irregularly spaced observations
+        """
+        return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
+
 
 class BeliefsDataFrame(pd.DataFrame):
     """Beliefs about a sensor.
@@ -686,7 +725,7 @@ class BeliefsDataFrame(pd.DataFrame):
     In addition to the standard DataFrame constructor arguments,
     BeliefsDataFrame also accepts the following keyword arguments:
 
-    :param beliefs: a list of TimedBelief objects used to initialise the BeliefsDataFrame
+    :param beliefs: a list of TimedBelief objects used to initialize the BeliefsDataFrame
     :param sensor: the Sensor object that each belief pertains to
     :param source: the source of each belief in the input DataFrame (a BeliefSource, str or int)
     :param event_start: the start of the event that each belief pertains to (a datetime)
@@ -1022,6 +1061,15 @@ class BeliefsDataFrame(pd.DataFrame):
                 probabilistic_utils.set_truth, reference_source
             )
         )
+
+    @property
+    def event_frequency(self) -> Optional[timedelta]:
+        """Duration between observations of events.
+
+        :returns: a timedelta for regularly spaced observations
+                  None for irregularly spaced observations
+        """
+        return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
 
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:
@@ -1371,12 +1419,53 @@ class BeliefsDataFrame(pd.DataFrame):
     ) -> "BeliefsDataFrame":
         """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample).
 
-        Drops NaN values by default.
+        Resampling events in a BeliefsDataFrames can be quite a slow operation, depending on the complexity of the data.
+        In general, resampling events may need to deal with:
+        - the distinction between event resolution (the duration of events) and event frequency (the duration between event starts)
+          todo: this distinction was introduced in timely-beliefs==1.15.0 and still needs to be incorporated in code
+        - upsampling or downsampling
+          note: this function supports both
+        - different resampling methods (e.g. 'mean', 'interpolate' or 'first')
+          note: this function defaults to 'mean' for downsampling and 'pad' for upsampling
+          todo: allow to set this explicitly, and derive a default from a sensor attribute
+        - different event resolutions (e.g. instantaneous recordings vs. hourly averages)
+          note: this function only supports few less complex cases of resampling instantaneous sensors
+        - daylight savings time (DST) transitions
+          note: this function resamples such that events coincide with midnight in both DST and non-DST
+          note: only tested for instantaneous sensors
+          todo: streamline how DST transitions are handled for instantaneous and non-instantaneous sensors
+        - combining beliefs with different belief times
+          note: for BeliefsDataFrames with multiple belief times per event, consider keep_only_most_recent_belief=True for a significant speed boost
+        - combining beliefs from different sources
+          note: resampling is currently done separately for each source
+        - joining marginal probability distributions
 
-        NB If you need to only keep the most recent belief,
-        set keep_only_most_recent_belief=True for a significant speed boost.
+        Each of the above aspects needs a carefully thought out and tested implementation.
+        Quite a few cases have been implemented in detail already, such as:
+        - a quite general (but slow) implementation for sensors recording average flows.
+        - a much faster implementation for some less complex cases
+        - a separate implementation for less complex BeliefsDataFrames with instantaneous recordings,
+          which is robust against DST transitions.
 
-        :param keep_nan_values: if True, place back resampled NaN values.
+        If you encounter a case that is not supported yet, we invite you to open a GitHub ticket and describe your case.
+
+        Finally, a note on why we named this function 'resample_events'.
+        BeliefsDataFrames record the timing of events, the timing of beliefs, sources and probabilities.
+        It is conceivable to resample any of these, for example:
+        - resample belief times to show how beliefs about an event change every day
+        - resample sources to show how model versions improved accuracy
+        - resample probabilities given some distribution to show how that affects extreme outcomes and risk
+
+        Although the term, when applied to time series, usually is about resampling events,
+        we wanted the function name to be explicit about what we resample.
+
+        :param event_resolution: duration of events after resampling (except for instantaneous sensors, in which case
+                                 it is the duration between events after resampling: the event frequency).
+        :param distribution: Type of probability distribution to assume when taking the mean over probabilistic values.
+                             Supported distributions are 'discrete', 'normal' and 'uniform'.
+        :param keep_only_most_recent_belief: If True, assign the most recent belief time to each event after resampling.
+                                             Only applies in case of multiple beliefs per event.
+        :param keep_nan_values: If True, place back resampled NaN values. Drops NaN values by default.
         """
 
         if self.empty:
@@ -1385,6 +1474,13 @@ class BeliefsDataFrame(pd.DataFrame):
         if event_resolution == self.event_resolution:
             return self
         df = self
+
+        # Resample instantaneous sensors
+        # The event resolution stays zero, but the event frequency is updated
+        if df.event_resolution == timedelta(0):
+            if df.lineage.number_of_events != len(df):
+                raise NotImplementedError("Please file a GitHub ticket.")
+            return belief_utils.resample_instantaneous_events(df, event_resolution)
 
         belief_timing_col = (
             "belief_time" if "belief_time" in df.index.names else "belief_horizon"

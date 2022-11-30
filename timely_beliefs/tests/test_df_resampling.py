@@ -9,24 +9,26 @@ import pytz
 from pytest import approx
 
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief
+from timely_beliefs.beliefs.utils import resample_instantaneous_events
 from timely_beliefs.examples.beliefs_data_frames import sixteen_probabilistic_beliefs
 from timely_beliefs.utils import replace_multi_index_level
 
 
 @pytest.fixture(scope="function", autouse=True)
 def df_wxyz(
-    time_slot_sensor: Sensor, test_source_a: BeliefSource, test_source_b: BeliefSource
-) -> Callable[[int, int, int, int, Optional[datetime]], BeliefsDataFrame]:
+    test_source_a: BeliefSource, test_source_b: BeliefSource
+) -> Callable[[Sensor, int, int, int, int, Optional[datetime]], BeliefsDataFrame]:
     """Convenient BeliefsDataFrame to run tests on.
     For a single sensor, it contains w events, for each of which x beliefs by y sources each (max 2),
     described by z probabilistic values (max 3).
-    Note that the event resolution of the sensor is 15 minutes.
     """
 
     sources = [test_source_a, test_source_b]  # expand to increase max y
     cps = [0.1587, 0.5, 0.8413]  # expand to increase max z
 
-    def f(w: int, x: int, y: int, z: int, start: Optional[datetime] = None):
+    def f(
+        sensor: Sensor, w: int, x: int, y: int, z: int, start: Optional[datetime] = None
+    ):
         if start is None:
             start = datetime(2000, 1, 3, 9, tzinfo=pytz.utc)
 
@@ -34,7 +36,7 @@ def df_wxyz(
         beliefs = [
             TimedBelief(
                 source=sources[s],
-                sensor=time_slot_sensor,
+                sensor=sensor,
                 value=1000 * e + 100 * b + 10 * s + p,
                 belief_time=datetime(2000, 1, 1, tzinfo=pytz.utc) + timedelta(hours=b),
                 event_start=start + timedelta(hours=e),
@@ -45,7 +47,7 @@ def df_wxyz(
             for s in range(y)  # y sources
             for p in range(z)  # z cumulative probabilities
         ]
-        return BeliefsDataFrame(sensor=time_slot_sensor, beliefs=beliefs)
+        return BeliefsDataFrame(sensor=sensor, beliefs=beliefs)
 
     return f
 
@@ -55,7 +57,9 @@ def df_4323(
     time_slot_sensor: Sensor,
     test_source_a: BeliefSource,
     test_source_b: BeliefSource,
-    df_wxyz: Callable[[int, int, int, int, Optional[datetime]], BeliefsDataFrame],
+    df_wxyz: Callable[
+        [Sensor, int, int, int, int, Optional[datetime]], BeliefsDataFrame
+    ],
 ) -> BeliefsDataFrame:
     """Convenient BeliefsDataFrame to run tests on.
     For a single sensor, it contains 4 events, for each of which 3 beliefs by 2 sources each, described by 3
@@ -63,7 +67,25 @@ def df_4323(
     Note that the event resolution of the sensor is 15 minutes.
     """
     start = pytz.timezone("utc").localize(datetime(2000, 1, 3, 9))
-    return df_wxyz(4, 3, 2, 3, start)
+    return df_wxyz(time_slot_sensor, 4, 3, 2, 3, start)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def df_instantaneous_8111(
+    instantaneous_sensor: Sensor,
+    test_source_a: BeliefSource,
+    test_source_b: BeliefSource,
+    df_wxyz: Callable[
+        [Sensor, int, int, int, int, Optional[datetime]], BeliefsDataFrame
+    ],
+) -> BeliefsDataFrame:
+    """Convenient BeliefsDataFrame to run tests on.
+    For a single sensor, it contains 8 events, for each of which 1 beliefs by 1 source each, described by 1
+    probabilistic value.
+    Note that the event resolution of the sensor is 15 minutes, while the event frequency is 1 hour.
+    """
+    start = pytz.timezone("utc").localize(datetime(2000, 1, 3, 9))
+    return df_wxyz(instantaneous_sensor, 8, 1, 1, 1, start)
 
 
 def test_replace_index_level_with_intersect(df_4323):
@@ -241,13 +263,18 @@ def test_percentages_and_accuracy_of_probabilistic_model(df_4323: BeliefsDataFra
 
 
 def test_downsample_once_upsample_once_around_dst(
-    df_wxyz: Callable[[int, int, int, int, Optional[datetime]], BeliefsDataFrame]
+    time_slot_sensor: Sensor,
+    df_wxyz: Callable[
+        [Sensor, int, int, int, int, Optional[datetime]], BeliefsDataFrame
+    ],
 ):
     """Fast track resampling is enabled because the data contains 1 deterministic belief per event and a unique belief time and source."""
     downsampled_event_resolution = timedelta(hours=24)
     upsampled_event_resolution = timedelta(minutes=10)
     start = pytz.timezone("Europe/Amsterdam").localize(datetime(2020, 3, 29, 0))
-    df = df_wxyz(25, 1, 1, 1, start)  # 1 deterministic belief per event
+    df = df_wxyz(
+        time_slot_sensor, 25, 1, 1, 1, start
+    )  # 1 deterministic belief per event
     df.iloc[0] = np.NaN  # introduce 1 NaN value
     print(df)
 
@@ -311,3 +338,66 @@ def test_groupby_preserves_metadata(df_4323: BeliefsDataFrame):
     assert slice_0.sensor == df.sensor
     df_2 = grouper.apply(lambda x: x.head(1))
     assert df_2.sensor == df.sensor
+
+
+def test_downsample_instantaneous(df_instantaneous_8111):
+    """Check resampling instantaneous events from hourly readings to 2-hourly readings.
+
+    Given data for 9, 10, 11, 12, 13, 14, 15 and 16 o'clock,
+    we expect to get out only data for 10, 12, 14 and 16 o'clock, with the original event resolution.
+
+    Then try again with the resampling method 'first', which takes the first reading within 2-hour periods.
+    We then expect to get out data for 8, 10, 12, 14 and 16 o'clock, with an updated event resolution.
+    """
+    pd.set_option("display.max_rows", None)
+    print(df_instantaneous_8111)
+    # Downsample the original frame
+    downsampled_event_resolution = timedelta(hours=2)
+    df_resampled_1 = df_instantaneous_8111.resample_events(downsampled_event_resolution)
+    print(df_resampled_1)
+    df_expected_1 = df_instantaneous_8111[
+        df_instantaneous_8111.index.get_level_values("event_start").isin(
+            [
+                "2000-01-03 10:00:00+00:00",
+                "2000-01-03 12:00:00+00:00",
+                "2000-01-03 14:00:00+00:00",
+                "2000-01-03 16:00:00+00:00",
+            ]
+        )
+    ]
+    pd.testing.assert_frame_equal(
+        df_resampled_1, df_expected_1, check_dtype=False
+    )  # dtype is converted to float, due to introduction of np.nan values
+    # original resolution kept
+    assert df_resampled_1.event_resolution == df_instantaneous_8111.event_resolution
+    # frequency updated
+    assert df_resampled_1.event_frequency == downsampled_event_resolution
+
+    df_resampled_2 = resample_instantaneous_events(
+        df_instantaneous_8111, downsampled_event_resolution, method="first"
+    )
+    print(df_resampled_2)
+    df_expected_2 = df_instantaneous_8111[
+        df_instantaneous_8111.index.get_level_values("event_start").isin(
+            [
+                "2000-01-03 9:00:00+00:00",
+                "2000-01-03 10:00:00+00:00",
+                "2000-01-03 12:00:00+00:00",
+                "2000-01-03 14:00:00+00:00",
+                "2000-01-03 16:00:00+00:00",
+            ]
+        )
+    ]
+    # replace 9 AM with 8 AM
+    index_levels = df_expected_2.index.names
+    df_expected_2 = df_expected_2.reset_index()
+    df_expected_2.loc[
+        df_expected_2["event_start"] == "2000-01-03 9:00:00+00:00", "event_start"
+    ] = pd.Timestamp("2000-01-03 8:00:00+00:00")
+    df_expected_2 = df_expected_2.set_index(index_levels)
+
+    pd.testing.assert_frame_equal(df_resampled_2, df_expected_2, check_dtype=True)
+    # resolution updated
+    assert df_resampled_2.event_resolution == downsampled_event_resolution
+    # frequency updated
+    assert df_resampled_2.event_frequency == downsampled_event_resolution
