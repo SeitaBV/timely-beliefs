@@ -170,7 +170,7 @@ def test_propagate_multi_sourced_deterministic_beliefs():
             7,
             "PT2H",
             None,
-            [1, 3, 4, 6, 8],
+            [1, 3, 4, 6],
         ),  # Downsample across 'fall back' (+02 to +01) DST transition (2 AM exists in both offsets, so we get a contracted duration between events)
         (
             "2022-10-30 01:00+02",

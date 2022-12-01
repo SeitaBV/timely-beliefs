@@ -8,7 +8,18 @@ from timely_beliefs.beliefs.classes import METADATA
 
 
 def equal_lists(list_a: Union[list, np.ndarray], list_b: Union[list, np.ndarray]):
-    return all(np.isclose(a, b, equal_nan=True) for a, b in zip(list_a, list_b))
+    """Equates lists by comparing their elements.
+
+    If lists contain floats, they just have to be close within the default numpy tolerance.
+    Also supports comparing missing values:
+        None == None  # True
+        np.isclose(np.nan, np.nan, equal_nan=True)  # True (np.nan == np.nan is normally considered as False)
+    But:
+        None == np.nan  # False
+    """
+    return len(list_a) == len(list_b) and all(
+        a == b or np.isclose(a, b, equal_nan=True) for a, b in zip(list_a, list_b)
+    )
 
 
 def assert_metadata_is_retained(
