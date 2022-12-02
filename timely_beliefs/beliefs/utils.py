@@ -697,12 +697,21 @@ def interpret_special_read_cases(
             timezone_to_localize_to=timezone,
         )
         if resample:
-            df = (
-                df.set_index("event_start")
-                .resample(sensor.event_resolution)
-                .mean()
-                .reset_index()
-            )
+            df = df.set_index("event_start")
+            if df.index.freq is None and len(df) > 2:
+                # Try to infer the event resolution from the event frequency
+                df.index.freq = pd.infer_freq(df.index)
+            if df.index.freq is None:
+                raise NotImplementedError(
+                    "Resampling is not supported for data without a discernible frequency."
+                )
+            if df.index.freq > sensor.event_resolution:
+                # Upsample by forward filling
+                df = df.resample(sensor.event_resolution).ffill()
+            else:
+                # Downsample by computing the mean
+                df = df.resample(sensor.event_resolution).mean()
+            df = df.reset_index()
     elif len(df.columns) == 3:
         # datetimes in 1st and 2nd column, and value in 3rd column
         df.columns = ["event_start", "belief_time", "event_value"]
