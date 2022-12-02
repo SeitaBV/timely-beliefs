@@ -701,7 +701,11 @@ def interpret_special_read_cases(
             if df.index.freq is None and len(df) > 2:
                 # Try to infer the event resolution from the event frequency
                 df.index.freq = pd.infer_freq(df.index)
-            if df.index.freq is not None and df.index.freq > sensor.event_resolution:
+            if df.index.freq is None:
+                raise NotImplementedError(
+                    "Resampling is not supported for data without a discernible frequency."
+                )
+            if df.index.freq > sensor.event_resolution:
                 # Upsample by forward filling
                 df = df.resample(sensor.event_resolution).ffill()
             else:
