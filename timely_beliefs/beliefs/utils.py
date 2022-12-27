@@ -648,15 +648,14 @@ def read_csv(
 
 
 def find_out_extension(path: str):
+    """Returns 'csv' unless another extension can be inferred from the path."""
     if isinstance(path, str):
-        ext = path.split(".")[-1]
+        return path.split(".")[-1]
     elif hasattr(path, "filename"):
         # For example, supports werkzeug.datastructures.FileStorage objects
-        ext = path.filename.split(".")[-1]
-    else:
-        # Given this function's name, we'll let Pandas attempt to read the path as a CSV file
-        ext = "csv"
-    return ext
+        return path.filename.split(".")[-1]
+    # We'll let Pandas attempt to read the path as a CSV file
+    return "csv"
 
 
 def fill_in_sources(
