@@ -598,7 +598,7 @@ def read_csv(
             for col in filter_by_column.keys()
             if col not in kwargs.get("usecols", [])
         ]
-    ext = path.split(".")[-1]
+    ext = find_out_extension(path)
     if ext.lower() == "csv":
         df = pd.read_csv(path, **kwargs)
     elif ext.lower() in ("xlsx", "xls"):
@@ -645,6 +645,17 @@ def read_csv(
         df["cumulative_probability"] = cumulative_probability
 
     return classes.BeliefsDataFrame(df, sensor=sensor)
+
+
+def find_out_extension(path: str):
+    """Returns 'csv' unless another extension can be inferred from the path."""
+    if isinstance(path, str):
+        return path.split(".")[-1]
+    elif hasattr(path, "filename"):
+        # For example, supports werkzeug.datastructures.FileStorage objects
+        return path.filename.split(".")[-1]
+    # We'll let Pandas attempt to read the path as a CSV file
+    return "csv"
 
 
 def fill_in_sources(
