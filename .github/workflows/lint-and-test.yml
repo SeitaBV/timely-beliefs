@@ -6,7 +6,7 @@ on: push
 jobs:
   check:
     runs-on: ubuntu-latest
-    name: Check (on Python3.8)
+    name: Check (on Python3.9)
     steps:
       - uses: actions/setup-python@v2
         with:
