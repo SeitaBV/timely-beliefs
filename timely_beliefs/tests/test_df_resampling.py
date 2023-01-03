@@ -197,7 +197,7 @@ def test_upsample_probabilistic(df_4323, test_source_a: BeliefSource):
     assert (
         df.index.get_level_values(level="event_start").nunique() == 3 * 4
     )  # We have 3 events per quarterhour now
-    assert df.xs(datetime(2000, 1, 1), level="belief_time").xs(
+    assert df.xs(datetime(2000, 1, 1, tzinfo=pytz.utc), level="belief_time").xs(
         test_source_a, level="source"
     )["event_value"].values.tolist()[0:9] == [0, 1, 2, 0, 1, 2, 0, 1, 2]
 
@@ -210,8 +210,8 @@ def test_downsample_probabilistic(df_4323, test_source_a: BeliefSource):
     # Half of the events are binned together, with two 3-valued probabilistic beliefs turned into one 5-valued belief
     assert len(df) == 72 / 2 + 72 / 2 * 5 / 6
     cdf = (
-        df.xs(datetime(2000, 1, 3, 10), level="event_start")
-        .xs(datetime(2000, 1, 1), level="belief_time")
+        df.xs(datetime(2000, 1, 3, 10, tzinfo=pytz.utc), level="event_start")
+        .xs(datetime(2000, 1, 1, tzinfo=pytz.utc), level="belief_time")
         .xs(test_source_a, level="source")
     )
     cdf_p = cdf.index.get_level_values(level="cumulative_probability")

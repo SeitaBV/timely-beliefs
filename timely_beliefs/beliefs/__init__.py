@@ -141,7 +141,10 @@ class BeliefsAccessor(object):
     def unique_beliefs_per_event_per_source(self) -> bool:
         """Return whether or not the BeliefsDataFrame contains at most 1 belief per event per source."""
         return len(
-            self._obj.groupby(level=["event_start", "source", "cumulative_probability"])
+            self._obj.groupby(
+                level=["event_start", "source", "cumulative_probability"],
+                group_keys=False,
+            )
         ) == len(self._obj)
 
     @property

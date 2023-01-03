@@ -537,7 +537,9 @@ def test_groupby_retains_metadata():
         assert_metadata_is_retained(x, original_df=example_df)
         return x
 
-    df = df.groupby(level="event_start").apply(lambda x: assert_function(x))
+    df = df.groupby(level="event_start", group_keys=False).apply(
+        lambda x: assert_function(x)
+    )
     assert_metadata_is_retained(df, original_df=example_df)
 
 
@@ -591,9 +593,9 @@ def test_groupby_does_not_retain_temporary_attribute():
     df = pd.DataFrame([[1, 2], [3, 4]], columns=["x", "y"])
     df.a = "b"
     assert df.a == "b"
-    df2 = df.groupby("x").apply(lambda x: x)
+    df2 = df.groupby("x", group_keys=False).apply(lambda x: x)
     assert not hasattr(df2, "a")
-    df3 = df.groupby("x").sum()
+    df3 = df.groupby("x", group_keys=False).sum()
     assert not hasattr(df3, "a")
 
 
@@ -665,7 +667,7 @@ def test_groupby_retains_subclass_attribute(att, args):
     df = SubclassedDataFrame([[1, 2], [3, 4]], columns=["x", "y"])
     df.a = "b"
     assert df.a == "b"
-    df2 = getattr(df.groupby("x"), att)(*args)
+    df2 = getattr(df.groupby("x", group_keys=False), att)(*args)
     print(df2)
     assert df2.a == "b"
 
