@@ -254,7 +254,7 @@ def prepare_df_for_plotting(
     event_resolution = df.event_resolution
     df = df.convert_index_from_belief_horizon_to_time()
     if show_accuracy is True:
-        reference_df = df.groupby(level="event_start", group_keys=False).apply(
+        reference_df = df.groupby(level="event_start", group_keys=True).apply(
             lambda x: x.accuracy(reference_source=reference_source, lite_metrics=True)
         )
     else:
