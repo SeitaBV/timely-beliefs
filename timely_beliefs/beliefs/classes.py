@@ -1057,7 +1057,7 @@ class BeliefsDataFrame(pd.DataFrame):
         self, reference_source: BeliefSource
     ) -> "BeliefsDataFrame":
         return self.groupby(level=["event_start"], group_keys=False).apply(
-            lambda x: x.groupby(level=["source"]).pipe(
+            lambda x: x.groupby(level=["source"], group_keys=False).pipe(
                 probabilistic_utils.set_truth, reference_source
             )
         )
@@ -2108,7 +2108,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
         df = self
 
-        reference_df = df.groupby(level="event_start").apply(
+        reference_df = df.groupby(level="event_start", group_keys=True).apply(
             lambda x: belief_utils.set_reference(
                 x,
                 reference_belief_time=reference_belief_time,

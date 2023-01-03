@@ -109,7 +109,7 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
 
     :Example:
 
-    >>> df = df.groupby([pd.Grouper(freq="1D", level="event_start"), "belief_time", "source"]).pipe(respect_event_resolution, timedelta(hours=1))
+    >>> df = df.groupby([pd.Grouper(freq="1D", level="event_start"), "belief_time", "source"], group_keys=False).pipe(respect_event_resolution, timedelta(hours=1))
 
     So don't pass a BeliefsDataFrame directly, but pipe it so that we receive a DataFrameGroupBy object, which we can
     iterate over to obtain a BeliefsDataFrame slice for a unique belief time, source and (in our example) day of
@@ -185,7 +185,7 @@ def propagate_beliefs(
         raise NotImplementedError(
             "Propagating probabilistic beliefs is not yet implemented. Please file a GitHub issue."
         )
-    return df.groupby(level=["event_start", "source"]).ffill()
+    return df.groupby(level=["event_start", "source"], group_keys=False).ffill()
 
 
 def align_belief_times(

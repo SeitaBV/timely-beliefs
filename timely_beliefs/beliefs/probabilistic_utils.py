@@ -92,7 +92,7 @@ def probabilistic_nan_mean(
         )
 
     # Extract the probabilistic values that will serve as marginal distributions
-    event_starts = df.groupby(["event_start"]).groups.keys()
+    event_starts = df.groupby(["event_start"], group_keys=False).groups.keys()
     cdf_v = []
     cdf_p = []
     for event_start in event_starts:
