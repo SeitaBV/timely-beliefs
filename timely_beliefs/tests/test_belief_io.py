@@ -537,7 +537,9 @@ def test_groupby_retains_metadata():
         assert_metadata_is_retained(x, original_df=example_df)
         return x
 
-    df = df.groupby(level="event_start", group_keys=False).apply(lambda x: assert_function(x))
+    df = df.groupby(level="event_start", group_keys=False).apply(
+        lambda x: assert_function(x)
+    )
     assert_metadata_is_retained(df, original_df=example_df)
 
 
