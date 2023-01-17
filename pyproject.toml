@@ -62,8 +62,8 @@ viz = [
 ]
 forecast = [
     "sktime",
-    "numpy<1.23,>=1.21.0; python_version > '3.7'",  # required by sktime==0.13.1
-    "scipy<1.9; python_version > '3.7'",  # required by sktime==0.13.1
+    "numpy<1.25,>=1.21.0; python_version > '3.7'",  # required by sktime==0.15.0
+    "scipy<2.0.0; python_version > '3.7'",  # required by sktime==0.15.0
 ]
 
 [project.readme]
