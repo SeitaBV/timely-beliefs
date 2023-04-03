@@ -1,6 +1,7 @@
 import math
 import types
 from datetime import datetime, timedelta
+from packaging import version
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -686,7 +687,7 @@ class BeliefsSeries(pd.Series):
         for name in self._metadata:
             object.__setattr__(self, name, getattr(other, name, None))
         if hasattr(other, "name"):
-            self.name = other.name
+            object.__setattr__(self, "name", getattr(other, "name"))
         return self
 
     def __init__(self, *args, **kwargs):
