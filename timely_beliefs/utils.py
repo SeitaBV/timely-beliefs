@@ -30,6 +30,9 @@ def parse_timedelta_like(
                     # catch cases like "H" -> "1H"
                     if "unit abbreviation w/o a number" in str(e):
                         td = pd.Timedelta(f"1{td}")
+                    else:
+                        # Reraise needed since pandas==2.0.0 throws a ValueError for ambiguous timedelta, rather than a FutureWarning
+                        raise e
             if isinstance(td, pd.Timedelta):
                 td = td.to_pytimedelta()
     except (ValueError, FutureWarning) as e:
