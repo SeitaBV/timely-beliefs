@@ -1,7 +1,6 @@
 import math
 import types
 from datetime import datetime, timedelta
-from packaging import version
 from typing import (
     TYPE_CHECKING,
     Any,
