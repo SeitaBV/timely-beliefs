@@ -1,7 +1,6 @@
 import math
 import types
 from datetime import datetime, timedelta
-from packaging import version
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -13,6 +12,8 @@ from typing import (
     Type,
     Union,
 )
+
+from packaging import version
 
 if TYPE_CHECKING:
     import altair as alt
