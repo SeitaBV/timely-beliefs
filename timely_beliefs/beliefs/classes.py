@@ -745,12 +745,10 @@ class BeliefsDataFrame(pd.DataFrame):
     @property
     def _constructor(self):
         def f(*args, **kwargs):
-            """Pre-Pandas 2.0, call __finalize__() after construction to inherit metadata."""
-            if version.parse(pd.__version__) < version.parse("2.0.0"):
-                return BeliefsDataFrame(*args, **kwargs).__finalize__(
-                    self, method="inherit"
-                )
-            return BeliefsDataFrame(*args, **kwargs)
+            """Call __finalize__() after construction to inherit metadata."""
+            return BeliefsDataFrame(*args, **kwargs).__finalize__(
+                self, method="inherit"
+            )
 
         return f
 
