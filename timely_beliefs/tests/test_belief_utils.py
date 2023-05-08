@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from timely_beliefs import BeliefsDataFrame, Sensor
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 from timely_beliefs.beliefs.utils import (
     propagate_beliefs,
@@ -9,6 +10,16 @@ from timely_beliefs.beliefs.utils import (
 )
 from timely_beliefs.examples import get_example_df
 from timely_beliefs.tests.utils import equal_lists
+
+
+def test_propagate_metadata_on_empty_frame():
+    df = BeliefsDataFrame(sensor=Sensor("test", unit="kW"))
+    df = df.for_each_belief(get_median_belief)
+    assert df.sensor.name == "test"
+    assert df.sensor.unit == "kW"
+    df = df.groupby(level=["event_start"], group_keys=False).apply(lambda x: x.head(1))
+    assert df.sensor.name == "test"
+    assert df.sensor.unit == "kW"
 
 
 def test_propagate_multi_sourced_deterministic_beliefs():
