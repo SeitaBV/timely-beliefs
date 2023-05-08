@@ -535,7 +535,6 @@ def test_groupby_retains_metadata(test_df):
     Fails with pandas==1.1.0
     Fixed with pandas==1.1.5
     Fails with pandas==1.3.0
-    Fails with pandas==2.0.0
     """
     if test_df == "example_df":
         original_df = get_example_df()
