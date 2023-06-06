@@ -540,6 +540,7 @@ def read_csv(
     resample: bool = False,
     timezone: Optional[str] = None,
     filter_by_column: dict = None,
+    transformations: list[dict] = None,
     **kwargs,
 ) -> "classes.BeliefsDataFrame":
     """Utility function to load a BeliefsDataFrame from a csv file or xls sheet (see example/temperature.csv).
@@ -564,6 +565,20 @@ def read_csv(
                                     If not set and timezone naive datetimes are read in, the data is localized to UTC.
     :param filter_by_column:        Select a subset of rows by filtering on a specific value for a specific column.
                                     For example: {4: 1995} selects all rows where column 4 contains the value 1995.
+    :param transformations:         Optionally, pass a transformations list to apply on the resulting BeliefsDataFrame.
+                                    Each transformation defines a Pandas method along with args and kwargs.
+                                    Examples:
+                                        # Add 1
+                                        {
+                                            "func": "add",
+                                            "args": [1],
+                                        }
+                                        # Multiply by 100, after filling NaN values with 1
+                                        {
+                                            "func": "multiply",
+                                            "args": [100],
+                                            "kwargs": {"fill_value": 1},
+                                        }
 
     Also supports the case of a csv file with just 2 columns and 1 header row (a quite common time series format).
     In this case no special header names are required, but the first column has to contain the event starts,
@@ -644,7 +659,17 @@ def read_csv(
     if cumulative_probability is not None:
         df["cumulative_probability"] = cumulative_probability
 
-    return classes.BeliefsDataFrame(df, sensor=sensor)
+    # Construct BeliefsDataFrame
+    bdf = classes.BeliefsDataFrame(df, sensor=sensor)
+
+    # Apply transformations
+    if transformations:
+        for transformation in transformations:
+            bdf = getattr(bdf, transformation["func"])(
+                *transformation.get("args", []), **transformation.get("kwargs", {})
+            )
+
+    return bdf
 
 
 def find_out_extension(path: str):
