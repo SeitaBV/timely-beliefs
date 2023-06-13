@@ -521,7 +521,14 @@ def _test_agg_resampling_retains_metadata(resolution):
     )  # todo: the event_resolution metadata is only updated when resampling using df.resample_events(). A reason to override the original resample method, or otherwise something to document.
 
 
-def test_groupby_retains_metadata():
+@pytest.mark.parametrize(
+    "test_df",
+    [
+        "example_df",
+        "empty_df",
+    ],
+)
+def test_groupby_retains_metadata(test_df):
     """Test whether grouping by index level retains the metadata.
 
     Succeeds with pandas==1.0.0
@@ -529,18 +536,23 @@ def test_groupby_retains_metadata():
     Fixed with pandas==1.1.5
     Fails with pandas==1.3.0
     """
-    example_df = get_example_df()
-    df = example_df
+    if test_df == "example_df":
+        original_df = get_example_df()
+    elif test_df == "empty_df":
+        original_df = tb.BeliefsDataFrame(sensor=tb.Sensor(name="test", unit="W"))
+    else:
+        raise NotImplementedError
+    df = original_df.copy()
 
     def assert_function(x):
         print(x)
-        assert_metadata_is_retained(x, original_df=example_df)
+        assert_metadata_is_retained(x, original_df=original_df)
         return x
 
     df = df.groupby(level="event_start", group_keys=False).apply(
         lambda x: assert_function(x)
     )
-    assert_metadata_is_retained(df, original_df=example_df)
+    assert_metadata_is_retained(df, original_df=original_df)
 
 
 def test_copy_series_retains_name_and_metadata():

@@ -13,6 +13,8 @@ from typing import (
     Union,
 )
 
+from packaging import version
+
 if TYPE_CHECKING:
     import altair as alt
     from sktime.forecasting.base import BaseForecaster
@@ -662,8 +664,12 @@ class BeliefsSeries(pd.Series):
     @property
     def _constructor(self):
         def f(*args, **kwargs):
-            """Call __finalize__() after construction to inherit metadata."""
-            return BeliefsSeries(*args, **kwargs).__finalize__(self, method="inherit")
+            """Pre-Pandas 2.0, call __finalize__() after construction to inherit metadata."""
+            if version.parse(pd.__version__) < version.parse("2.0.0"):
+                return BeliefsSeries(*args, **kwargs).__finalize__(
+                    self, method="inherit"
+                )
+            return BeliefsSeries(*args, **kwargs)
 
         return f
 
@@ -686,7 +692,7 @@ class BeliefsSeries(pd.Series):
         for name in self._metadata:
             object.__setattr__(self, name, getattr(other, name, None))
         if hasattr(other, "name"):
-            self.name = other.name
+            object.__setattr__(self, "name", getattr(other, "name"))
         return self
 
     def __init__(self, *args, **kwargs):

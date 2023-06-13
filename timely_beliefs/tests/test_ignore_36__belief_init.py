@@ -9,6 +9,7 @@ from timely_beliefs import utils
         ("1M", ValueError, "not parse"),
         ("1Y", ValueError, "not parse"),
         ("1y", ValueError, "not parse"),
+        ("y", ValueError, "not parse"),
     ],
 )
 def test_ambiguous_timedelta_parsing(td, ErrorType, match):

@@ -8,11 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     name: Check (on Python3.9)
     steps:
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: 3.9
-      - uses: actions/checkout@v2
-      - uses: pre-commit/action@v2.0.0
+      - uses: actions/checkout@v3
+      - uses: pre-commit/action@v3.0.0
 
   test:
     needs: check
@@ -26,10 +26,10 @@ jobs:
             skip-viz: true
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.py_version }}
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Run main tests
         run: make test
       - name: Run forecast tests
