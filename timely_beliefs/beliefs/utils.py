@@ -664,11 +664,18 @@ def read_csv(
 
     # Apply transformations
     if transformations:
-        for transformation in transformations:
-            bdf = getattr(bdf, transformation["func"])(
-                *transformation.get("args", []), **transformation.get("kwargs", {})
-            )
+        bdf = apply_transformations(bdf, transformations)
 
+    return bdf
+
+
+def apply_transformations(
+    bdf: classes.BeliefsDataFrame, transformations: list[dict]
+) -> classes.BeliefsDataFrame:
+    for transformation in transformations:
+        bdf = getattr(bdf, transformation["func"])(
+            *transformation.get("args", []), **transformation.get("kwargs", {})
+        )
     return bdf
 
 
