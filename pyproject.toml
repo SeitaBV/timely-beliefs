@@ -58,7 +58,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 viz = [
-    "altair>=4.0.0",
+    "altair>=4.0.0, <5",
 ]
 forecast = [
     "sktime",
