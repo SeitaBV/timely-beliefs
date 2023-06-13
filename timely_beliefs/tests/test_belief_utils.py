@@ -13,6 +13,7 @@ from timely_beliefs.tests.utils import equal_lists
 
 
 def test_propagate_metadata_on_empty_frame():
+    """Check that calling these functions, which use groupby().apply(), on an empty frame retains the frame's metadata."""
     df = BeliefsDataFrame(sensor=Sensor("test", unit="kW"))
     df = df.for_each_belief(get_median_belief)
     assert df.sensor.name == "test"
