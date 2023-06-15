@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from inspect import getfullargspec, getmembers, isfunction
 from typing import Optional, Tuple, Union
 
+import pandas as pd
 from isodate import (
     ISO8601Error,
     datetime_isoformat,
@@ -59,7 +62,7 @@ FUNC_STORE: dict = {
 def eval_verified_knowledge_horizon_fnc(
     requested_fnc_name: str,
     par: dict,
-    event_start: Optional[datetime] = None,
+    event_start: datetime | pd.DatetimeIndex | None = None,
     event_resolution: timedelta = None,
     get_bounds: bool = False,
 ) -> Union[timedelta, Tuple[timedelta, timedelta]]:
@@ -76,7 +79,7 @@ def eval_verified_knowledge_horizon_fnc(
                     event_start,
                     event_resolution,
                     **(unjsonify_time_dict(par)),
-                    get_bounds=get_bounds
+                    get_bounds=get_bounds,
                 )
             elif "event_start" in verified_fnc_specs["args"]:
                 # Knowledge horizons are anchored to event_start
@@ -88,7 +91,7 @@ def eval_verified_knowledge_horizon_fnc(
                 return verified_fnc(
                     event_resolution,
                     **(unjsonify_time_dict(par)),
-                    get_bounds=get_bounds
+                    get_bounds=get_bounds,
                 )
     raise Exception(
         "knowledge_horizon_fnc %s cannot be executed safely. Please register the function in the func_store."

@@ -1,14 +1,18 @@
 """Function store for computing knowledge horizons given a certain event start and resolution.
 When passed get_bounds=True, these functions return bounds on the knowledge horizon,
 i.e. a duration window in which the knowledge horizon must lie (e.g. between 0 and 2 days before the event start)."""
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, Union
+
+import pandas as pd
 
 from timely_beliefs.sensors.func_store.utils import datetime_x_days_ago_at_y_oclock
 
 
 def at_date(
-    event_start: Optional[datetime],
+    event_start: datetime | pd.TimedeltaIndex | None,
     knowledge_time: datetime,
     get_bounds: bool = False,
 ) -> Union[timedelta, Tuple[timedelta, timedelta]]:
@@ -68,7 +72,7 @@ def ex_ante(
 
 
 def x_days_ago_at_y_oclock(
-    event_start: Optional[datetime],
+    event_start: datetime | pd.TimedeltaIndex | None,
     x: int,
     y: Union[int, float],
     z: str,
