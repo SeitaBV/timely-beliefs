@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from inspect import getfullargspec, getmembers, isfunction
-from typing import Optional, Tuple, Union
+from typing import Tuple, Union
 
 import pandas as pd
 from isodate import (
