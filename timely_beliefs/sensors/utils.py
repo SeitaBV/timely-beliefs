@@ -11,9 +11,9 @@ from isodate import (
 )
 
 from timely_beliefs.sensors.func_store import knowledge_horizons
-from timely_beliefs.sensors.func_store.utils import (  # noqa F401
+from timely_beliefs.sensors.func_store.utils import (  # noqa F401; third parties may have historically imported datetime_x_days_ago_at_y_oclock from here
     datetime_x_days_ago_at_y_oclock,
-)  # third parties may have historically imported datetime_x_days_ago_at_y_oclock from here
+)
 
 
 def jsonify_time_dict(d: dict) -> dict:
