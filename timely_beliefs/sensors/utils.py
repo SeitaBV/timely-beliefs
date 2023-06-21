@@ -9,33 +9,11 @@ from isodate import (
     parse_datetime,
     parse_duration,
 )
-from pytz import timezone
 
 from timely_beliefs.sensors.func_store import knowledge_horizons
-
-
-def datetime_x_days_ago_at_y_oclock(
-    tz_aware_original_time: datetime, x: int, y: Union[int, float], z: str
-) -> datetime:
-    """Returns the datetime x days ago a y o'clock as determined from the perspective of timezone z."""
-    if isinstance(y, float):
-        micros = int(y * 60 * 60 * 10**6)
-        s, micros = divmod(micros, 10**6)
-        m, s = divmod(s, 60)
-        h, m = divmod(m, 60)
-    else:
-        micros = 0
-        s = 0
-        m = 0
-        h = y
-    tz = timezone(z)
-    original_tz = tz_aware_original_time.tzinfo
-    tz_naive_original_time = tz_aware_original_time.astimezone(tz).replace(tzinfo=None)
-    tz_naive_earlier_time = tz_naive_original_time.replace(
-        hour=h, minute=m, second=s, microsecond=micros
-    ) - timedelta(days=x)
-    tz_aware_earlier_time = tz.localize(tz_naive_earlier_time).astimezone(original_tz)
-    return tz_aware_earlier_time
+from timely_beliefs.sensors.func_store.utils import (  # noqa F401; third parties may have historically imported datetime_x_days_ago_at_y_oclock from here
+    datetime_x_days_ago_at_y_oclock,
+)
 
 
 def jsonify_time_dict(d: dict) -> dict:
@@ -68,10 +46,14 @@ def unjsonify_time_dict(d: dict) -> dict:
     return d2
 
 
-def get_func_store() -> dict:
-    """Returns a dictionary with Callable objects supported in our function store,
-    indexed by their function names."""
-    return {o[0]: o[1] for o in getmembers(knowledge_horizons) if isfunction(o[1])}
+# A dictionary with function specification (incl. Callable objects) supported in our function store, indexed by their function names.
+FUNC_STORE: dict = {
+    o[0]: {
+        "fnc": o[1],
+        "args": getfullargspec(o[1]).args,
+    }
+    for o in getmembers(knowledge_horizons, isfunction)
+}
 
 
 def eval_verified_knowledge_horizon_fnc(
@@ -85,11 +67,10 @@ def eval_verified_knowledge_horizon_fnc(
     Only function names that represent Callable objects in our function store can be evaluated.
     If get_bounds is True, a tuple is returned with bounds on the possible return value.
     """
-    for verified_fnc_name, verified_fnc in get_func_store().items():
+    for verified_fnc_name, verified_fnc_specs in FUNC_STORE.items():
+        verified_fnc = verified_fnc_specs["fnc"]
         if verified_fnc_name == requested_fnc_name:
-            if {"event_start", "event_resolution"} < set(
-                getfullargspec(verified_fnc).args
-            ):
+            if {"event_start", "event_resolution"} < set(verified_fnc_specs["args"]):
                 # Knowledge horizons are anchored to event_end = event_start + event_resolution
                 return verified_fnc(
                     event_start,
@@ -97,12 +78,12 @@ def eval_verified_knowledge_horizon_fnc(
                     **(unjsonify_time_dict(par)),
                     get_bounds=get_bounds
                 )
-            elif "event_start" in getfullargspec(verified_fnc).args:
+            elif "event_start" in verified_fnc_specs["args"]:
                 # Knowledge horizons are anchored to event_start
                 return verified_fnc(
                     event_start, **(unjsonify_time_dict(par)), get_bounds=get_bounds
                 )
-            elif "event_resolution" in getfullargspec(verified_fnc).args:
+            elif "event_resolution" in verified_fnc_specs["args"]:
                 # Knowledge horizons are anchored to event_start
                 return verified_fnc(
                     event_resolution,

@@ -1219,8 +1219,10 @@ class BeliefsDataFrame(pd.DataFrame):
         return self._for_each_belief(fnc, True, *args, **kwargs)
 
     @hybrid_method
-    def make_deterministic(self):
-        return self.for_each_belief(probabilistic_utils.get_expected_belief)
+    def make_deterministic(self) -> "BeliefsDataFrame":
+        if self.lineage.probabilistic_depth > 1:
+            return self.for_each_belief(probabilistic_utils.get_expected_belief)
+        return self
 
     @hybrid_method
     def belief_history(

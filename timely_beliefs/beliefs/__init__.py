@@ -103,7 +103,7 @@ class BeliefsAccessor(object):
     def number_of_beliefs(self) -> int:
         """Return the total number of beliefs in the BeliefsDataFrame, including both deterministic beliefs (which
         require a single row) and probabilistic beliefs (which require multiple rows)."""
-        return len(self._obj.for_each_belief())
+        return len(self._obj.droplevel("cumulative_probability").index.unique())
 
     @property
     def sources(self) -> List[int]:
