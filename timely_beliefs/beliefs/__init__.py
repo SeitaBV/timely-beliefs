@@ -119,13 +119,13 @@ class BeliefsAccessor(object):
     @property
     def number_of_probabilistic_beliefs(self) -> int:
         """Return the number of beliefs in the BeliefsDataFrame that are probabilistic (more than 1 unique value)."""
-        p_depth = self._obj.droplevel("cumulative_probability").index.value_counts()
-        return len(p_depth[p_depth > 1])
+        return len(self._obj) - self.number_of_deterministic_beliefs
 
     @property
     def number_of_deterministic_beliefs(self) -> int:
         """Return the number of beliefs in the BeliefsDataFrame that are deterministic (1 unique value)."""
-        return len(self._obj) - self.number_of_probabilistic_beliefs
+        p_depth = self._obj.droplevel("cumulative_probability").index.value_counts()
+        return len(p_depth[p_depth == 1])
 
     @property
     def percentage_of_probabilistic_beliefs(self) -> float:
