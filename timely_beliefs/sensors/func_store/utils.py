@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Union
 
 import pandas as pd
 from pytz import timezone
@@ -10,7 +9,7 @@ from pytz import timezone
 def datetime_x_days_ago_at_y_oclock(
     tz_aware_original_time: datetime | pd.DatetimeIndex,
     x: int,
-    y: Union[int, float],
+    y: int | float,
     z: str,
 ) -> datetime:
     """Returns the datetime x days ago a y o'clock as determined from the perspective of timezone z."""
