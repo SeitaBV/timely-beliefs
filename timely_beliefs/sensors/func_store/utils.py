@@ -29,10 +29,9 @@ def datetime_x_days_ago_at_y_oclock(
         tz_naive_original_time = tz_aware_original_time.astimezone(tz).replace(
             tzinfo=None
         )
-        # todo: looks like a potential bug for dst transitions: we should first subtract the day, then set the time (better yet, subtract a calendar day using Pandas)
-        tz_naive_earlier_time = tz_naive_original_time.replace(
+        tz_naive_earlier_time = (tz_naive_original_time - pd.Timedelta(days=x)).replace(
             hour=h, minute=m, second=s, microsecond=micros
-        ) - timedelta(days=x)
+        )
         tz_aware_earlier_time = tz.localize(tz_naive_earlier_time).astimezone(
             original_tz
         )
