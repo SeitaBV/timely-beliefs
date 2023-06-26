@@ -36,10 +36,12 @@ def datetime_x_days_ago_at_y_oclock(
             original_tz
         )
     else:
-        tz_naive_original_time = tz_aware_original_time.tz_convert(tz)
+        tz_naive_original_time = tz_aware_original_time.tz_convert(tz).tz_localize(None)
         tz_naive_earlier_time = (tz_naive_original_time - pd.Timedelta(days=x)).floor(
             "D"
         ) + pd.Timedelta(hours=h, minutes=m, seconds=s, microseconds=micros)
-        tz_aware_earlier_time = tz_naive_earlier_time.tz_convert(original_tz)
+        tz_aware_earlier_time = tz_naive_earlier_time.tz_localize(tz).tz_convert(
+            original_tz
+        )
 
     return tz_aware_earlier_time
