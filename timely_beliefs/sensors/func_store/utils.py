@@ -11,7 +11,7 @@ def datetime_x_days_ago_at_y_oclock(
     x: int,
     y: int | float,
     z: str,
-) -> datetime:
+) -> datetime | pd.DatetimeIndex:
     """Returns the datetime x days ago a y o'clock as determined from the perspective of timezone z."""
     if isinstance(y, float):
         micros = int(y * 60 * 60 * 10**6)
