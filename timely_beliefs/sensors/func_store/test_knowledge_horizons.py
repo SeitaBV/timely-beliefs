@@ -8,8 +8,25 @@ from timely_beliefs.sensors.func_store.knowledge_horizons import (
     at_date,
     determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
     determine_knowledge_horizon_for_fixed_knowledge_time,
+    ex_ante,
+    ex_post,
     x_days_ago_at_y_oclock,
 )
+
+
+def test_ex_ante_knowledge_horizon():
+    """Check definition of knowledge horizon for ex-ante knowledge."""
+    assert ex_ante(
+        ex_ante_horizon=timedelta(minutes=15),
+    ) == timedelta(minutes=15), "The event should be known 15 minutes before it starts."
+
+
+def test_ex_post_knowledge_horizon():
+    """Check definition of knowledge horizon for ex-post knowledge."""
+    assert ex_post(
+        event_resolution=timedelta(minutes=15),
+        ex_post_horizon=timedelta(minutes=-5),
+    ) == timedelta(minutes=-10), "The event should be known 10 minutes after it starts."
 
 
 def test_fixed_knowledge_time():
