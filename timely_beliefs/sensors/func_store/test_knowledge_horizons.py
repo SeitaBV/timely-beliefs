@@ -30,6 +30,7 @@ def test_ex_post_knowledge_horizon():
 
 
 def test_fixed_knowledge_time():
+    """Check definition of knowledge horizon for events known at a fixed date."""
     knowledge_time = datetime(2020, 11, 20, 0, tzinfo=utc)
     assert determine_knowledge_horizon_for_fixed_knowledge_time(
         event_start=datetime(2020, 11, 19, 0, tzinfo=utc),
@@ -56,6 +57,8 @@ def test_fixed_knowledge_time():
 
 
 def test_dst():
+    """Check definition of knowledge horizon for events known x days ago at y o'clock in some timezone z,
+    especially around daylight savings time (DST) transitions."""
     tz_str = "Europe/Amsterdam"
 
     # Before daylight saving time starts
@@ -139,6 +142,8 @@ def test_dst():
 
 
 def test_dst_bounds():
+    """Check definition of bounds on the knowledge horizon for events known x days ago at y o'clock in some timezone z,
+    especially around daylight savings time (DST) transitions."""
     tz_str = "Europe/London"
 
     # Test bounds for Europe/London for double daylight saving time with respect to standard time
