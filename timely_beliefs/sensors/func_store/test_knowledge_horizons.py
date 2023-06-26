@@ -1,10 +1,14 @@
 from datetime import datetime, timedelta
 
+import pandas as pd
+from pandas.testing import assert_index_equal
 from pytz import utc
 
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
+    at_date,
     determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
     determine_knowledge_horizon_for_fixed_knowledge_time,
+    x_days_ago_at_y_oclock,
 )
 
 
@@ -22,6 +26,16 @@ def test_fixed_knowledge_time():
         event_start=datetime(2020, 11, 21, 0, tzinfo=utc),
         knowledge_time=knowledge_time,
     ) == timedelta(1)
+
+    # Repeat test with pd.DatetimeIndex instead
+    event_start = pd.date_range("2020-11-19", "2020-11-21", tz="utc")
+    assert_index_equal(
+        at_date(
+            event_start=event_start,
+            knowledge_time=knowledge_time,
+        ),
+        pd.TimedeltaIndex([timedelta(-1), timedelta(0), timedelta(1)]),
+    )
 
 
 def test_dst():
@@ -74,6 +88,37 @@ def test_dst():
     ) == timedelta(
         hours=13
     )  # 12 + 1 hour difference of Amsterdam with UTC
+
+    # Repeat test with pd.DatetimeIndex instead
+    event_start = pd.DatetimeIndex(
+        [
+            "2018-03-25T00:00",
+            "2018-03-25T06:00",
+            "2018-03-26T00:00",
+            "2018-10-28T00:00",
+            "2018-10-28T06:00",
+            "2018-10-29T00:00",
+        ],
+        tz="utc",
+    )
+    assert_index_equal(
+        x_days_ago_at_y_oclock(
+            event_start=event_start,
+            x=1,
+            y=12,
+            z=tz_str,
+        ),
+        pd.TimedeltaIndex(
+            [
+                timedelta(hours=13),
+                timedelta(hours=19),
+                timedelta(hours=14),
+                timedelta(hours=14),
+                timedelta(hours=20),
+                timedelta(hours=13),
+            ]
+        ),
+    )
 
 
 def test_dst_bounds():
