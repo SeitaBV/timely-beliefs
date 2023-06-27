@@ -254,12 +254,22 @@ def test_percentages_and_accuracy_of_probabilistic_model(df_4323: BeliefsDataFra
     assert df.lineage.percentage_of_probabilistic_beliefs == 1
     assert df.lineage.percentage_of_deterministic_beliefs == 0
     assert df.lineage.probabilistic_depth == 3
+    assert df.lineage.probabilistic_depth == df.probabilistic_depth_per_belief.mean()
 
     df = sixteen_probabilistic_beliefs()
     assert df.lineage.number_of_probabilistic_beliefs == 16
     assert df.lineage.percentage_of_probabilistic_beliefs == 1
     assert df.lineage.percentage_of_deterministic_beliefs == 0
     assert df.lineage.probabilistic_depth == (8 * 3 + 8 * 2) / 16
+    assert df.lineage.probabilistic_depth == df.probabilistic_depth_per_belief.mean()
+
+    # Check lineage is updated even in case of an inplace operation
+    df.drop(df.head(20).index, inplace=True)
+    assert df.lineage.number_of_probabilistic_beliefs == 8
+    assert df.lineage.percentage_of_probabilistic_beliefs == 1
+    assert df.lineage.percentage_of_deterministic_beliefs == 0
+    assert df.lineage.probabilistic_depth == (4 * 3 + 4 * 2) / 8
+    assert df.lineage.probabilistic_depth == df.probabilistic_depth_per_belief.mean()
 
 
 def test_downsample_once_upsample_once_around_dst(

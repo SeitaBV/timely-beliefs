@@ -24,6 +24,7 @@ import pandas as pd
 import pytz
 from pandas.core.groupby import DataFrameGroupBy
 from pandas.tseries.frequencies import to_offset
+from pandas.util._decorators import cache_readonly
 from sqlalchemy import (
     Column,
     DateTime,
@@ -1067,6 +1068,27 @@ class BeliefsDataFrame(pd.DataFrame):
                 probabilistic_utils.set_truth, reference_source
             )
         )
+
+    @cache_readonly
+    def probabilistic_depth_per_belief(self):
+        """Return the number of probabilistic values per belief."""
+        return self.droplevel("cumulative_probability").index.value_counts()
+
+    @cache_readonly
+    def probabilistic_depth_count(self):
+        """Return a count of the number of probabilistic values per belief.
+
+        For example, this frame contains 8 beliefs described by 3 probabilistic values,
+        and another 8 described by 2 probabilistic values.
+
+        >>> from timely_beliefs.examples.beliefs_data_frames import sixteen_probabilistic_beliefs
+        >>> sixteen_probabilistic_beliefs().probabilistic_depth_count
+        count
+        3    8
+        2    8
+        Name: count, dtype: int64
+        """
+        return self.probabilistic_depth_per_belief.value_counts()
 
     @property
     def event_frequency(self) -> Optional[timedelta]:
