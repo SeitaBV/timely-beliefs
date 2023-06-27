@@ -801,15 +801,14 @@ def convert_to_timezone(
     return s.dt.tz_convert(timezone_to_convert_to)
 
 
-def initialize_index(
-    start: datetime, end: datetime, resolution: timedelta, inclusive: str = "left"
-) -> pd.DatetimeIndex:
-    """Initialize DatetimeIndex for event starts.
+# Supports updated function signature of pd.date_range.
+# From pandas>=1.4.0, it is clear that 'closed' will be replaced by 'inclusive'.
+if version.parse(pd.__version__) >= version.parse("1.4.0"):
 
-    Supports updated function signature of pd.date_range.
-    From pandas>=1.4.0, it is clear that 'closed' will be replaced by 'inclusive'.
-    """
-    if version.parse(pd.__version__) >= version.parse("1.4.0"):
+    def initialize_index(
+        start: datetime, end: datetime, resolution: timedelta, inclusive: str = "left"
+    ) -> pd.DatetimeIndex:
+        """Initialize DatetimeIndex for event starts."""
         return pd.date_range(
             start=start,
             end=end,
@@ -817,7 +816,13 @@ def initialize_index(
             inclusive=inclusive,
             name="event_start",
         )
-    else:
+
+else:
+
+    def initialize_index(
+        start: datetime, end: datetime, resolution: timedelta, inclusive: str = "left"
+    ) -> pd.DatetimeIndex:
+        """Initialize DatetimeIndex for event starts."""
         return pd.date_range(
             start=start, end=end, freq=resolution, closed=inclusive, name="event_start"
         )

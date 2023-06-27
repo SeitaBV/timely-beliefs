@@ -661,17 +661,26 @@ class BeliefsSeries(pd.Series):
 
     _metadata = METADATA
 
-    @property
-    def _constructor(self):
-        def f(*args, **kwargs):
-            """Pre-Pandas 2.0, call __finalize__() after construction to inherit metadata."""
-            if version.parse(pd.__version__) < version.parse("2.0.0"):
+    # Pre-Pandas 2.0, call __finalize__() after construction to inherit metadata.
+    if version.parse(pd.__version__) < version.parse("2.0.0"):
+
+        @property
+        def _constructor(self):
+            def f(*args, **kwargs):
                 return BeliefsSeries(*args, **kwargs).__finalize__(
                     self, method="inherit"
                 )
-            return BeliefsSeries(*args, **kwargs)
 
-        return f
+            return f
+
+    else:
+
+        @property
+        def _constructor(self):
+            def f(*args, **kwargs):
+                return BeliefsSeries(*args, **kwargs)
+
+            return f
 
     @property
     def _constructor_expanddim(self):
