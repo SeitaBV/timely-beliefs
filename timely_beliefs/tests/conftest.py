@@ -10,6 +10,7 @@ from timely_beliefs.db_base import Base
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
     at_date,
     determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
+    ex_post,
 )
 from timely_beliefs.tests import engine, session
 
@@ -66,25 +67,40 @@ def time_slot_sensor(db):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def ex_post_time_slot_sensor(db):
-    """Define sensor for time slot events known in advance (ex post)."""
-    return create_ex_post_time_slot_sensor("ExPostSensor")
+def ex_ante_economics_sensor(db):
+    """Define sensor for time slot events known in advance (ex ante)."""
+    return create_ex_ante_economics_sensor("ex-ante sensor A")
 
 
 @pytest.fixture(scope="function", autouse=False)
-def ex_post_time_slot_sensor_b(db):
-    """Define an almost identical ex-post time slot sensor, just with a different name."""
-    return create_ex_post_time_slot_sensor("ExPostSensor B")
+def ex_ante_economics_sensor_b(db):
+    """Define an almost identical ex-ante time slot sensor, just with a different name."""
+    return create_ex_ante_economics_sensor("ex-ante sensor B")
 
 
-def create_ex_post_time_slot_sensor(name: str) -> DBSensor:
-    """Define sensor for time slot events known in advance (ex post)."""
+def create_ex_ante_economics_sensor(name: str) -> DBSensor:
+    """Define sensor for economical events known in advance (ex ante)."""
     sensor = DBSensor(
         name=name,
         event_resolution=timedelta(minutes=15),
         knowledge_horizon=(
             determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
             dict(x=1, y=12, z="Europe/Amsterdam"),
+        ),
+    )
+    session.add(sensor)
+    session.flush()
+    return sensor
+
+
+def create_ex_post_physics_sensor(name: str) -> DBSensor:
+    """Define sensor for physical events known after the fact (ex post)."""
+    sensor = DBSensor(
+        name=name,
+        event_resolution=timedelta(minutes=15),
+        knowledge_horizon=(
+            ex_post,
+            dict(event_resolution=timedelta(minutes=15), ex_post_horizon=timedelta(0)),
         ),
     )
     session.add(sensor)

@@ -1,17 +1,21 @@
 """Function store for computing knowledge horizons given a certain event start and resolution.
 When passed get_bounds=True, these functions return bounds on the knowledge horizon,
 i.e. a duration window in which the knowledge horizon must lie (e.g. between 0 and 2 days before the event start)."""
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, Union
+
+import pandas as pd
 
 from timely_beliefs.sensors.func_store.utils import datetime_x_days_ago_at_y_oclock
 
 
 def at_date(
-    event_start: Optional[datetime],
+    event_start: datetime | pd.DatetimeIndex | None,
     knowledge_time: datetime,
     get_bounds: bool = False,
-) -> Union[timedelta, Tuple[timedelta, timedelta]]:
+) -> Union[timedelta | pd.TimedeltaIndex, Tuple[timedelta, timedelta]]:
     """Compute the sensor's knowledge horizon to represent the event could be known since some fixed date
     (knowledge time).
 
@@ -68,12 +72,12 @@ def ex_ante(
 
 
 def x_days_ago_at_y_oclock(
-    event_start: Optional[datetime],
+    event_start: datetime | pd.DatetimeIndex | None,
     x: int,
     y: Union[int, float],
     z: str,
     get_bounds: bool = False,
-) -> Union[timedelta, Tuple[timedelta, timedelta]]:
+) -> Union[timedelta | pd.TimedeltaIndex, Tuple[timedelta, timedelta]]:
     """Compute the sensor's knowledge horizon to represent the event can be known some previous day at some hour.
 
     :param event_start: start of the event, used as an anchor for determining the knowledge time.
