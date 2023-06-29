@@ -159,61 +159,40 @@ def test_query_belief_with_empty_source_list(
     assert belief_df.empty
 
 
+@pytest.mark.parametrize(
+    "beliefs_after, beliefs_before, expected_length",
+    [
+        (None, None, 1),  # Just one belief set up for this sensor
+        (None, datetime(2017, 1, 1, 10, tzinfo=utc), 0),  # No beliefs a year earlier
+        (datetime(2018, 1, 3, 10, tzinfo=utc), None, 0),  # No beliefs 2 months later
+        (datetime(2018, 1, 1, 10, tzinfo=utc), None, 1),  # One belief after 10am UTC
+        (None, datetime(2018, 1, 1, 9, tzinfo=utc), 0),  # No beliefs an hour earlier
+        (datetime(2018, 1, 1, 13, tzinfo=utc), None, 0),  # No beliefs after 1pm UTC
+    ],
+)
 def test_query_belief_by_belief_time(
     ex_ante_economics_sensor: DBSensor,
     day_ahead_belief_about_ex_ante_economical_event: DBTimedBelief,
+    beliefs_after,
+    beliefs_before,
+    expected_length,
 ):
-    test_cases = [
-        # Just one belief set up for this sensor
-        dict(
-            expected_length=1,
-        ),
-        # No beliefs a year earlier
-        dict(
-            beliefs_before=datetime(2017, 1, 1, 10, tzinfo=utc),
-            expected_length=0,
-        ),
-        # No beliefs 2 months later
-        dict(
-            beliefs_after=datetime(2018, 1, 3, 10, tzinfo=utc),
-            expected_length=0,
-        ),
-        # One belief after 10am UTC
-        dict(
-            beliefs_after=datetime(2018, 1, 1, 10, tzinfo=utc),
-            expected_length=1,
-        ),
-        # No beliefs an hour earlier
-        dict(
-            beliefs_before=datetime(2018, 1, 1, 9, tzinfo=utc),
-            expected_length=0,
-        ),
-        # No beliefs after 1pm UTC
-        dict(
-            beliefs_after=datetime(2018, 1, 1, 13, tzinfo=utc),
-            expected_length=0,
-        ),
-    ]
+    bdf = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        beliefs_after=beliefs_after,
+        beliefs_before=beliefs_before,
+    )
+    assert len(bdf) == expected_length
 
-    for test_case in test_cases:
-        bdf = DBTimedBelief.search_session(
-            session=session,
-            sensor=ex_ante_economics_sensor,
-            beliefs_after=test_case.get("beliefs_after"),
-            beliefs_before=test_case.get("beliefs_before"),
+    if expected_length == 1:
+        # By calling a pandas Series for its values we lose the timezone (a pandas bug still present in version 0.23.4)
+        # This next test warns us when it has been fixed (if it fails, just replace != with ==).
+        assert bdf.knowledge_times.values[0] != datetime(2018, 1, 1, 11, 0, tzinfo=utc)
+        # And this test is just a workaround to test what we wanted to test.
+        assert pd.Timestamp(bdf.knowledge_times.values[0]) == pd.Timestamp(
+            datetime(2018, 1, 1, 11, 0)
         )
-        assert len(bdf) == test_case.get("expected_length")
-
-        if test_case.get("expected_length") == 1:
-            # By calling a pandas Series for its values we lose the timezone (a pandas bug still present in version 0.23.4)
-            # This next test warns us when it has been fixed (if it fails, just replace != with ==).
-            assert bdf.knowledge_times.values[0] != datetime(
-                2018, 1, 1, 11, 0, tzinfo=utc
-            )
-            # And this test is just a workaround to test what we wanted to test.
-            assert pd.Timestamp(bdf.knowledge_times.values[0]) == pd.Timestamp(
-                datetime(2018, 1, 1, 11, 0)
-            )
 
 
 def test_query_belief_history(
