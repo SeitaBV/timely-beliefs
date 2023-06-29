@@ -180,31 +180,21 @@ def test_query_belief_by_belief_time(
     )
 
     # Just one belief found
-    assert len(belief_df.index) == 1
+    assert len(belief_df) == 1
 
     # No beliefs a year earlier
-    assert (
-        len(
-            DBTimedBelief.search_session(
-                session=session,
-                sensor=ex_ante_economics_sensor,
-                beliefs_before=datetime(2017, 1, 1, 10, tzinfo=utc),
-            ).index
-        )
-        == 0
-    )
+    assert DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        beliefs_before=datetime(2017, 1, 1, 10, tzinfo=utc),
+    ).empty
 
     # No beliefs 2 months later
-    assert (
-        len(
-            DBTimedBelief.search_session(
-                session=session,
-                sensor=ex_ante_economics_sensor,
-                beliefs_after=datetime(2018, 1, 3, 10, tzinfo=utc),
-            ).index
-        )
-        == 0
-    )
+    assert DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        beliefs_after=datetime(2018, 1, 3, 10, tzinfo=utc),
+    ).empty
 
     # One belief after 10am UTC
     assert (
@@ -213,34 +203,24 @@ def test_query_belief_by_belief_time(
                 session=session,
                 sensor=ex_ante_economics_sensor,
                 beliefs_after=datetime(2018, 1, 1, 10, tzinfo=utc),
-            ).index
+            )
         )
         == 1
     )
 
     # No beliefs an hour earlier
-    assert (
-        len(
-            DBTimedBelief.search_session(
-                session=session,
-                sensor=ex_ante_economics_sensor,
-                beliefs_before=datetime(2018, 1, 1, 9, tzinfo=utc),
-            ).index
-        )
-        == 0
-    )
+    assert DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        beliefs_before=datetime(2018, 1, 1, 9, tzinfo=utc),
+    ).empty
 
     # No beliefs after 1pm UTC
-    assert (
-        len(
-            DBTimedBelief.search_session(
-                session=session,
-                sensor=ex_ante_economics_sensor,
-                beliefs_after=datetime(2018, 1, 1, 13, tzinfo=utc),
-            ).index
-        )
-        == 0
-    )
+    assert DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        beliefs_after=datetime(2018, 1, 1, 13, tzinfo=utc),
+    ).empty
 
 
 def test_query_belief_history(
@@ -348,7 +328,7 @@ def _test_empty_frame(time_slot_sensor):
         sensor=time_slot_sensor,
         beliefs_before=datetime(1900, 1, 1, 13, tzinfo=utc),
     )
-    assert len(bdf) == 0  # no data expected
+    assert bdf.empty  # no data expected
     assert pd.api.types.is_datetime64_dtype(bdf.index.get_level_values("belief_time"))
     bdf = bdf.convert_index_from_belief_time_to_horizon()
     assert pd.api.types.is_timedelta64_dtype(
