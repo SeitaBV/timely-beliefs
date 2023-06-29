@@ -36,13 +36,13 @@ def day_ahead_belief_about_time_slot_event(
 
 
 @pytest.fixture(scope="function")
-def day_ahead_belief_about_ex_post_time_slot_event(
-    ex_post_time_slot_sensor: Sensor, test_source_a: BeliefSource
+def day_ahead_belief_about_ex_ante_economical_event(
+    ex_ante_economics_sensor: Sensor, test_source_a: BeliefSource
 ):
-    """Define day-ahead belief about an ex post time slot event."""
+    """Define day-ahead belief about an ex-ante economical event."""
     return TimedBelief(
         source=test_source_a,
-        sensor=ex_post_time_slot_sensor,
+        sensor=ex_ante_economics_sensor,
         value=1,
         belief_time=datetime(2018, 1, 1, 15, tzinfo=utc),
         event_start=datetime(2018, 1, 2, 0, tzinfo=utc),
@@ -74,19 +74,19 @@ def test_day_ahead_belief_about_time_slot_event(
     )
 
 
-def test_day_ahead_belief_about_ex_post_time_slot_event(
-    day_ahead_belief_about_ex_post_time_slot_event: TimedBelief,
+def test_day_ahead_belief_about_ex_ante_economical_event(
+    day_ahead_belief_about_ex_ante_economical_event: TimedBelief,
 ):
-    assert day_ahead_belief_about_ex_post_time_slot_event.knowledge_time == datetime(
+    assert day_ahead_belief_about_ex_ante_economical_event.knowledge_time == datetime(
         2018, 1, 1, 11, tzinfo=utc
     )
-    assert day_ahead_belief_about_ex_post_time_slot_event.belief_horizon == -timedelta(
+    assert day_ahead_belief_about_ex_ante_economical_event.belief_horizon == -timedelta(
         hours=4
     )
-    assert day_ahead_belief_about_ex_post_time_slot_event.belief_horizon == timedelta(
+    assert day_ahead_belief_about_ex_ante_economical_event.belief_horizon == timedelta(
         hours=9
-    ) - day_ahead_belief_about_ex_post_time_slot_event.sensor.knowledge_horizon(
-        day_ahead_belief_about_ex_post_time_slot_event.event_start
+    ) - day_ahead_belief_about_ex_ante_economical_event.sensor.knowledge_horizon(
+        day_ahead_belief_about_ex_ante_economical_event.event_start
     )
 
 

@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from typing import Any, Callable, Optional, Tuple, Union
 
+import pandas as pd
 from sqlalchemy import JSON, Column, Integer, Interval, String
 from sqlalchemy.ext.hybrid import hybrid_method
 
@@ -67,8 +70,10 @@ class Sensor(object):
 
     @hybrid_method
     def knowledge_horizon(
-        self, event_start: datetime, event_resolution: Optional[timedelta] = None
-    ) -> timedelta:
+        self,
+        event_start: datetime | pd.DatetimeIndex,
+        event_resolution: Optional[timedelta] = None,
+    ) -> timedelta | pd.TimedeltaIndex:
         event_start = enforce_tz(event_start, "event_start")
         if event_resolution is None:
             event_resolution = self.event_resolution
@@ -81,8 +86,10 @@ class Sensor(object):
 
     @hybrid_method
     def knowledge_time(
-        self, event_start: datetime, event_resolution: Optional[timedelta] = None
-    ) -> datetime:
+        self,
+        event_start: datetime | pd.DatetimeIndex,
+        event_resolution: Optional[timedelta] = None,
+    ) -> datetime | pd.DatetimeIndex:
         event_start = enforce_tz(event_start, "event_start")
         if event_resolution is None:
             event_resolution = self.event_resolution
