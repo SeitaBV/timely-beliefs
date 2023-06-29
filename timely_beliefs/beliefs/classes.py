@@ -1,6 +1,7 @@
 import math
 import types
 from datetime import datetime, timedelta
+from functools import partial
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -677,10 +678,7 @@ class BeliefsSeries(pd.Series):
 
         @property
         def _constructor(self):
-            def f(*args, **kwargs):
-                return BeliefsSeries(*args, **kwargs)
-
-            return f
+            return partial(BeliefsSeries)
 
     @property
     def _constructor_expanddim(self):
