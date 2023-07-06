@@ -43,7 +43,7 @@ pytz==2020.1
     # via
     #   pandas
     #   timely-beliefs (setup.py)
-scipy==1.5.2
+scipy==1.10.0
     # via
     #   properscoring
     #   timely-beliefs (setup.py)
