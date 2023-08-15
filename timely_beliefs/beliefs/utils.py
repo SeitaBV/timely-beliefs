@@ -620,7 +620,7 @@ def read_csv(
         df = pd.read_excel(path, **kwargs)  # requires openpyxl
     else:
         raise TypeError(
-            f"Extension {ext} not recognized. Accepted file extensions are csv, xlsx and xls."
+            f"Extension {ext} not recognized. Accepted file extensions are csv, xlsm, xlsx and xls."
         )
     if filter_by_column:
         # Filter the read-in data
