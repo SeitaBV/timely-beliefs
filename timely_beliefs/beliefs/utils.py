@@ -616,7 +616,7 @@ def read_csv(
     ext = find_out_extension(path)
     if ext.lower() == "csv":
         df = pd.read_csv(path, **kwargs)
-    elif ext.lower() in ("xlsx", "xls"):
+    elif ext.lower() in ("xlsm", "xlsx", "xls"):
         df = pd.read_excel(path, **kwargs)  # requires openpyxl
     else:
         raise TypeError(
