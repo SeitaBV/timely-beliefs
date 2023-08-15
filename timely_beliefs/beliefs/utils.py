@@ -616,11 +616,11 @@ def read_csv(
     ext = find_out_extension(path)
     if ext.lower() == "csv":
         df = pd.read_csv(path, **kwargs)
-    elif ext.lower() in ("xlsx", "xls"):
+    elif ext.lower() in ("xlsm", "xlsx", "xls"):
         df = pd.read_excel(path, **kwargs)  # requires openpyxl
     else:
         raise TypeError(
-            f"Extension {ext} not recognized. Accepted file extensions are csv, xlsx and xls."
+            f"Extension {ext} not recognized. Accepted file extensions are csv, xlsm, xlsx and xls."
         )
     if filter_by_column:
         # Filter the read-in data
