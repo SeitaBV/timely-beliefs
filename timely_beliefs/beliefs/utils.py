@@ -614,9 +614,11 @@ def read_csv(
             if col not in kwargs.get("usecols", [])
         ]
     ext = find_out_extension(path)
+    dayfirst = None
     if ext.lower() == "csv":
         df = pd.read_csv(path, **kwargs)
     elif ext.lower() in ("xlsm", "xlsx", "xls"):
+        dayfirst = kwargs.pop("dayfirst", None)
         df = pd.read_excel(path, **kwargs)  # requires openpyxl
     else:
         raise TypeError(
@@ -642,7 +644,7 @@ def read_csv(
         df = df[[col for col in kwargs["usecols"] if col in df.columns]]
 
     # Special cases for simple time series
-    df = interpret_special_read_cases(df, sensor, resample, timezone)
+    df = interpret_special_read_cases(df, sensor, resample, timezone, dayfirst)
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
@@ -723,7 +725,7 @@ def fill_in_sources(
 
 
 def interpret_special_read_cases(
-    df: pd.DataFrame, sensor: "classes.Sensor", resample: bool, timezone: Optional[str]
+    df: pd.DataFrame, sensor: "classes.Sensor", resample: bool, timezone: Optional[str], dayfirst: bool
 ) -> pd.DataFrame:
     """Interpret the read-in data, either as event starts and event values (2 cols),
     or as event starts, belief times and event values (3 cols).
@@ -734,6 +736,9 @@ def interpret_special_read_cases(
     if len(df.columns) == 2:
         # datetime in 1st column and value in 2nd column
         df.columns = ["event_start", "event_value"]
+        if dayfirst:
+            df['event_start'] = pd.to_datetime(df['event_start'], dayfirst=dayfirst).dt.to_pydatetime()
+
         df["event_start"] = convert_to_timezone(
             df["event_start"],
             timezone_to_convert_to=sensor.timezone,
@@ -758,6 +763,9 @@ def interpret_special_read_cases(
     elif len(df.columns) == 3:
         # datetimes in 1st and 2nd column, and value in 3rd column
         df.columns = ["event_start", "belief_time", "event_value"]
+        if dayfirst:
+            df['event_start'] = pd.to_datetime(df['event_start'], dayfirst=dayfirst).dt.to_pydatetime()
+            df['belief_time'] = pd.to_datetime(df['belief_time'], dayfirst=dayfirst).dt.to_pydatetime()
         df["event_start"] = convert_to_timezone(
             df["event_start"],
             timezone_to_convert_to=sensor.timezone,
