@@ -725,7 +725,11 @@ def fill_in_sources(
 
 
 def interpret_special_read_cases(
-    df: pd.DataFrame, sensor: "classes.Sensor", resample: bool, timezone: Optional[str], dayfirst: bool
+    df: pd.DataFrame,
+    sensor: "classes.Sensor",
+    resample: bool,
+    timezone: Optional[str],
+    dayfirst: bool,
 ) -> pd.DataFrame:
     """Interpret the read-in data, either as event starts and event values (2 cols),
     or as event starts, belief times and event values (3 cols).
@@ -737,7 +741,9 @@ def interpret_special_read_cases(
         # datetime in 1st column and value in 2nd column
         df.columns = ["event_start", "event_value"]
         if dayfirst:
-            df['event_start'] = pd.to_datetime(df['event_start'], dayfirst=dayfirst).dt.to_pydatetime()
+            df["event_start"] = pd.to_datetime(
+                df["event_start"], dayfirst=dayfirst
+            ).dt.to_pydatetime()
 
         df["event_start"] = convert_to_timezone(
             df["event_start"],
@@ -764,8 +770,12 @@ def interpret_special_read_cases(
         # datetimes in 1st and 2nd column, and value in 3rd column
         df.columns = ["event_start", "belief_time", "event_value"]
         if dayfirst:
-            df['event_start'] = pd.to_datetime(df['event_start'], dayfirst=dayfirst).dt.to_pydatetime()
-            df['belief_time'] = pd.to_datetime(df['belief_time'], dayfirst=dayfirst).dt.to_pydatetime()
+            df["event_start"] = pd.to_datetime(
+                df["event_start"], dayfirst=dayfirst
+            ).dt.to_pydatetime()
+            df["belief_time"] = pd.to_datetime(
+                df["belief_time"], dayfirst=dayfirst
+            ).dt.to_pydatetime()
         df["event_start"] = convert_to_timezone(
             df["event_start"],
             timezone_to_convert_to=sensor.timezone,
