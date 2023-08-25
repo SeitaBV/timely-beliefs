@@ -2192,7 +2192,6 @@ def set_columns_and_indices_for_empty_frame(df, columns, indices, default_types)
 
 def assign_sensor_and_event_resolution(df, sensor, event_resolution):
     """Set the Sensor metadata (including timing properties of the sensor)."""
-    
 
     if not isinstance(sensor, Sensor):
         import warnings
