@@ -2192,6 +2192,18 @@ def set_columns_and_indices_for_empty_frame(df, columns, indices, default_types)
 
 def assign_sensor_and_event_resolution(df, sensor, event_resolution):
     """Set the Sensor metadata (including timing properties of the sensor)."""
+    
+
+    if not isinstance(sensor, Sensor):
+        import warnings
+
+        warnings.warn(
+            "'sensor' field needs to be of type 'Sensor'. This constraint will be enforced in an upcoming version.",
+            FutureWarning,
+        )
+
+        # TODO: raise ValueError(...)
+
     df.sensor = sensor
     df.event_resolution = (
         event_resolution
