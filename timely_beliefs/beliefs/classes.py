@@ -475,7 +475,48 @@ class TimedBeliefDBMixin(TimedBelief):
             get_bounds=True,
         )
 
-        # Query based on start_time_window
+        def apply_belief_timing_filters(q):
+            """Apply filters that concern the belief timing.
+
+            This includes any custom filters
+            """
+
+            # Apply rough belief time filter
+            if not pd.isnull(
+                beliefs_after
+            ) and belief_utils.extreme_timedeltas_not_equal(
+                knowledge_horizon_min, timedelta.min
+            ):
+                q = q.filter(
+                    cls.event_start
+                    >= beliefs_after + cls.belief_horizon + knowledge_horizon_min
+                )
+            if not pd.isnull(
+                beliefs_before
+            ) and belief_utils.extreme_timedeltas_not_equal(
+                knowledge_horizon_max, timedelta.max
+            ):
+                q = q.filter(
+                    cls.event_start
+                    <= beliefs_before + cls.belief_horizon + knowledge_horizon_max
+                )
+
+            # Apply belief horizon filter
+            if not pd.isnull(horizons_at_least):
+                q = q.filter(cls.belief_horizon >= horizons_at_least)
+            if not pd.isnull(horizons_at_most):
+                q = q.filter(cls.belief_horizon <= horizons_at_most)
+
+            # Apply custom filter criteria and join targets
+            if custom_filter_criteria is not None:
+                q = q.filter(*custom_filter_criteria)
+            if custom_join_targets is not None:
+                for target in custom_join_targets:
+                    q = q.join(target)
+
+            return q
+
+        # Main query
         q = session.query(cls).filter(cls.sensor_id == sensor.id)
 
         # Apply event time filter
@@ -500,27 +541,7 @@ class TimedBeliefDBMixin(TimedBelief):
         if not pd.isnull(event_ends_before):
             q = q.filter(cls.event_start + sensor.event_resolution <= event_ends_before)
 
-        # Apply rough belief time filter
-        if not pd.isnull(beliefs_after) and belief_utils.extreme_timedeltas_not_equal(
-            knowledge_horizon_min, timedelta.min
-        ):
-            q = q.filter(
-                cls.event_start
-                >= beliefs_after + cls.belief_horizon + knowledge_horizon_min
-            )
-        if not pd.isnull(beliefs_before) and belief_utils.extreme_timedeltas_not_equal(
-            knowledge_horizon_max, timedelta.max
-        ):
-            q = q.filter(
-                cls.event_start
-                <= beliefs_before + cls.belief_horizon + knowledge_horizon_max
-            )
-
-        # Apply belief horizon filter
-        if not pd.isnull(horizons_at_least):
-            q = q.filter(cls.belief_horizon >= horizons_at_least)
-        if not pd.isnull(horizons_at_most):
-            q = q.filter(cls.belief_horizon <= horizons_at_most)
+        q = apply_belief_timing_filters(q)
 
         # Apply source filter
         if source is not None:
@@ -536,12 +557,14 @@ class TimedBeliefDBMixin(TimedBelief):
             most_recent_beliefs_only
             and not most_recent_beliefs_only_incompatible_criteria
         ):
+            subq = session.query(
+                cls.event_start,
+                cls.source_id,
+                func.min(cls.belief_horizon).label("most_recent_belief_horizon"),
+            )
+            # Apply belief timing filters to the subquery, too, before taking the minimum horizon
             subq = (
-                session.query(
-                    cls.event_start,
-                    cls.source_id,
-                    func.min(cls.belief_horizon).label("most_recent_belief_horizon"),
-                )
+                apply_belief_timing_filters(subq)
                 .filter(cls.sensor_id == sensor.id)
                 .group_by(cls.event_start, cls.source_id)
                 .subquery()
@@ -574,13 +597,6 @@ class TimedBeliefDBMixin(TimedBelief):
                     == subq_most_recent_events.c.most_recent_event_start,
                 ),
             )
-
-        # Apply custom filter criteria and join targets
-        if custom_filter_criteria is not None:
-            q = q.filter(*custom_filter_criteria)
-        if custom_join_targets is not None:
-            for target in custom_join_targets:
-                q = q.join(target)
 
         # Build our DataFrame of beliefs
         df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
