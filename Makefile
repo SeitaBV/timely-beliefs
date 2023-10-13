@@ -1,6 +1,6 @@
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install-deps install-tb freeze-deps test
+.PHONY: install-deps install-tb freeze-deps test upgrade-deps
 
 install: install-deps install-tb
 
@@ -11,7 +11,13 @@ install-deps:
 
 freeze-deps:
 	pip install --upgrade pip-tools
-	pip-compile -o dev/requirements.txt	 # use --upgrade or --upgrade-package to actually change versions
+	pip-compile -o dev/requirements.txt
+
+upgrade-deps:
+	pip install --upgrade pip-tools
+	pip-compile -o dev/requirements.txt	-U
+	make install-deps
+	make test
 
 install-tb:
 	pip install -e .
