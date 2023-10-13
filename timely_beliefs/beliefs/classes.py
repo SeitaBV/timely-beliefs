@@ -460,6 +460,10 @@ class TimedBeliefDBMixin(TimedBelief):
             if sensor is None:
                 raise ValueError("No such sensor")
 
+        # Fast-track empty list of sources
+        if source == []:
+            return BeliefsDataFrame(sensor=sensor, beliefs=[])
+
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
         (
             knowledge_horizon_min,
@@ -519,9 +523,7 @@ class TimedBeliefDBMixin(TimedBelief):
             q = q.filter(cls.belief_horizon <= horizons_at_most)
 
         # Apply source filter
-        if source == []:
-            return BeliefsDataFrame(sensor=sensor, beliefs=[])
-        elif source is not None:
+        if source is not None:
             sources: list = [source] if not isinstance(source, list) else source
             source_cls = sources[0].__class__
             q = q.join(source_cls).filter(cls.source_id.in_([s.id for s in sources]))
