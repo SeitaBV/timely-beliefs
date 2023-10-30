@@ -158,6 +158,29 @@ def test_load_timezone_naive_data():
     assert "sensor" not in df.columns.names
 
 
+def test_load_locale_datetime_data():
+    """Test loading timezone naive time series data from csv.
+
+    The test data is around a DST transition that lead to duplicate indices.
+    """
+
+    # Load only datetime and value columns with tb.read_csv
+    sensor = tb.Sensor("Sensor X")
+    source = tb.BeliefSource("Source A")
+    path = os.path.join(get_examples_path(), "locale_datetime_sample.csv")
+    timezone = "Europe/Amsterdam"
+    df = tb.read_csv(
+        path=path,
+        timezone=timezone,
+        sensor=sensor,
+        source=source,
+        belief_horizon=timedelta(0),
+        usecols=["datetime", "value"],
+        datetime_column_split=" - ",
+    )
+    assert len(df.event_starts.unique()) == 6
+
+
 @pytest.mark.parametrize(
     "args, kwargs",
     [
@@ -653,7 +676,6 @@ def test_groupby_retains_subclass_attribute(att, args):
     METADATA = ["a"]
 
     class SubclassedSeries(pd.Series):
-
         _metadata = METADATA
 
         @property
@@ -665,7 +687,6 @@ def test_groupby_retains_subclass_attribute(att, args):
             return SubclassedDataFrame
 
     class SubclassedDataFrame(pd.DataFrame):
-
         _metadata = METADATA
 
         @property
