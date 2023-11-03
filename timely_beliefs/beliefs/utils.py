@@ -133,7 +133,6 @@ def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
     ) in (
         groups
     ):  # Loop over the groups (we grouped by unique belief time and unique source)
-
         # Get the BeliefsDataFrame for a unique belief time and source
         df_slice = group[1]
         if not df_slice.empty:
@@ -219,10 +218,8 @@ def align_belief_times(
     data = []
     previous_slice_with_existing_belief_time = None
     for ubt in unique_belief_times:
-
         # Check if the unique belief time (ubt) is already in the DataFrame
         if ubt not in slice.index.get_level_values("belief_time"):
-
             # If not already present, create a new row with the most recent belief (or nan if no previous exists)
             if previous_slice_with_existing_belief_time is not None:
                 ps = previous_slice_with_existing_belief_time.reset_index()
@@ -292,7 +289,6 @@ def join_beliefs(
         )
 
     if output_resolution > input_resolution:
-
         # Create new BeliefsDataFrame with downsampled event_start
         if input_resolution == timedelta(
             0
@@ -473,7 +469,6 @@ def set_reference(
     reference_source: BeliefSource,
     return_reference_type: str = "full",
 ) -> "classes.BeliefsDataFrame":
-
     # If applicable, decide which horizon or time provides the beliefs to serve as the reference
     if reference_belief_time is None:
         if reference_belief_horizon is None:
@@ -540,6 +535,7 @@ def read_csv(
     resample: bool = False,
     timezone: Optional[str] = None,
     filter_by_column: dict = None,
+    datetime_column_split: str | None = None,
     transformations: list[dict] = None,
     **kwargs,
 ) -> "classes.BeliefsDataFrame":
@@ -565,6 +561,14 @@ def read_csv(
                                     If not set and timezone naive datetimes are read in, the data is localized to UTC.
     :param filter_by_column:        Select a subset of rows by filtering on a specific value for a specific column.
                                     For example: {4: 1995} selects all rows where column 4 contains the value 1995.
+    :param datetime_column_split:   Optionally, help parse the datetime column by splitting according to some string.
+                                    For example:
+                                            "1 jan 2022 00:00 - 1 jan 2022 01:00"
+                                        with
+                                            datetime_column_split = " - "
+                                        becomes
+                                            "1 jan 2022 00:00"
+                                        which can then be parsed as a datetime.
     :param transformations:         Optionally, pass a transformations list to apply on the resulting BeliefsDataFrame.
                                     Each transformation defines a Pandas method along with args and kwargs.
                                     Examples:
@@ -644,7 +648,9 @@ def read_csv(
         df = df[[col for col in kwargs["usecols"] if col in df.columns]]
 
     # Special cases for simple time series
-    df = interpret_special_read_cases(df, sensor, resample, timezone, dayfirst)
+    df = interpret_special_read_cases(
+        df, sensor, resample, timezone, dayfirst, split=datetime_column_split
+    )
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
@@ -730,6 +736,7 @@ def interpret_special_read_cases(
     resample: bool,
     timezone: Optional[str],
     dayfirst: bool,
+    split: str | None = None,
 ) -> pd.DataFrame:
     """Interpret the read-in data, either as event starts and event values (2 cols),
     or as event starts, belief times and event values (3 cols).
@@ -740,6 +747,8 @@ def interpret_special_read_cases(
     if len(df.columns) == 2:
         # datetime in 1st column and value in 2nd column
         df.columns = ["event_start", "event_value"]
+        if split is not None:
+            df["event_start"] = df["event_start"].str.split(split, expand=True)[0]
         if dayfirst:
             df["event_start"] = pd.to_datetime(
                 df["event_start"], dayfirst=dayfirst
@@ -769,6 +778,8 @@ def interpret_special_read_cases(
     elif len(df.columns) == 3:
         # datetimes in 1st and 2nd column, and value in 3rd column
         df.columns = ["event_start", "belief_time", "event_value"]
+        if split is not None:
+            df["event_start"] = df["event_start"].str.split(split, expand=True)[0]
         if dayfirst:
             df["event_start"] = pd.to_datetime(
                 df["event_start"], dayfirst=dayfirst
