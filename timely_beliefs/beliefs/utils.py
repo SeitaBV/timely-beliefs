@@ -639,10 +639,6 @@ def read_csv(
             ]
         )
 
-    # Exclude rows with NaN or NaT values
-    if not kwargs.get("keep_default_na", True):
-        df = df.dropna()
-
     # Preserve order of usecols
     if "usecols" in kwargs:
         df = df[[col for col in kwargs["usecols"] if col in df.columns]]
@@ -651,6 +647,10 @@ def read_csv(
     df = interpret_special_read_cases(
         df, sensor, resample, timezone, dayfirst, split=datetime_column_split
     )
+
+    # Exclude rows with NaN or NaT values
+    if not kwargs.get("keep_default_na", True):
+        df = df.dropna()
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
