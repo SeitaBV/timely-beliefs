@@ -524,7 +524,7 @@ def set_reference(
     )
 
 
-def read_csv(
+def read_csv(  # noqa C901
     path: str,
     sensor: "classes.Sensor",
     source: "classes.BeliefSource" = None,
