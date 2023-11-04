@@ -653,24 +653,7 @@ def read_csv(
         df = df.dropna()
 
     if resample:
-        df = df.set_index("event_start")
-        if df.index.freq is None and len(df) > 2:
-            # Try to infer the event resolution from the event frequency
-            df.index.freq = pd.infer_freq(df.index)
-        if df.index.freq is None:
-            raise NotImplementedError(
-                "Resampling is not supported for data without a discernible frequency."
-            )
-        if df.index.freq > sensor.event_resolution:
-            # Upsample by forward filling
-            df = df.resample(sensor.event_resolution).ffill()
-        else:
-            # Downsample by computing the mean event_value and max belief_time
-            if "belief_time" in df.columns:
-                df = df.resample(sensor.event_resolution).agg({"event_value": np.mean, "belief_time": np.max})
-            else:
-                df = df.resample(sensor.event_resolution).agg({"event_value": np.mean})
-        df = df.reset_index()
+        df = resample_events(df, sensor)
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
@@ -802,6 +785,27 @@ def interpret_special_read_cases(
             timezone_to_localize_to=timezone,
         )
     return df
+
+
+def resample_events(df: pd.DataFrame, sensor: "classes.Sensor") -> pd.DataFrame:
+    df = df.set_index("event_start")
+    if df.index.freq is None and len(df) > 2:
+        # Try to infer the event resolution from the event frequency
+        df.index.freq = pd.infer_freq(df.index)
+    if df.index.freq is None:
+        raise NotImplementedError(
+            "Resampling is not supported for data without a discernible frequency."
+        )
+    if df.index.freq > sensor.event_resolution:
+        # Upsample by forward filling
+        df = df.resample(sensor.event_resolution).ffill()
+    else:
+        # Downsample by computing the mean event_value and max belief_time
+        if "belief_time" in df.columns:
+            df = df.resample(sensor.event_resolution).agg({"event_value": np.mean, "belief_time": np.max})
+        else:
+            df = df.resample(sensor.event_resolution).agg({"event_value": np.mean})
+    return df.reset_index()
 
 
 def convert_to_timezone(
