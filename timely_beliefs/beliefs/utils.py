@@ -652,6 +652,26 @@ def read_csv(
     if not kwargs.get("keep_default_na", True):
         df = df.dropna()
 
+    if resample:
+        df = df.set_index("event_start")
+        if df.index.freq is None and len(df) > 2:
+            # Try to infer the event resolution from the event frequency
+            df.index.freq = pd.infer_freq(df.index)
+        if df.index.freq is None:
+            raise NotImplementedError(
+                "Resampling is not supported for data without a discernible frequency."
+            )
+        if df.index.freq > sensor.event_resolution:
+            # Upsample by forward filling
+            df = df.resample(sensor.event_resolution).ffill()
+        else:
+            # Downsample by computing the mean event_value and max belief_time
+            if "belief_time" in df.columns:
+                df = df.resample(sensor.event_resolution).agg({"event_value": np.mean, "belief_time": np.max})
+            else:
+                df = df.resample(sensor.event_resolution).agg({"event_value": np.mean})
+        df = df.reset_index()
+
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
         raise ValueError("Cannot set both a belief horizon and a belief time.")
@@ -759,22 +779,6 @@ def interpret_special_read_cases(
             timezone_to_convert_to=sensor.timezone,
             timezone_to_localize_to=timezone,
         )
-        if resample:
-            df = df.set_index("event_start")
-            if df.index.freq is None and len(df) > 2:
-                # Try to infer the event resolution from the event frequency
-                df.index.freq = pd.infer_freq(df.index)
-            if df.index.freq is None:
-                raise NotImplementedError(
-                    "Resampling is not supported for data without a discernible frequency."
-                )
-            if df.index.freq > sensor.event_resolution:
-                # Upsample by forward filling
-                df = df.resample(sensor.event_resolution).ffill()
-            else:
-                # Downsample by computing the mean
-                df = df.resample(sensor.event_resolution).mean()
-            df = df.reset_index()
     elif len(df.columns) == 3:
         # datetimes in 1st and 2nd column, and value in 3rd column
         df.columns = ["event_start", "belief_time", "event_value"]
