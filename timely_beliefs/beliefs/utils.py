@@ -802,7 +802,9 @@ def resample_events(df: pd.DataFrame, sensor: "classes.Sensor") -> pd.DataFrame:
     else:
         # Downsample by computing the mean event_value and max belief_time
         if "belief_time" in df.columns:
-            df = df.resample(sensor.event_resolution).agg({"event_value": np.mean, "belief_time": np.max})
+            df = df.resample(sensor.event_resolution).agg(
+                {"event_value": np.mean, "belief_time": np.max}
+            )
         else:
             df = df.resample(sensor.event_resolution).agg({"event_value": np.mean})
     return df.reset_index()
