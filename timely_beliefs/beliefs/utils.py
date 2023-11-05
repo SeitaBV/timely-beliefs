@@ -524,7 +524,7 @@ def set_reference(
     )
 
 
-def read_csv(
+def read_csv(  # noqa C901
     path: str,
     sensor: "classes.Sensor",
     source: "classes.BeliefSource" = None,
@@ -535,6 +535,8 @@ def read_csv(
     resample: bool = False,
     timezone: Optional[str] = None,
     filter_by_column: dict = None,
+    event_ends_after: datetime = None,
+    event_starts_before: datetime = None,
     datetime_column_split: str | None = None,
     transformations: list[dict] = None,
     **kwargs,
@@ -561,6 +563,12 @@ def read_csv(
                                     If not set and timezone naive datetimes are read in, the data is localized to UTC.
     :param filter_by_column:        Select a subset of rows by filtering on a specific value for a specific column.
                                     For example: {4: 1995} selects all rows where column 4 contains the value 1995.
+    :param event_ends_after:        Optionally, keep only events that end after this datetime.
+                                    Exclusive for non-instantaneous events, inclusive for instantaneous events.
+                                    Note that the first event may transpire partially before this datetime.
+    :param event_starts_before:     Optionally, keep only events that start before this datetime.
+                                    Exclusive for non-instantaneous events, inclusive for instantaneous events.
+                                    Note that the last event may transpire partially after this datetime.
     :param datetime_column_split:   Optionally, help parse the datetime column by splitting according to some string.
                                     For example:
                                             "1 jan 2022 00:00 - 1 jan 2022 01:00"
@@ -651,6 +659,17 @@ def read_csv(
     # Exclude rows with NaN or NaT values
     if not kwargs.get("keep_default_na", True):
         df = df.dropna()
+
+    if event_ends_after:
+        if sensor.event_resolution == timedelta(0):
+            df = df[df["event_start"] + sensor.event_resolution >= event_ends_after]
+        else:
+            df = df[df["event_start"] + sensor.event_resolution > event_ends_after]
+    if event_starts_before:
+        if sensor.event_resolution == timedelta(0):
+            df = df[df["event_start"] <= event_starts_before]
+        else:
+            df = df[df["event_start"] < event_starts_before]
 
     if resample:
         df = resample_events(df, sensor)
