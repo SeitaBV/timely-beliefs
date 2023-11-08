@@ -810,7 +810,7 @@ def interpret_special_read_cases(
 
 
 def resample_events(
-    df: pd.DataFrame, sensor: "classes.Sensor", keep_nan_values=keep_nan_values
+    df: pd.DataFrame, sensor: "classes.Sensor", keep_nan_values: bool
 ) -> pd.DataFrame:
     if df.empty:
         return df
