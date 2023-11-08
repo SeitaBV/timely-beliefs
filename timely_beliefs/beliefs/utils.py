@@ -807,6 +807,8 @@ def interpret_special_read_cases(
 
 
 def resample_events(df: pd.DataFrame, sensor: "classes.Sensor") -> pd.DataFrame:
+    if df.empty:
+        return df
     df = df.set_index("event_start")
     if df.index.freq is None and len(df) > 2:
         # Try to infer the event resolution from the event frequency
