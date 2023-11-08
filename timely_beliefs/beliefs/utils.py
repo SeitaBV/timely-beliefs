@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import warnings
 from datetime import datetime, timedelta
 from typing import List, Optional, Union
@@ -9,6 +10,7 @@ import pandas as pd
 import pytz
 from packaging import version
 from pandas.core.groupby import DataFrameGroupBy
+from pandas.tseries.frequencies import to_offset
 
 from timely_beliefs import BeliefSource, Sensor
 from timely_beliefs import utils as tb_utils
@@ -657,7 +659,8 @@ def read_csv(  # noqa C901
     )
 
     # Exclude rows with NaN or NaT values
-    if not kwargs.get("keep_default_na", True):
+    keep_nan_values = kwargs.get("keep_default_na", True)
+    if not keep_nan_values:
         df = df.dropna()
 
     if event_ends_after:
@@ -672,7 +675,7 @@ def read_csv(  # noqa C901
             df = df[df["event_start"] < event_starts_before]
 
     if resample:
-        df = resample_events(df, sensor)
+        df = resample_events(df, sensor, keep_nan_values=keep_nan_values)
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
@@ -806,7 +809,7 @@ def interpret_special_read_cases(
     return df
 
 
-def resample_events(df: pd.DataFrame, sensor: "classes.Sensor") -> pd.DataFrame:
+def resample_events(df: pd.DataFrame, sensor: "classes.Sensor", keep_nan_values=keep_nan_values) -> pd.DataFrame:
     if df.empty:
         return df
     df = df.set_index("event_start")
@@ -819,7 +822,10 @@ def resample_events(df: pd.DataFrame, sensor: "classes.Sensor") -> pd.DataFrame:
         )
     if df.index.freq > sensor.event_resolution:
         # Upsample by forward filling
-        df = df.resample(sensor.event_resolution).ffill()
+        df.event_resolution = df.index.freq
+        df = upsample_beliefs_data_frame(
+            df, sensor.event_resolution, keep_nan_values=keep_nan_values
+        )
     else:
         # Downsample by computing the mean event_value and max belief_time
         if "belief_time" in df.columns:
@@ -1030,3 +1036,66 @@ def meta_repr(
             for attr in tb_structure._metadata
         ]
     )
+
+
+def upsample_beliefs_data_frame(
+    df: "classes.BeliefsDataFrame" | pd.DataFrame, event_resolution: timedelta, keep_nan_values: bool = False
+) -> "classes.BeliefsDataFrame":
+    """Because simply doing df.resample().ffill() does not correctly resample the last event in the data frame.
+
+    :param df:                  In case of a regular pd.DataFrame, make sure to set df.event_resolution before passing it to this function.
+    :param event_resolution:    Resolution to upsample to.
+    :param keep_nan_values:     If True, place back resampled NaN values. Drops NaN values by default.
+    """
+    from_event_resolution = df.event_resolution
+    resample_ratio = pd.to_timedelta(
+        to_offset(from_event_resolution)
+    ) / pd.Timedelta(event_resolution)
+    if keep_nan_values:
+        # back up NaN values
+        unique_event_value_not_in_df = df["event_value"].abs().sum() + 1
+        df = df.fillna(unique_event_value_not_in_df)
+    new_index = initialize_index(
+        start=df.index[0],
+        end=df.index[-1] + from_event_resolution,
+        resolution=event_resolution,
+    )
+    # Reindex to introduce NaN values, then forward fill by the number of steps
+    # needed to have the new resolution cover the old resolution.
+    # For example, when resampling from a resolution of 30 to 20 minutes (NB frequency is 1 hour):
+    # event_start               event_value
+    # 2020-03-29 10:00:00+02:00 1000.0
+    # 2020-03-29 11:00:00+02:00 NaN
+    # 2020-03-29 12:00:00+02:00 2000.0
+    # After reindexing
+    # event_start               event_value
+    # 2020-03-29 10:00:00+02:00 1000.0
+    # 2020-03-29 10:20:00+02:00 NaN
+    # 2020-03-29 10:40:00+02:00 NaN
+    # 2020-03-29 11:00:00+02:00 NaN
+    # 2020-03-29 11:20:00+02:00 NaN
+    # 2020-03-29 11:40:00+02:00 NaN
+    # 2020-03-29 12:00:00+02:00 2000.0
+    # 2020-03-29 12:20:00+02:00 NaN
+    # 2020-03-29 12:40:00+02:00 NaN
+    # After filling a limited number of NaN values (ceil(30/20)-1 == 1)
+    # event_start               event_value
+    # 2020-03-29 10:00:00+02:00 1000.0
+    # 2020-03-29 10:20:00+02:00 1000.0
+    # 2020-03-29 10:40:00+02:00 NaN
+    # 2020-03-29 11:00:00+02:00 NaN
+    # 2020-03-29 11:20:00+02:00 NaN
+    # 2020-03-29 11:40:00+02:00 NaN
+    # 2020-03-29 12:00:00+02:00 2000.0
+    # 2020-03-29 12:20:00+02:00 2000.0
+    # 2020-03-29 12:40:00+02:00 NaN
+    df = df.reindex(new_index).fillna(
+        method="pad",
+        limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
+    )
+    df = df.dropna()
+    if keep_nan_values:
+        # place back original NaN values
+        df = df.replace(unique_event_value_not_in_df, np.NaN)
+    df.event_resolution = event_resolution
+    return df
