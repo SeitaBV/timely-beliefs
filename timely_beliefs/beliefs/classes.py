@@ -1767,7 +1767,6 @@ class BeliefsDataFrame(pd.DataFrame):
 
         df = self
         if t is None:
-
             # Set reference values if needed
             if (
                 reference_belief_horizon is not None

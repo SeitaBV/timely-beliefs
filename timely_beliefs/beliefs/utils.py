@@ -809,7 +809,9 @@ def interpret_special_read_cases(
     return df
 
 
-def resample_events(df: pd.DataFrame, sensor: "classes.Sensor", keep_nan_values=keep_nan_values) -> pd.DataFrame:
+def resample_events(
+    df: pd.DataFrame, sensor: "classes.Sensor", keep_nan_values=keep_nan_values
+) -> pd.DataFrame:
     if df.empty:
         return df
     df = df.set_index("event_start")
@@ -1039,7 +1041,9 @@ def meta_repr(
 
 
 def upsample_beliefs_data_frame(
-    df: "classes.BeliefsDataFrame" | pd.DataFrame, event_resolution: timedelta, keep_nan_values: bool = False
+    df: "classes.BeliefsDataFrame" | pd.DataFrame,
+    event_resolution: timedelta,
+    keep_nan_values: bool = False,
 ) -> "classes.BeliefsDataFrame":
     """Because simply doing df.resample().ffill() does not correctly resample the last event in the data frame.
 
@@ -1048,9 +1052,9 @@ def upsample_beliefs_data_frame(
     :param keep_nan_values:     If True, place back resampled NaN values. Drops NaN values by default.
     """
     from_event_resolution = df.event_resolution
-    resample_ratio = pd.to_timedelta(
-        to_offset(from_event_resolution)
-    ) / pd.Timedelta(event_resolution)
+    resample_ratio = pd.to_timedelta(to_offset(from_event_resolution)) / pd.Timedelta(
+        event_resolution
+    )
     if keep_nan_values:
         # back up NaN values
         unique_event_value_not_in_df = df["event_value"].abs().sum() + 1
