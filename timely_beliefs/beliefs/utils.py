@@ -23,6 +23,8 @@ from timely_beliefs.beliefs.probabilistic_utils import (
 )
 from timely_beliefs.sources import utils as source_utils
 
+TimedeltaLike = Union[timedelta, str, pd.Timedelta]
+
 
 def select_most_recent_belief(
     df: "classes.BeliefsDataFrame",
@@ -534,7 +536,7 @@ def read_csv(  # noqa C901
     belief_horizon: timedelta = None,
     belief_time: datetime = None,
     cumulative_probability: float = None,
-    resample: bool = False,
+    resample: bool | TimedeltaLike = False,
     timezone: Optional[str] = None,
     filter_by_column: dict = None,
     event_ends_after: datetime = None,
@@ -559,6 +561,7 @@ def read_csv(  # noqa C901
     :param belief_time:             Optionally, set a specific belief time for the read-in data.
     :param cumulative_probability:  Optionally, set a specific cumulative probability for the read-in data.
     :param resample:                Optionally, resample to the event resolution of the sensor.
+                                    Set to True to infer the input resolution, or use a timedelta to set it explicitly.
                                     Only implemented for the special read case of 2-column data (see below).
     :param timezone:                Optionally, localize timezone naive datetimes to a specific timezone.
                                     Accepts IANA timezone names (e.g. UTC or Europe/Amsterdam).
@@ -675,7 +678,10 @@ def read_csv(  # noqa C901
             df = df[df["event_start"] < event_starts_before]
 
     if resample:
-        df = resample_events(df, sensor, keep_nan_values=keep_nan_values)
+        resolution = resample if not isinstance(resample, bool) else None
+        df = resample_events(
+            df, sensor, keep_nan_values=keep_nan_values, resolution=resolution
+        )
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
@@ -810,11 +816,20 @@ def interpret_special_read_cases(
 
 
 def resample_events(
-    df: pd.DataFrame, sensor: "classes.Sensor", keep_nan_values: bool
+    df: pd.DataFrame,
+    sensor: "classes.Sensor",
+    keep_nan_values: bool,
+    resolution: TimedeltaLike | None = None,
 ) -> pd.DataFrame:
     if df.empty:
         return df
     df = df.set_index("event_start")
+    if resolution is not None:
+        resolution = tb_utils.parse_timedelta_like(resolution)
+        index = initialize_index(
+            start=df.index[0], end=df.index[-1] + resolution, resolution=resolution
+        )
+        df = df.reindex(index)
     if df.index.freq is None and len(df) > 2:
         # Try to infer the event resolution from the event frequency
         df.index.freq = pd.infer_freq(df.index)
