@@ -1,7 +1,7 @@
 from datetime import timedelta
 from typing import Optional
 
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, select, Select
 from sqlalchemy.orm import Query, Session, aliased
 
 
@@ -11,7 +11,7 @@ def query_unchanged_beliefs(
     query: Optional[Query] = None,
     include_positive_horizons: bool = True,  # include belief horizons > 0 (i.e. forecasts)
     include_non_positive_horizons: bool = True,  # include belief horizons <= 0 (i.e. measurements, nowcasts and backcasts)
-) -> Query:
+) -> Select:
     """Match unchanged beliefs.
 
     Unchanged beliefs are beliefs that have not changed with respect to the preceding belief,
@@ -21,7 +21,7 @@ def query_unchanged_beliefs(
         # Avoid circular import
         from timely_beliefs import DBTimedBelief as cls
     if query is None:
-        query = session.query(cls)
+        query = select(cls)
 
     # Set up aliases
     tb1 = cls  # the DBTimedBelief class mapped to the timed_beliefs table

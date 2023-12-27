@@ -35,10 +35,11 @@ from sqlalchemy import (
     Interval,
     and_,
     func,
+    select,
 )
-from sqlalchemy.ext.declarative import declared_attr, has_inherited_table
+from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
-from sqlalchemy.orm import Session, backref, relationship
+from sqlalchemy.orm import Session, backref, relationship, has_inherited_table
 from sqlalchemy.orm.util import AliasedClass
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy.sql.elements import BinaryExpression
@@ -453,9 +454,11 @@ class TimedBeliefDBMixin(TimedBelief):
                     f"sensor {sensor} is a {type(sensor)}, which is not a subclass of {SensorDBMixin}"
                 )
             sensor = (
-                session.query(sensor_class)
-                .filter(sensor_class.id == sensor)
-                .one_or_none()
+                session.execute(
+                    select(sensor_class)
+                    .filter(sensor_class.id == sensor)
+                )
+                .scalar_one_or_none()
             )
             if sensor is None:
                 raise ValueError("No such sensor")
@@ -517,8 +520,7 @@ class TimedBeliefDBMixin(TimedBelief):
             return q
 
         # Main query
-        q = session.query(cls).filter(cls.sensor_id == sensor.id)
-
+        q = select(cls).filter(cls.sensor_id == sensor.id)
         # Apply event time filter
         if not pd.isnull(event_starts_after):
             q = q.filter(cls.event_start >= event_starts_after)
@@ -557,7 +559,7 @@ class TimedBeliefDBMixin(TimedBelief):
             most_recent_beliefs_only
             and not most_recent_beliefs_only_incompatible_criteria
         ):
-            subq = session.query(
+            subq = select(
                 cls.event_start,
                 cls.source_id,
                 func.min(cls.belief_horizon).label("most_recent_belief_horizon"),
@@ -581,7 +583,7 @@ class TimedBeliefDBMixin(TimedBelief):
         # Apply most recent events filter
         if most_recent_events_only:
             subq_most_recent_events = (
-                session.query(
+                select(
                     cls.source_id,
                     func.max(cls.event_start).label("most_recent_event_start"),
                 )
@@ -599,7 +601,8 @@ class TimedBeliefDBMixin(TimedBelief):
             )
 
         # Build our DataFrame of beliefs
-        df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
+        beliefs = session.scalars(q).all()
+        df = BeliefsDataFrame(sensor=sensor, beliefs=beliefs)
 
         # Actually filter by belief time
         if beliefs_after is not None:
