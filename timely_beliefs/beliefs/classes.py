@@ -39,7 +39,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
-from sqlalchemy.orm import Session, backref, relationship, has_inherited_table
+from sqlalchemy.orm import Session, backref, has_inherited_table, relationship
 from sqlalchemy.orm.util import AliasedClass
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy.sql.elements import BinaryExpression
@@ -453,13 +453,9 @@ class TimedBeliefDBMixin(TimedBelief):
                 raise ValueError(
                     f"sensor {sensor} is a {type(sensor)}, which is not a subclass of {SensorDBMixin}"
                 )
-            sensor = (
-                session.execute(
-                    select(sensor_class)
-                    .filter(sensor_class.id == sensor)
-                )
-                .scalar_one_or_none()
-            )
+            sensor = session.execute(
+                select(sensor_class).filter(sensor_class.id == sensor)
+            ).scalar_one_or_none()
             if sensor is None:
                 raise ValueError("No such sensor")
 
