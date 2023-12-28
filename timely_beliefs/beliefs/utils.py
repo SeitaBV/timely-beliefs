@@ -1066,6 +1066,10 @@ def upsample_beliefs_data_frame(
     :param event_resolution:    Resolution to upsample to.
     :param keep_nan_values:     If True, place back resampled NaN values. Drops NaN values by default.
     """
+    if df.empty:
+        df.event_resolution = event_resolution
+        return df
+
     from_event_resolution = df.event_resolution
     resample_ratio = pd.to_timedelta(to_offset(from_event_resolution)) / pd.Timedelta(
         event_resolution
