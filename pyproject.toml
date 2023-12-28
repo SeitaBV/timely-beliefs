@@ -38,7 +38,7 @@ dependencies = [
 
     # Database support
     "psycopg2-binary",
-    "SQLAlchemy",
+    "SQLAlchemy>=2",
 
     # Conditional
     # numpy's setup requires minimal Python versions
