@@ -1080,9 +1080,15 @@ def upsample_beliefs_data_frame(
         # back up NaN values
         unique_event_value_not_in_df = df["event_value"].abs().sum() + 1
         df = df.fillna(unique_event_value_not_in_df)
+    if isinstance(df, classes.BeliefsDataFrame):
+        start = df.event_starts[0]
+        end = df.event_starts[-1] + from_event_resolution
+    else:
+        start = df.index[0]
+        end = df.index[-1] + from_event_resolution
     new_index = initialize_index(
-        start=df.index[0],
-        end=df.index[-1] + from_event_resolution,
+        start=start,
+        end=end,
         resolution=event_resolution,
     )
     # Reindex to introduce NaN values, then forward fill by the number of steps
@@ -1114,11 +1120,17 @@ def upsample_beliefs_data_frame(
     # 2020-03-29 12:00:00+02:00 2000.0
     # 2020-03-29 12:20:00+02:00 2000.0
     # 2020-03-29 12:40:00+02:00 NaN
-    df = df.reindex(new_index).fillna(
+    if isinstance(df, classes.BeliefsDataFrame):
+        index_levels = df.index.names
+        df = df.reset_index().set_index("event_start")
+    df = df.reindex(new_index)
+    df = df.fillna(
         method="pad",
         limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
     )
     df = df.dropna()
+    if isinstance(df, classes.BeliefsDataFrame):
+        df = df.reset_index().set_index(index_levels)
     if keep_nan_values:
         # place back original NaN values
         df = df.replace(unique_event_value_not_in_df, np.NaN)
