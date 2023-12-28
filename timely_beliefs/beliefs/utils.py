@@ -1069,6 +1069,8 @@ def upsample_beliefs_data_frame(
     if df.empty:
         df.event_resolution = event_resolution
         return df
+    if event_resolution == timedelta(0):
+        raise NotImplementedError("Cannot upsample to zero event resolution.")
 
     from_event_resolution = df.event_resolution
     resample_ratio = pd.to_timedelta(to_offset(from_event_resolution)) / pd.Timedelta(
