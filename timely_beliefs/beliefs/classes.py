@@ -334,7 +334,6 @@ class TimedBeliefDBMixin(TimedBelief):
         session: Session,
         sensor: Union[SensorDBMixin, int],
         sensor_class: Optional[Type[SensorDBMixin]] = DBSensor,
-        source_class: Optional[Type[BeliefSourceDBMixin]] = DBBeliefSource,
         event_starts_after: Optional[datetime] = None,
         event_ends_after: Optional[datetime] = None,
         event_starts_before: Optional[datetime] = None,
@@ -364,7 +363,6 @@ class TimedBeliefDBMixin(TimedBelief):
         :param session: the database session to use
         :param sensor: sensor to which the beliefs pertain, or its unique sensor id
         :param sensor_class: optionally pass the sensor (sub)class explicitly (only needed if you pass a sensor id instead of a sensor, and your sensor class is not DBSensor); the class should be mapped to a database table
-        :param source_class: optionally pass the source (sub)class explicitly (only needed if no source was passed, and your source class is not DBBeliefSource); the class should be mapped to a database table
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_after: only return beliefs about events that end after this datetime (exclusive for non-instantaneous events, inclusive for instantaneous events)
                                  note that the first event may transpire partially before this datetime
@@ -384,6 +382,7 @@ class TimedBeliefDBMixin(TimedBelief):
         :param custom_join_targets: additional join targets, to accommodate filters that rely on other targets (e.g. subclasses)
         :returns: a multi-index DataFrame with all relevant beliefs
         """
+        source_class = cls.source.property.mapper.class_
 
         # todo: deprecate the 'event_before' argument in favor of 'event_ends_before' (announced v1.4.1)
         event_ends_before = tb_utils.replace_deprecated_argument(
@@ -557,7 +556,6 @@ class TimedBeliefDBMixin(TimedBelief):
         # Apply source filter
         if source is not None:
             sources: list = [source] if not isinstance(source, list) else source
-            source_class = sources[0].__class__
             q = q.join(source_class).filter(cls.source_id.in_([s.id for s in sources]))
 
         # Apply most recent beliefs filter
