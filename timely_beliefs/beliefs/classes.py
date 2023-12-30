@@ -330,7 +330,7 @@ class TimedBeliefDBMixin(TimedBelief):
         session: Session,
         sensor: Union[SensorDBMixin, int],
         sensor_class: Optional[Type[SensorDBMixin]] = DBSensor,
-        source_cls: Optional[Type[BeliefSourceDBMixin]] = DBBeliefSource,
+        source_class: Optional[Type[BeliefSourceDBMixin]] = DBBeliefSource,
         event_starts_after: Optional[datetime] = None,
         event_ends_after: Optional[datetime] = None,
         event_starts_before: Optional[datetime] = None,
@@ -360,6 +360,7 @@ class TimedBeliefDBMixin(TimedBelief):
         :param session: the database session to use
         :param sensor: sensor to which the beliefs pertain, or its unique sensor id
         :param sensor_class: optionally pass the sensor (sub)class explicitly (only needed if you pass a sensor id instead of a sensor, and your sensor class is not DBSensor); the class should be mapped to a database table
+        :param source_class: optionally pass the source (sub)class explicitly (only needed if no source was passed, and your source class is not DBBeliefSource); the class should be mapped to a database table
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_after: only return beliefs about events that end after this datetime (exclusive for non-instantaneous events, inclusive for instantaneous events)
                                  note that the first event may transpire partially before this datetime
@@ -552,8 +553,8 @@ class TimedBeliefDBMixin(TimedBelief):
         # Apply source filter
         if source is not None:
             sources: list = [source] if not isinstance(source, list) else source
-            source_cls = sources[0].__class__
-            q = q.join(source_cls).filter(cls.source_id.in_([s.id for s in sources]))
+            source_class = sources[0].__class__
+            q = q.join(source_class).filter(cls.source_id.in_([s.id for s in sources]))
 
         # Apply most recent beliefs filter
         most_recent_beliefs_only_incompatible_criteria = (
@@ -612,7 +613,7 @@ class TimedBeliefDBMixin(TimedBelief):
         # Fill in sources
         if source is None:
             source_ids = df["source_id"].unique().tolist()
-            sources = select(source_cls).filter(source_cls.id.in_(source_ids)).all()
+            sources = select(source_class).filter(source_class.id.in_(source_ids)).all()
         source_map = {source.id: source for source in sources}
         df["source_id"] = df["source_id"].map(source_map)
         df = df.rename(columns={"source_id": "source"})
