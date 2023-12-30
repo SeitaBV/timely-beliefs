@@ -53,7 +53,7 @@ from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.sensors.classes import DBSensor, Sensor, SensorDBMixin
 from timely_beliefs.sensors.func_store.knowledge_horizons import ex_ante, ex_post
 from timely_beliefs.sources import utils as source_utils
-from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
+from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource, BeliefSourceDBMixin
 
 METADATA = ["sensor", "event_resolution"]
 DatetimeLike = Union[datetime, str, pd.Timestamp]
@@ -329,6 +329,7 @@ class TimedBeliefDBMixin(TimedBelief):
         session: Session,
         sensor: Union[SensorDBMixin, int],
         sensor_class: Optional[Type[SensorDBMixin]] = DBSensor,
+        source_cls: Optional[Type[BeliefSourceDBMixin]] = DBBeliefSource,
         event_starts_after: Optional[datetime] = None,
         event_ends_after: Optional[datetime] = None,
         event_starts_before: Optional[datetime] = None,
@@ -517,7 +518,13 @@ class TimedBeliefDBMixin(TimedBelief):
             return q
 
         # Main query
-        q = session.query(cls).filter(cls.sensor_id == sensor.id)
+        q = session.query(
+            cls.event_start,
+            cls.belief_horizon,
+            cls.source_id,
+            cls.cumulative_probability,
+            cls.event_value,
+        ).filter(cls.sensor_id == sensor.id)
 
         # Apply event time filter
         if not pd.isnull(event_starts_after):
@@ -599,7 +606,18 @@ class TimedBeliefDBMixin(TimedBelief):
             )
 
         # Build our DataFrame of beliefs
-        df = BeliefsDataFrame(sensor=sensor, beliefs=q.all())
+        df = pd.DataFrame(q.all())
+        if df.empty:
+            return BeliefsDataFrame(sensor=sensor)
+
+        # Fill in sources
+        source_ids = df["source_id"].unique().tolist()
+        source_map = {source_id: session.query(source_cls).get(source_id) for source_id in source_ids}
+        df["source_id"] = df["source_id"].map(source_map)
+        df = df.rename(columns={"source_id": "source"})
+
+        # Build our BeliefsDataFrame
+        df = BeliefsDataFrame(df, sensor=sensor)
 
         # Actually filter by belief time
         if beliefs_after is not None:
