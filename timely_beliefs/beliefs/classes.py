@@ -610,14 +610,14 @@ class TimedBeliefDBMixin(TimedBelief):
             )
 
         # Build our DataFrame of beliefs
-        df = pd.DataFrame(session.scalars(q).all())
+        df = pd.DataFrame(session.execute(q))
         if df.empty:
             return BeliefsDataFrame(sensor=sensor)
 
         # Fill in sources
         if source is None:
             source_ids = df["source_id"].unique().tolist()
-            sources = select(source_class).filter(source_class.id.in_(source_ids)).all()
+            sources = session.scalars(select(source_class).filter(source_class.id.in_(source_ids))).all()
         source_map = {source.id: source for source in sources}
         df["source_id"] = df["source_id"].map(source_map)
         df = df.rename(columns={"source_id": "source"})
