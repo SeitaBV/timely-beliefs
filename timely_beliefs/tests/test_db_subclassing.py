@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from pytz import timezone
-from sqlalchemy import Column, Float, ForeignKey, Integer
+from sqlalchemy import Column, Float, ForeignKey, Integer, func, select
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import backref, relationship
 
@@ -30,14 +30,28 @@ def test_subclassing_source(db):
     session.add(RatedSource(name="test_source", rating=5))
     session.add(RatedSource(name="dummy"))
 
-    q = session.query(RatedSource)
-    print(q.all())
+    q = select(RatedSource)
+    print(session.scalars(q).all())
     print(db.tables.keys())
 
-    assert session.query(RatedSource).filter(RatedSource.rating == 5).count() == 1
+    assert (
+        session.execute(
+            select(func.count())
+            .select_from(RatedSource)
+            .filter(RatedSource.rating == 5)
+        ).scalar()
+        == 1
+    )
 
     # We made one with default rating (0) and in conftest three are made in advance
-    assert session.query(RatedSource).filter(RatedSource.rating == 0).count() == 4
+    assert (
+        session.execute(
+            select(func.count())
+            .select_from(RatedSource)
+            .filter(RatedSource.rating == 0)
+        ).scalar()
+        == 4
+    )
 
 
 class RatedSourceInCustomTable(Base, BeliefSourceDBMixin):
@@ -56,9 +70,11 @@ def test_custom_source_with_mixin(db):
     session.add(RatedSourceInCustomTable(name="dummy"))
 
     assert (
-        session.query(RatedSourceInCustomTable)
-        .filter(RatedSourceInCustomTable.rating == 7)
-        .count()
+        session.execute(
+            select(func.count())
+            .select_from(RatedSourceInCustomTable)
+            .filter(RatedSourceInCustomTable.rating == 7)
+        ).scalar()
         == 1
     )
 
@@ -116,17 +132,29 @@ def test_custom_source_and_beliefs_with_mixin(db):
     )
     session.add(belief)
 
-    q = session.query(RatedSourceInCustomTable).filter(
-        RatedSourceInCustomTable.rating == 7
+    q = select(RatedSourceInCustomTable).filter(RatedSourceInCustomTable.rating == 7)
+    assert (
+        session.execute(
+            select(func.count())
+            .select_from(RatedSourceInCustomTable)
+            .filter_by(rating=7)
+        ).scalar()
+        == 1
     )
-    assert q.count() == 1
-    assert q.first().rating == 7
+    assert session.scalar(q.limit(1)).rating == 7
 
-    q = session.query(JoyfulBeliefInCustomTable).filter(
+    q = select(JoyfulBeliefInCustomTable).filter(
         JoyfulBeliefInCustomTable.happiness == 3
     )
-    assert q.count() == 1
-    the_belief = q.first()
+    assert (
+        session.execute(
+            select(func.count())
+            .select_from(JoyfulBeliefInCustomTable)
+            .filter_by(happiness=3)
+        ).scalar()
+        == 1
+    )
+    the_belief = session.scalar(q.limit(1))
     assert the_belief.event_value == belief.event_value
     assert the_belief.sensor.__class__ == DBSensor
     assert the_belief.source.__class__ == RatedSourceInCustomTable
