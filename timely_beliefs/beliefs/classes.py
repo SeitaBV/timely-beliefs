@@ -54,11 +54,7 @@ from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.sensors.classes import DBSensor, Sensor, SensorDBMixin
 from timely_beliefs.sensors.func_store.knowledge_horizons import ex_ante, ex_post
 from timely_beliefs.sources import utils as source_utils
-from timely_beliefs.sources.classes import (
-    BeliefSource,
-    BeliefSourceDBMixin,
-    DBBeliefSource,
-)
+from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 
 METADATA = ["sensor", "event_resolution"]
 DatetimeLike = Union[datetime, str, pd.Timestamp]
