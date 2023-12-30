@@ -622,6 +622,7 @@ class TimedBeliefDBMixin(TimedBelief):
 
         # Build our BeliefsDataFrame
         df = BeliefsDataFrame(df, sensor=sensor)
+        df = df.convert_index_from_belief_horizon_to_time()
 
         # Actually filter by belief time
         if beliefs_after is not None:
