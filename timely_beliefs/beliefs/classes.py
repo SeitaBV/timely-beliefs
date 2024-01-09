@@ -311,7 +311,7 @@ class TimedBeliefDBMixin(TimedBelief):
             session.commit()
 
     @classmethod
-    def search_session(  # noqa: C901  # todo: remove after removing deprecated arguments
+    def search_session(
         cls,
         session: Session,
         sensor: Union[SensorDBMixin, int],
@@ -324,14 +324,9 @@ class TimedBeliefDBMixin(TimedBelief):
         beliefs_before: Optional[datetime] = None,
         horizons_at_least: Optional[timedelta] = None,
         horizons_at_most: Optional[timedelta] = None,
-        event_before: Optional[datetime] = None,  # deprecated
-        event_not_before: Optional[datetime] = None,  # deprecated
-        belief_before: Optional[datetime] = None,  # deprecated
-        belief_not_before: Optional[datetime] = None,  # deprecated
         source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
         most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
-        most_recent_only: bool = None,  # deprecated
         place_beliefs_in_sensor_timezone: bool = True,
         place_events_in_sensor_timezone: bool = True,
         custom_filter_criteria: Optional[List[BinaryExpression]] = None,
@@ -364,47 +359,6 @@ class TimedBeliefDBMixin(TimedBelief):
         :param custom_join_targets: additional join targets, to accommodate filters that rely on other targets (e.g. subclasses)
         :returns: a multi-index DataFrame with all relevant beliefs
         """
-
-        # todo: deprecate the 'event_before' argument in favor of 'event_ends_before' (announced v1.4.1)
-        event_ends_before = tb_utils.replace_deprecated_argument(
-            "event_before",
-            event_before,
-            "event_ends_before",
-            event_ends_before,
-            required_argument=False,
-        )
-        # todo: deprecate the 'event_not_before' argument in favor of 'event_starts_after' (announced v1.4.1)
-        event_starts_after = tb_utils.replace_deprecated_argument(
-            "event_not_before",
-            event_not_before,
-            "event_starts_after",
-            event_starts_after,
-            required_argument=False,
-        )
-        # todo: deprecate the 'belief_before' argument in favor of 'beliefs_before' (announced v1.4.1)
-        beliefs_before = tb_utils.replace_deprecated_argument(
-            "belief_before",
-            belief_before,
-            "beliefs_before",
-            beliefs_before,
-            required_argument=False,
-        )
-        # todo: deprecate the 'belief_not_before' argument in favor of 'beliefs_after' (announced v1.4.1)
-        beliefs_after = tb_utils.replace_deprecated_argument(
-            "belief_not_before",
-            belief_not_before,
-            "beliefs_after",
-            beliefs_after,
-            required_argument=False,
-        )
-        # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v1.7.0)
-        most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
-            "most_recent_only",
-            most_recent_only,
-            "most_recent_beliefs_only",
-            most_recent_beliefs_only,
-            required_argument=False,
-        )
 
         # Check for timezone-aware datetime input
         if not pd.isnull(event_starts_after):
