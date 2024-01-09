@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from pytz import utc
+from sqlalchemy import select
 
 import timely_beliefs.beliefs.queries as query_utils
 import timely_beliefs.beliefs.utils as belief_utils
@@ -407,8 +408,8 @@ def test_select_most_recent_probabilistic_beliefs(
     ],
 )
 def test_query_unchanged_beliefs(event_values, expected_unchanged_event_values):
-    sensor = session.query(DBSensor).first()
-    source = session.query(DBBeliefSource).first()
+    sensor = session.execute(select(DBSensor).limit(1)).scalar()
+    source = session.execute(select(DBBeliefSource).limit(1)).scalar()
     beliefs = [
         DBTimedBelief(
             sensor=sensor,
@@ -435,12 +436,12 @@ def test_query_unchanged_beliefs(event_values, expected_unchanged_event_values):
         ]
     )
     session.add_all(beliefs)
-    all_beliefs_query = session.query(DBTimedBelief).filter(
+    all_beliefs_query = select(DBTimedBelief).filter(
         DBTimedBelief.sensor == sensor, DBTimedBelief.source == source
     )
     q = query_utils.query_unchanged_beliefs(
         session=session,
         query=all_beliefs_query,
     )
-    unchanged_beliefs = BeliefsDataFrame(q.all())
+    unchanged_beliefs = BeliefsDataFrame(session.scalars(q).all())
     pd.testing.assert_frame_equal(unchanged_beliefs, expected_unchanged_beliefs)
