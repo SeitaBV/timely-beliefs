@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import warnings
 from datetime import datetime, timedelta
 from typing import List, Optional, Union
@@ -9,6 +10,7 @@ import pandas as pd
 import pytz
 from packaging import version
 from pandas.core.groupby import DataFrameGroupBy
+from pandas.tseries.frequencies import to_offset
 
 from timely_beliefs import BeliefSource, Sensor
 from timely_beliefs import utils as tb_utils
@@ -20,6 +22,8 @@ from timely_beliefs.beliefs.probabilistic_utils import (
     probabilistic_nan_mean,
 )
 from timely_beliefs.sources import utils as source_utils
+
+TimedeltaLike = Union[timedelta, str, pd.Timedelta]
 
 
 def select_most_recent_belief(
@@ -61,7 +65,7 @@ def upsample_event_start(
     df,
     output_resolution: timedelta,
     input_resolution: timedelta,
-    fill_method: Optional[str] = "pad",
+    fill_method: Optional[str] = "ffill",
 ):
     """Upsample event_start (which must be the first index level) from input_resolution to output_resolution."""
 
@@ -93,10 +97,10 @@ def upsample_event_start(
     # Todo: allow customisation for de-aggregating event values
     if fill_method is None:
         return df.reindex(mux)
-    elif fill_method == "pad":
+    elif fill_method == "ffill":
         return df.reindex(mux).fillna(
-            method="pad"
-        )  # pad is the reverse of mean downsampling
+            method="ffill"
+        )  # ffill (formerly 'pad') is the reverse of mean downsampling
     else:
         raise NotImplementedError("Unknown upsample method.")
 
@@ -532,7 +536,7 @@ def read_csv(  # noqa C901
     belief_horizon: timedelta = None,
     belief_time: datetime = None,
     cumulative_probability: float = None,
-    resample: bool = False,
+    resample: bool | TimedeltaLike = False,
     timezone: Optional[str] = None,
     filter_by_column: dict = None,
     event_ends_after: datetime = None,
@@ -557,6 +561,7 @@ def read_csv(  # noqa C901
     :param belief_time:             Optionally, set a specific belief time for the read-in data.
     :param cumulative_probability:  Optionally, set a specific cumulative probability for the read-in data.
     :param resample:                Optionally, resample to the event resolution of the sensor.
+                                    Set to True to infer the input resolution, or use a timedelta to set it explicitly.
                                     Only implemented for the special read case of 2-column data (see below).
     :param timezone:                Optionally, localize timezone naive datetimes to a specific timezone.
                                     Accepts IANA timezone names (e.g. UTC or Europe/Amsterdam).
@@ -657,7 +662,8 @@ def read_csv(  # noqa C901
     )
 
     # Exclude rows with NaN or NaT values
-    if not kwargs.get("keep_default_na", True):
+    keep_nan_values = kwargs.get("keep_default_na", True)
+    if not keep_nan_values:
         df = df.dropna()
 
     if event_ends_after:
@@ -672,7 +678,10 @@ def read_csv(  # noqa C901
             df = df[df["event_start"] < event_starts_before]
 
     if resample:
-        df = resample_events(df, sensor)
+        resolution = resample if not isinstance(resample, bool) else None
+        df = resample_events(
+            df, sensor, keep_nan_values=keep_nan_values, resolution=resolution
+        )
 
     # Apply optionally set belief timing
     if belief_horizon is not None and belief_time is not None:
@@ -806,10 +815,21 @@ def interpret_special_read_cases(
     return df
 
 
-def resample_events(df: pd.DataFrame, sensor: "classes.Sensor") -> pd.DataFrame:
+def resample_events(
+    df: pd.DataFrame,
+    sensor: "classes.Sensor",
+    keep_nan_values: bool,
+    resolution: TimedeltaLike | None = None,
+) -> pd.DataFrame:
     if df.empty:
         return df
     df = df.set_index("event_start")
+    if resolution is not None:
+        resolution = tb_utils.parse_timedelta_like(resolution)
+        index = initialize_index(
+            start=df.index[0], end=df.index[-1] + resolution, resolution=resolution
+        )
+        df = df.reindex(index)
     if df.index.freq is None and len(df) > 2:
         # Try to infer the event resolution from the event frequency
         df.index.freq = pd.infer_freq(df.index)
@@ -819,7 +839,10 @@ def resample_events(df: pd.DataFrame, sensor: "classes.Sensor") -> pd.DataFrame:
         )
     if df.index.freq > sensor.event_resolution:
         # Upsample by forward filling
-        df = df.resample(sensor.event_resolution).ffill()
+        df.event_resolution = df.index.freq
+        df = upsample_beliefs_data_frame(
+            df, sensor.event_resolution, keep_nan_values=keep_nan_values
+        )
     else:
         # Downsample by computing the mean event_value and max belief_time
         if "belief_time" in df.columns:
@@ -1030,3 +1053,92 @@ def meta_repr(
             for attr in tb_structure._metadata
         ]
     )
+
+
+def upsample_beliefs_data_frame(
+    df: "classes.BeliefsDataFrame" | pd.DataFrame,
+    event_resolution: timedelta,
+    keep_nan_values: bool = False,
+) -> "classes.BeliefsDataFrame":
+    """Because simply doing df.resample().ffill() does not correctly resample the last event in the data frame.
+
+    :param df:                  In case of a regular pd.DataFrame, make sure to set df.event_resolution before passing it to this function.
+    :param event_resolution:    Resolution to upsample to.
+    :param keep_nan_values:     If True, place back resampled NaN values. Drops NaN values by default.
+    """
+    if df.empty:
+        df.event_resolution = event_resolution
+        return df
+    if event_resolution == timedelta(0):
+        raise NotImplementedError("Cannot upsample to zero event resolution.")
+    from_event_resolution = df.event_resolution
+    if from_event_resolution == timedelta(0):
+        raise NotImplementedError("Cannot upsample from zero event resolution.")
+    resample_ratio = pd.to_timedelta(to_offset(from_event_resolution)) / pd.Timedelta(
+        event_resolution
+    )
+    if keep_nan_values:
+        # Back up NaN values.
+        # We are flagging the positions of the NaN values in the original data with a unique number.
+        # The unique number is the series' L1 norm + 1, which is guaranteed not to exist within the series.
+        # For example, for x = [-2, 2, 0, 1, 0.5]  =>  y = L1 norm + 1 = 5.5 + 1 = 6.5
+        # The ( + 1 ) is needed for the special case of a series with only a single non-zero value.
+        # For example, for x = [0, 2, 0, 0, 0]  =>  y = L1 norm + 1 = 2 + 1 = 3
+        unique_event_value_not_in_df = df["event_value"].abs().sum() + 1
+        df = df.fillna(unique_event_value_not_in_df)
+    if isinstance(df, classes.BeliefsDataFrame):
+        start = df.event_starts[0]
+        end = df.event_starts[-1] + from_event_resolution
+    else:
+        start = df.index[0]
+        end = df.index[-1] + from_event_resolution
+    new_index = initialize_index(
+        start=start,
+        end=end,
+        resolution=event_resolution,
+    )
+    # Reindex to introduce NaN values, then forward fill by the number of steps
+    # needed to have the new resolution cover the old resolution.
+    # For example, when resampling from a resolution of 30 to 20 minutes (NB frequency is 1 hour):
+    # event_start               event_value
+    # 2020-03-29 10:00:00+02:00 1000.0
+    # 2020-03-29 11:00:00+02:00 NaN
+    # 2020-03-29 12:00:00+02:00 2000.0
+    # After reindexing
+    # event_start               event_value
+    # 2020-03-29 10:00:00+02:00 1000.0
+    # 2020-03-29 10:20:00+02:00 NaN
+    # 2020-03-29 10:40:00+02:00 NaN
+    # 2020-03-29 11:00:00+02:00 NaN
+    # 2020-03-29 11:20:00+02:00 NaN
+    # 2020-03-29 11:40:00+02:00 NaN
+    # 2020-03-29 12:00:00+02:00 2000.0
+    # 2020-03-29 12:20:00+02:00 NaN
+    # 2020-03-29 12:40:00+02:00 NaN
+    # After filling a limited number of NaN values (ceil(30/20)-1 == 1)
+    # event_start               event_value
+    # 2020-03-29 10:00:00+02:00 1000.0
+    # 2020-03-29 10:20:00+02:00 1000.0
+    # 2020-03-29 10:40:00+02:00 NaN
+    # 2020-03-29 11:00:00+02:00 NaN
+    # 2020-03-29 11:20:00+02:00 NaN
+    # 2020-03-29 11:40:00+02:00 NaN
+    # 2020-03-29 12:00:00+02:00 2000.0
+    # 2020-03-29 12:20:00+02:00 2000.0
+    # 2020-03-29 12:40:00+02:00 NaN
+    if isinstance(df, classes.BeliefsDataFrame):
+        index_levels = df.index.names
+        df = df.reset_index().set_index("event_start")
+    df = df.reindex(new_index)
+    df = df.fillna(
+        method="ffill",
+        limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
+    )
+    df = df.dropna()
+    if isinstance(df, classes.BeliefsDataFrame):
+        df = df.reset_index().set_index(index_levels)
+    if keep_nan_values:
+        # place back original NaN values
+        df = df.replace(unique_event_value_not_in_df, np.NaN)
+    df.event_resolution = event_resolution
+    return df

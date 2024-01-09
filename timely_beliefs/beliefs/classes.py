@@ -24,7 +24,6 @@ import numpy as np
 import pandas as pd
 import pytz
 from pandas.core.groupby import DataFrameGroupBy
-from pandas.tseries.frequencies import to_offset
 from pandas.util._decorators import cache_readonly
 from sqlalchemy import (
     Column,
@@ -1561,56 +1560,9 @@ class BeliefsDataFrame(pd.DataFrame):
                 df = df.reset_index(
                     level=[belief_timing_col, "source", "cumulative_probability"]
                 )
-                resample_ratio = pd.to_timedelta(
-                    to_offset(df.event_resolution)
-                ) / pd.Timedelta(event_resolution)
-                if keep_nan_values:
-                    # back up NaN values
-                    unique_event_value_not_in_df = df["event_value"].abs().sum() + 1
-                    df = df.fillna(unique_event_value_not_in_df)
-                new_index = belief_utils.initialize_index(
-                    start=df.index[0],
-                    end=df.index[-1] + self.event_resolution,
-                    resolution=event_resolution,
+                df = belief_utils.upsample_beliefs_data_frame(
+                    df, event_resolution, keep_nan_values
                 )
-                # Reindex to introduce NaN values, then forward fill by the number of steps
-                # needed to have the new resolution cover the old resolution.
-                # For example, when resampling from a resolution of 30 to 20 minutes (NB frequency is 1 hour):
-                # event_start               event_value
-                # 2020-03-29 10:00:00+02:00 1000.0
-                # 2020-03-29 11:00:00+02:00 NaN
-                # 2020-03-29 12:00:00+02:00 2000.0
-                # After reindexing
-                # event_start               event_value
-                # 2020-03-29 10:00:00+02:00 1000.0
-                # 2020-03-29 10:20:00+02:00 NaN
-                # 2020-03-29 10:40:00+02:00 NaN
-                # 2020-03-29 11:00:00+02:00 NaN
-                # 2020-03-29 11:20:00+02:00 NaN
-                # 2020-03-29 11:40:00+02:00 NaN
-                # 2020-03-29 12:00:00+02:00 2000.0
-                # 2020-03-29 12:20:00+02:00 NaN
-                # 2020-03-29 12:40:00+02:00 NaN
-                # After filling a limited number of NaN values (ceil(30/20)-1 == 1)
-                # event_start               event_value
-                # 2020-03-29 10:00:00+02:00 1000.0
-                # 2020-03-29 10:20:00+02:00 1000.0
-                # 2020-03-29 10:40:00+02:00 NaN
-                # 2020-03-29 11:00:00+02:00 NaN
-                # 2020-03-29 11:20:00+02:00 NaN
-                # 2020-03-29 11:40:00+02:00 NaN
-                # 2020-03-29 12:00:00+02:00 2000.0
-                # 2020-03-29 12:20:00+02:00 2000.0
-                # 2020-03-29 12:40:00+02:00 NaN
-                df = df.reindex(new_index).fillna(
-                    method="pad",
-                    limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
-                )
-                df = df.dropna()
-                if keep_nan_values:
-                    # place back original NaN values
-                    df = df.replace(unique_event_value_not_in_df, np.NaN)
-                df.event_resolution = event_resolution
                 df = df.set_index(
                     [belief_timing_col, "source", "cumulative_probability"], append=True
                 )
@@ -1815,7 +1767,6 @@ class BeliefsDataFrame(pd.DataFrame):
 
         df = self
         if t is None:
-
             # Set reference values if needed
             if (
                 reference_belief_horizon is not None
