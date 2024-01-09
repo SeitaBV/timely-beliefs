@@ -9,8 +9,8 @@ from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
     at_date,
-    x_days_ago_at_y_oclock,
     ex_post,
+    x_days_ago_at_y_oclock,
 )
 from timely_beliefs.tests import engine, session
 
