@@ -29,7 +29,7 @@ def beliefs_recorded_at_unique_knowledge_time(
         DBTimedBelief(
             source=test_source_a,
             sensor=unique_knowledge_time_sensor,
-            value=10 + i,
+            event_value=10 + i,
             belief_time=datetime(1990, 5, 10, 0, tzinfo=utc),
             event_start=datetime(1990, 6, 1 + i, 0, tzinfo=utc),
         )
@@ -64,7 +64,7 @@ def day_ahead_belief_about_ex_ante_economical_event(
     belief = DBTimedBelief(
         source=test_source_a,
         sensor=ex_ante_economics_sensor,
-        value=10,
+        event_value=10,
         belief_time=datetime(2018, 1, 1, 10, tzinfo=utc),
         event_start=datetime(2018, 1, 2, 22, 45, tzinfo=utc),
     )
@@ -84,7 +84,7 @@ def multiple_day_ahead_beliefs_about_ex_ante_economical_event(
         belief = DBTimedBelief(
             source=test_source_a,
             sensor=ex_ante_economics_sensor,
-            value=10 + i,
+            event_value=10 + i,
             belief_time=ex_ante_economics_sensor.knowledge_time(event_start)
             - timedelta(hours=i + 1),
             event_start=event_start,
@@ -115,7 +115,7 @@ def multiple_probabilistic_day_ahead_beliefs_about_ex_ante_economical_event(
                 belief = DBTimedBelief(
                     source=test_source_a,
                     sensor=sensor,
-                    value=10 + i - j / 100,
+                    event_value=10 + i - j / 100,
                     belief_time=ex_ante_economics_sensor.knowledge_time(event_start)
                     - timedelta(hours=i + 1),
                     event_start=event_start,
@@ -138,7 +138,7 @@ def multiple_day_after_beliefs_about_ex_ante_economical_event(
         belief = DBTimedBelief(
             source=test_source_a,
             sensor=ex_ante_economics_sensor,
-            value=10 + i,
+            event_value=10 + i,
             belief_time=ex_ante_economics_sensor.knowledge_time(event_start)
             + timedelta(hours=i + 1),
             event_start=event_start,

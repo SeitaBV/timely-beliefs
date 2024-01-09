@@ -166,7 +166,7 @@ def rolling_day_ahead_beliefs_about_time_slot_events(
         belief = DBTimedBelief(
             sensor=time_slot_sensor,
             source=source,
-            value=10 + i,
+            event_value=10 + i,
             belief_time=datetime(2050, 1, 1, 10, tzinfo=utc) + timedelta(hours=i),
             event_start=datetime(2050, 1, 3, 10, tzinfo=utc) + timedelta(hours=i),
         )
@@ -177,7 +177,7 @@ def rolling_day_ahead_beliefs_about_time_slot_events(
         belief = DBTimedBelief(
             sensor=time_slot_sensor,
             source=source,
-            value=100 + i,
+            event_value=100 + i,
             belief_time=datetime(2050, 1, 1, 10, tzinfo=utc) + timedelta(hours=i - 1),
             event_start=datetime(2050, 1, 3, 10, tzinfo=utc) + timedelta(hours=i),
         )
