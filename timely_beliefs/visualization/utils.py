@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import timedelta
-from typing import List, Optional, Tuple
 
 try:
     import altair as alt
@@ -26,7 +27,7 @@ def plot(
     ci: float = 0.9,
     intuitive_forecast_horizon: bool = True,
     interpolate: bool = True,
-    event_value_range: Tuple[Optional[float], Optional[float]] = (None, None),
+    event_value_range: tuple[float | None, float | None] = (None, None),
 ) -> alt.LayerChart:
     """Plot the BeliefsDataFrame with the Altair visualization library.
 
@@ -161,7 +162,7 @@ def plot(
         )
 
 
-def timedelta_to_human_range(s: pd.Series) -> Tuple[pd.Series, str]:
+def timedelta_to_human_range(s: pd.Series) -> tuple[pd.Series, str]:
     """Convert a pandas Series of timedeltas to a pandas Series of floats,
     and derive a time unit (a string such as "years" or "minutes") that gives a nice human-readable range of floats.
     For example:
@@ -237,7 +238,7 @@ def prepare_df_for_plotting(
     show_accuracy: bool = False,
     reference_source: "classes.BeliefSource" = None,
     intuitive_forecast_horizon: bool = True,
-) -> Tuple[pd.DataFrame, str]:
+) -> tuple[pd.DataFrame, str]:
     """Convert a probabilistic BeliefsDataFrame to a Pandas DataFrame, and calculate accuracy metrics if needed.
 
     :param df: BeliefsDataFrame to visualize
@@ -310,7 +311,7 @@ def prepare_df_for_plotting(
 
 
 def align_belief_horizons(
-    df: pd.DataFrame, unique_belief_horizons: List[float]
+    df: pd.DataFrame, unique_belief_horizons: list[float]
 ) -> pd.DataFrame:
     applicable_horizons = sorted(
         [h for h in unique_belief_horizons if h <= max(df["belief_horizon"])],
@@ -346,7 +347,7 @@ def ridgeline_plot(
     bdf,
     fixed_viewpoint: bool = False,
     distribution: str = "uniform",
-    event_value_window: Tuple[float, float] = None,
+    event_value_window: tuple[float, float] = None,
 ) -> alt.FacetChart:
     """
     Creates ridgeline plot
@@ -415,7 +416,7 @@ def ridgeline_plot(
 def interpret_and_sample_distribution_long_form(
     df: "classes.BeliefsDataFrame",
     distribution: str = "uniform",
-    event_value_window: Tuple[float, float] = None,
+    event_value_window: tuple[float, float] = None,
 ) -> pd.DataFrame:
     """Interpret each probabilistic belief as a continuous or discrete distribution of possible outcomes (an openturns distribution),
     collect a sample of points that is adequate to draw its PDF (using the drawPDF attribute on openturns distributions),

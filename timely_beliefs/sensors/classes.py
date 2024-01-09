@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable
 
 import pandas as pd
 from sqlalchemy import JSON, Column, Integer, Interval, String
@@ -35,10 +35,8 @@ class Sensor(object):
         name: str = "",
         unit: str = "",
         timezone: str = "UTC",
-        event_resolution: Optional[timedelta] = None,
-        knowledge_horizon: Optional[
-            Union[timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]]
-        ] = None,
+        event_resolution: timedelta | None = None,
+        knowledge_horizon: timedelta | tuple[Callable[[datetime, Any], timedelta], dict] | None = None,
     ):
         if name == "":
             raise Exception("Please give this sensor a name to be identifiable.")
@@ -59,7 +57,7 @@ class Sensor(object):
             knowledge_horizon_par = {
                 knowledge_horizons.ex_ante.__code__.co_varnames[0]: knowledge_horizon
             }
-        elif isinstance(knowledge_horizon, Tuple):
+        elif isinstance(knowledge_horizon, tuple):
             self.knowledge_horizon_fnc = knowledge_horizon[0].__name__
             knowledge_horizon_par = knowledge_horizon[1]
         else:
@@ -72,7 +70,7 @@ class Sensor(object):
     def knowledge_horizon(
         self,
         event_start: datetime | pd.DatetimeIndex,
-        event_resolution: Optional[timedelta] = None,
+        event_resolution: timedelta | None = None,
     ) -> timedelta | pd.TimedeltaIndex:
         event_start = enforce_tz(event_start, "event_start")
         if event_resolution is None:
@@ -88,7 +86,7 @@ class Sensor(object):
     def knowledge_time(
         self,
         event_start: datetime | pd.DatetimeIndex,
-        event_resolution: Optional[timedelta] = None,
+        event_resolution: timedelta | None = None,
     ) -> datetime | pd.DatetimeIndex:
         event_start = enforce_tz(event_start, "event_start")
         if event_resolution is None:
@@ -128,10 +126,8 @@ class SensorDBMixin(Sensor):
         name: str,
         unit: str = "",
         timezone: str = "UTC",
-        event_resolution: Optional[timedelta] = None,
-        knowledge_horizon: Optional[
-            Union[timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]]
-        ] = None,
+        event_resolution: timedelta | None = None,
+        knowledge_horizon: timedelta | tuple[Callable[[datetime, Any], timedelta], dict] | None = None,
     ):
         Sensor.__init__(self, name, unit, timezone, event_resolution, knowledge_horizon)
 
@@ -146,10 +142,8 @@ class DBSensor(Base, SensorDBMixin):
         name: str = "",
         unit: str = "",
         timezone: str = "UTC",
-        event_resolution: Optional[timedelta] = None,
-        knowledge_horizon: Optional[
-            Union[timedelta, Tuple[Callable[[datetime, Any], timedelta], dict]]
-        ] = None,
+        event_resolution: timedelta | None = None,
+        knowledge_horizon: timedelta | tuple[Callable[[datetime, Any], timedelta], dict] | None = None,
     ):
         SensorDBMixin.__init__(
             self, name, unit, timezone, event_resolution, knowledge_horizon

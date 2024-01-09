@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import warnings
 from datetime import datetime, timedelta
-from typing import List, Optional, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -65,7 +65,7 @@ def upsample_event_start(
     df,
     output_resolution: timedelta,
     input_resolution: timedelta,
-    fill_method: Optional[str] = "ffill",
+    fill_method: str | None = "ffill",
 ):
     """Upsample event_start (which must be the first index level) from input_resolution to output_resolution."""
 
@@ -272,7 +272,7 @@ def join_beliefs(
     slice: "classes.BeliefsDataFrame",
     output_resolution: timedelta,
     input_resolution: timedelta,
-    distribution: Optional[str] = None,
+    distribution: str | None = None,
 ) -> "classes.BeliefsDataFrame":
     """
     Determine the joint belief about the time-aggregated event.
@@ -336,7 +336,7 @@ def resample_event_start(
     df: "classes.BeliefsDataFrame",
     output_resolution: timedelta,
     input_resolution: timedelta,
-    distribution: Optional[str] = None,
+    distribution: str | None = None,
     keep_only_most_recent_belief: bool = False,
 ) -> "classes.BeliefsDataFrame":
     """For a unique source. Also assumes belief_time is one of the index levels."""
@@ -382,10 +382,10 @@ def resample_event_start(
 def load_time_series(
     event_value_series: pd.Series,
     sensor: Sensor,
-    source: Union[BeliefSource, pd.Series],
-    belief_horizon: Union[timedelta, pd.Series],
+    source: BeliefSource | pd.Series,
+    belief_horizon: timedelta | pd.Series,
     cumulative_probability: float = 0.5,
-) -> List["classes.TimedBelief"]:
+) -> list["classes.TimedBelief"]:
     """Turn series entries into TimedBelief objects."""
     beliefs = []
     if isinstance(belief_horizon, timedelta):
@@ -532,12 +532,12 @@ def read_csv(  # noqa C901
     path: str,
     sensor: "classes.Sensor",
     source: "classes.BeliefSource" = None,
-    look_up_sources: List["classes.BeliefSource"] = None,
+    look_up_sources: list["classes.BeliefSource"] = None,
     belief_horizon: timedelta = None,
     belief_time: datetime = None,
     cumulative_probability: float = None,
     resample: bool | TimedeltaLike = False,
-    timezone: Optional[str] = None,
+    timezone: str | None = None,
     filter_by_column: dict = None,
     event_ends_after: datetime = None,
     event_starts_before: datetime = None,
@@ -731,8 +731,8 @@ def find_out_extension(path: str):
 
 def fill_in_sources(
     df: pd.DataFrame,
-    source: Union["classes.BeliefSource", None],
-    look_up_sources: Union[List["classes.BeliefSource"], None],
+    source: "classes.BeliefSource" | None,
+    look_up_sources: list["classes.BeliefSource"] | None,
     ext: str,
 ) -> pd.DataFrame:
     """Fill the 'source' column with BeliefSource objects.
@@ -765,7 +765,7 @@ def interpret_special_read_cases(
     df: pd.DataFrame,
     sensor: "classes.Sensor",
     resample: bool,
-    timezone: Optional[str],
+    timezone: str | None,
     dayfirst: bool,
     split: str | None = None,
 ) -> pd.DataFrame:
@@ -855,7 +855,7 @@ def resample_events(
 
 
 def convert_to_timezone(
-    s: pd.Series, timezone_to_convert_to: str, timezone_to_localize_to: Optional[str]
+    s: pd.Series, timezone_to_convert_to: str, timezone_to_localize_to: str | None
 ) -> pd.Series:
     """Convert the timezone of the series to the given timezone.
 
@@ -920,7 +920,7 @@ def is_tb_structure(x):
 
 
 def extreme_timedeltas_not_equal(
-    td_a: Union[timedelta, pd.Timedelta],
+    td_a: timedelta | pd.Timedelta,
     td_b: timedelta,
 ) -> bool:
     """Workaround for pd.Timedelta(...) != timedelta.max (or min)
@@ -1037,7 +1037,7 @@ def resample_instantaneous_events(
 
 
 def meta_repr(
-    tb_structure: Union["classes.BeliefsDataFrame", "classes.BeliefsSeries"]
+    tb_structure: "classes.BeliefsDataFrame" | "classes.BeliefsSeries"
 ) -> str:
     """Returns a string representation of all metadata.
 

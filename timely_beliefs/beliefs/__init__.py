@@ -4,9 +4,9 @@
 
 Below, we register customer accessors.
 """
+from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import List
 
 from pandas.api.extensions import register_dataframe_accessor
 
@@ -44,7 +44,7 @@ class BeliefsAccessor(object):
             raise AttributeError("Must have index level 'cumulative_probability'.")
 
     @property
-    def events(self) -> List[int]:
+    def events(self) -> list[int]:
         """Return the unique events described in this BeliefsDataFrame."""
         event_start = self._obj.index.get_level_values(level="event_start")
         return event_start.unique().to_numpy(dtype="object")
@@ -55,7 +55,7 @@ class BeliefsAccessor(object):
         return len(self.events)
 
     @property
-    def belief_horizons(self) -> List[timedelta]:
+    def belief_horizons(self) -> list[timedelta]:
         """Return the unique belief horizons in this BeliefsDataFrame."""
         if "belief_horizon" in self._obj.index.names:
             return (
@@ -77,7 +77,7 @@ class BeliefsAccessor(object):
         return len(self.belief_horizons)
 
     @property
-    def belief_times(self) -> List[datetime]:
+    def belief_times(self) -> list[datetime]:
         """Return the unique belief times in this BeliefsDataFrame."""
         if "belief_time" in self._obj.index.names:
             return (
@@ -105,7 +105,7 @@ class BeliefsAccessor(object):
         return len(self._obj.probabilistic_depth_per_belief)
 
     @property
-    def sources(self) -> List[int]:
+    def sources(self) -> list[int]:
         """Return the unique sources for this BeliefsDataFrame."""
         source = self._obj.index.get_level_values(level="source")
         return source.unique().to_numpy(dtype="object")
