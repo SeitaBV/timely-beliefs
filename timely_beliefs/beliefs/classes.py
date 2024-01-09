@@ -606,11 +606,16 @@ class TimedBeliefDBMixin(TimedBelief):
         df = pd.DataFrame(session.execute(q))
         if df.empty:
             return BeliefsDataFrame(sensor=sensor)
+        df.columns = [
+            "event_start",
+            "belief_horizon",
+            "source_id",
+            "cumulative_probability",
+            "event_value",
+        ]
 
         # Fill in sources
         if source is None:
-            print(df.head())
-            print(df.columns)
             source_ids = df["source_id"].unique().tolist()
             sources = session.scalars(
                 select(source_class).filter(source_class.id.in_(source_ids))
