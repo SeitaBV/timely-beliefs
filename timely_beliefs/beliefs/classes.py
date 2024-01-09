@@ -609,6 +609,8 @@ class TimedBeliefDBMixin(TimedBelief):
 
         # Fill in sources
         if source is None:
+            print(df.head())
+            print(df.columns)
             source_ids = df["source_id"].unique().tolist()
             sources = session.scalars(
                 select(source_class).filter(source_class.id.in_(source_ids))
