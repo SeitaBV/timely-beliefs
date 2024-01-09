@@ -302,7 +302,7 @@ class TimedBeliefDBMixin(TimedBelief):
             session.commit()
 
     @classmethod
-    def search_session(
+    def search_session(  # noqa: C901
         cls,
         session: Session,
         sensor: Union[SensorDBMixin, int],

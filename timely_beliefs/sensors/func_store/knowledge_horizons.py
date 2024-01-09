@@ -4,7 +4,7 @@ i.e. a duration window in which the knowledge horizon must lie (e.g. between 0 a
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Optional, Tuple, Union
+from typing import Tuple, Union
 
 import pandas as pd
 
