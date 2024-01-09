@@ -9,7 +9,7 @@ from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
     at_date,
-    determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
+    x_days_ago_at_y_oclock,
     ex_post,
 )
 from timely_beliefs.tests import engine, session
@@ -84,7 +84,7 @@ def create_ex_ante_economics_sensor(name: str) -> DBSensor:
         name=name,
         event_resolution=timedelta(minutes=15),
         knowledge_horizon=(
-            determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
+            x_days_ago_at_y_oclock,
             dict(x=1, y=12, z="Europe/Amsterdam"),
         ),
     )
