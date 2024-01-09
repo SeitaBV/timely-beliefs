@@ -15,7 +15,7 @@ def day_ahead_belief_about_instantaneous_event(
     return TimedBelief(
         source=test_source_a,
         sensor=instantaneous_sensor,
-        value=1,
+        event_value=1,
         belief_time=datetime(2018, 1, 1, 15, tzinfo=utc),
         event_time=datetime(2018, 1, 2, 0, tzinfo=utc),
     )
@@ -29,7 +29,7 @@ def day_ahead_belief_about_time_slot_event(
     return TimedBelief(
         source=test_source_a,
         sensor=time_slot_sensor,
-        value=1,
+        event_value=1,
         belief_time=datetime(2018, 1, 1, 15, tzinfo=utc),
         event_start=datetime(2018, 1, 2, 0, tzinfo=utc),
     )
@@ -43,7 +43,7 @@ def day_ahead_belief_about_ex_ante_economical_event(
     return TimedBelief(
         source=test_source_a,
         sensor=ex_ante_economics_sensor,
-        value=1,
+        event_value=1,
         belief_time=datetime(2018, 1, 1, 15, tzinfo=utc),
         event_start=datetime(2018, 1, 2, 0, tzinfo=utc),
     )

@@ -37,7 +37,7 @@ def df_wxyz(
             TimedBelief(
                 source=sources[s],
                 sensor=sensor,
-                value=1000 * e + 100 * b + 10 * s + p,
+                event_value=1000 * e + 100 * b + 10 * s + p,
                 belief_time=datetime(2000, 1, 1, tzinfo=pytz.utc) + timedelta(hours=b),
                 event_start=start + timedelta(hours=e),
                 cumulative_probability=cps[p],

@@ -127,7 +127,7 @@ def test_custom_source_and_beliefs_with_mixin(db):
         source=source,
         belief_time=now,
         event_start=now + timedelta(minutes=3),
-        value=100,
+        event_value=100,
         happiness=3,
     )
     session.add(belief)

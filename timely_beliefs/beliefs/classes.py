@@ -89,12 +89,11 @@ class TimedBelief(object):
     source: BeliefSource
     cumulative_probability: float
 
-    def __init__(  # noqa: C901 todo: the noqa can probably be removed when we deprecate the value argument
+    def __init__(
         self,
         sensor: Sensor,
         source: Union[BeliefSource, str, int],
         event_value: Optional[float] = None,
-        value: Optional[float] = None,  # deprecated
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
@@ -105,10 +104,7 @@ class TimedBelief(object):
     ):
         self.sensor = sensor
         self.source = source_utils.ensure_source_exists(source)
-        # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.1.0)
-        self.event_value = tb_utils.replace_deprecated_argument(
-            "value", value, "event_value", event_value
-        )
+        self.event_value = event_value
 
         if [cumulative_probability, cp, sigma].count(None) not in (2, 3):
             raise ValueError(
@@ -231,7 +227,6 @@ class TimedBeliefDBMixin(TimedBelief):
         sensor: DBSensor,
         source: DBBeliefSource,
         event_value: Optional[float] = None,
-        value: Optional[float] = None,  # deprecated
         cumulative_probability: Optional[float] = None,
         cp: Optional[float] = None,
         sigma: Optional[float] = None,
@@ -240,10 +235,6 @@ class TimedBeliefDBMixin(TimedBelief):
         belief_horizon: Optional[TimedeltaLike] = None,
         belief_time: Optional[DatetimeLike] = None,
     ):
-        # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.3.0)
-        event_value = tb_utils.replace_deprecated_argument(
-            "value", value, "event_value", event_value
-        )
         self.sensor_id = sensor.id
         self.source_id = source.id
         TimedBelief.__init__(
