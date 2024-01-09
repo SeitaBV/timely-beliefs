@@ -65,7 +65,7 @@ def upsample_event_start(
     df,
     output_resolution: timedelta,
     input_resolution: timedelta,
-    fill_method: Optional[str] = "pad",
+    fill_method: Optional[str] = "ffill",
 ):
     """Upsample event_start (which must be the first index level) from input_resolution to output_resolution."""
 
@@ -97,10 +97,10 @@ def upsample_event_start(
     # Todo: allow customisation for de-aggregating event values
     if fill_method is None:
         return df.reindex(mux)
-    elif fill_method == "pad":
+    elif fill_method == "ffill":
         return df.reindex(mux).fillna(
-            method="pad"
-        )  # pad is the reverse of mean downsampling
+            method="ffill"
+        )  # ffill (formerly 'pad') is the reverse of mean downsampling
     else:
         raise NotImplementedError("Unknown upsample method.")
 
@@ -1126,7 +1126,7 @@ def upsample_beliefs_data_frame(
         df = df.reset_index().set_index("event_start")
     df = df.reindex(new_index)
     df = df.fillna(
-        method="pad",
+        method="ffill",
         limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
     )
     df = df.dropna()
