@@ -311,19 +311,6 @@ class TimedBeliefDBMixin(TimedBelief):
             session.commit()
 
     @classmethod
-    @tb_utils.append_doc_of("TimedBeliefDBMixin.search_session")
-    def query(cls, *args, **kwargs):
-        """Function will be deprecated. Please switch to using search_session."""
-        # todo: deprecate this function (announced v1.3.0), which can clash with SQLAlchemy's Model.query()
-        import warnings
-
-        warnings.warn(
-            "Function 'query' will be replaced by 'search_session'.",
-            FutureWarning,
-        )
-        return cls.search_session(*args, **kwargs)
-
-    @classmethod
     def search_session(  # noqa: C901  # todo: remove after removing deprecated arguments
         cls,
         session: Session,
