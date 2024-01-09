@@ -1078,7 +1078,12 @@ def upsample_beliefs_data_frame(
         event_resolution
     )
     if keep_nan_values:
-        # back up NaN values
+        # Back up NaN values.
+        # We are flagging the positions of the NaN values in the original data with a unique number.
+        # The unique number is the series' L1 norm + 1, which is guaranteed not to exist within the series.
+        # For example, for x = [-2, 2, 0, 1, 0.5]  =>  y = L1 norm + 1 = 5.5 + 1 = 6.5
+        # The ( + 1 ) is needed for the special case of a series with only a single non-zero value.
+        # For example, for x = [0, 2, 0, 0, 0]  =>  y = L1 norm + 1 = 2 + 1 = 3
         unique_event_value_not_in_df = df["event_value"].abs().sum() + 1
         df = df.fillna(unique_event_value_not_in_df)
     if isinstance(df, classes.BeliefsDataFrame):
