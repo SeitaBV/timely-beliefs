@@ -49,7 +49,7 @@ dependencies = [
     "pandas >= 1.1.5, < 1.2; python_version <= '3.6'",
     "pandas >= 1.1.5, < 1.3; python_version == '3.7'",
     # https://github.com/SeitaBV/timely-beliefs/issues/148
-    "pandas >= 1.4.0, != 2.1.0, !=2.1.1, <2.2; python_version > '3.7'",
+    "pandas >= 1.4.0, != 2.1.0, !=2.1.1; python_version > '3.7'",
     # scipy's setup requires minimal Python versions
     "scipy<1.6; python_version <= '3.6'",
     "scipy<1.8; python_version <= '3.7'",
