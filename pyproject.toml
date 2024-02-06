@@ -54,6 +54,8 @@ dependencies = [
     "scipy<1.6; python_version <= '3.6'",
     "scipy<1.8; python_version <= '3.7'",
     "scipy; python_version > '3.7'",
+
+    "pytest==7.4.2"
 ]
 dynamic = ["version"]
 
