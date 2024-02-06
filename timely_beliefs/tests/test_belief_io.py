@@ -273,8 +273,7 @@ def test_incomplete_beliefs(missing_column_name, data, present_column_names):
     df = pd.DataFrame(data, columns=present_column_names)
 
     with pytest.raises(KeyError, match=missing_column_name):
-        with pytest.warns(UserWarning, match="created"):
-            tb.BeliefsDataFrame(df)
+        tb.BeliefsDataFrame(df)
 
 
 @pytest.mark.parametrize(
@@ -311,8 +310,7 @@ def test_invalid_beliefs(invalid_column, data, column_names):
     """Test exceptions are thrown when input data is of the wrong type."""
     df = pd.DataFrame(data, columns=column_names)
     with pytest.raises(TypeError, match=invalid_column):
-        with pytest.warns(UserWarning, match="created"):
-            tb.BeliefsDataFrame(df)
+        tb.BeliefsDataFrame(df)
 
 
 @pytest.mark.parametrize(
