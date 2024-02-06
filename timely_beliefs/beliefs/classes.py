@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 import types
 from datetime import datetime, timedelta
@@ -6,10 +8,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
     Type,
     Union,
 )
@@ -92,15 +90,15 @@ class TimedBelief(object):
     def __init__(
         self,
         sensor: Sensor,
-        source: Union[BeliefSource, str, int],
-        event_value: Optional[float] = None,
-        cumulative_probability: Optional[float] = None,
-        cp: Optional[float] = None,
-        sigma: Optional[float] = None,
-        event_start: Optional[DatetimeLike] = None,
-        event_time: Optional[DatetimeLike] = None,
-        belief_horizon: Optional[TimedeltaLike] = None,
-        belief_time: Optional[DatetimeLike] = None,
+        source: BeliefSource | str | int,
+        event_value: float | None = None,
+        cumulative_probability: float | None = None,
+        cp: float | None = None,
+        sigma: float | None = None,
+        event_start: DatetimeLike | None = None,
+        event_time: DatetimeLike | None = None,
+        belief_horizon: TimedeltaLike | None = None,
+        belief_time: DatetimeLike | None = None,
     ):
         self.sensor = sensor
         self.source = source_utils.ensure_source_exists(source)
@@ -226,14 +224,14 @@ class TimedBeliefDBMixin(TimedBelief):
         self,
         sensor: DBSensor,
         source: DBBeliefSource,
-        event_value: Optional[float] = None,
-        cumulative_probability: Optional[float] = None,
-        cp: Optional[float] = None,
-        sigma: Optional[float] = None,
-        event_start: Optional[DatetimeLike] = None,
-        event_time: Optional[DatetimeLike] = None,
-        belief_horizon: Optional[TimedeltaLike] = None,
-        belief_time: Optional[DatetimeLike] = None,
+        event_value: float | None = None,
+        cumulative_probability: float | None = None,
+        cp: float | None = None,
+        sigma: float | None = None,
+        event_start: DatetimeLike | None = None,
+        event_time: DatetimeLike | None = None,
+        belief_horizon: TimedeltaLike | None = None,
+        belief_time: DatetimeLike | None = None,
     ):
         self.sensor_id = sensor.id
         self.source_id = source.id
@@ -305,23 +303,23 @@ class TimedBeliefDBMixin(TimedBelief):
     def search_session(  # noqa: C901
         cls,
         session: Session,
-        sensor: Union[SensorDBMixin, int],
-        sensor_class: Optional[Type[SensorDBMixin]] = DBSensor,
-        event_starts_after: Optional[datetime] = None,
-        event_ends_after: Optional[datetime] = None,
-        event_starts_before: Optional[datetime] = None,
-        event_ends_before: Optional[datetime] = None,
-        beliefs_after: Optional[datetime] = None,
-        beliefs_before: Optional[datetime] = None,
-        horizons_at_least: Optional[timedelta] = None,
-        horizons_at_most: Optional[timedelta] = None,
-        source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
+        sensor: SensorDBMixin | int,
+        sensor_class: Type[SensorDBMixin] | None = DBSensor,
+        event_starts_after: datetime | None = None,
+        event_ends_after: datetime | None = None,
+        event_starts_before: datetime | None = None,
+        event_ends_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
+        horizons_at_least: timedelta | None = None,
+        horizons_at_most: timedelta | None = None,
+        source: BeliefSource | list[BeliefSource] | None = None,
         most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
         place_beliefs_in_sensor_timezone: bool = True,
         place_events_in_sensor_timezone: bool = True,
-        custom_filter_criteria: Optional[List[BinaryExpression]] = None,
-        custom_join_targets: Optional[List[JoinTarget]] = None,
+        custom_filter_criteria: list[BinaryExpression] | None = None,
+        custom_join_targets: list[JoinTarget] | None = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
@@ -576,14 +574,14 @@ class DBTimedBelief(Base, TimedBeliefDBMixin):
         self,
         sensor: DBSensor,
         source: DBBeliefSource,
-        event_value: Optional[float] = None,
-        cumulative_probability: Optional[float] = None,
-        cp: Optional[float] = None,
-        sigma: Optional[float] = None,
-        event_start: Optional[DatetimeLike] = None,
-        event_time: Optional[DatetimeLike] = None,
-        belief_horizon: Optional[TimedeltaLike] = None,
-        belief_time: Optional[DatetimeLike] = None,
+        event_value: float | None = None,
+        cumulative_probability: float | None = None,
+        cp: float | None = None,
+        sigma: float | None = None,
+        event_start: DatetimeLike | None = None,
+        event_time: DatetimeLike | None = None,
+        belief_horizon: TimedeltaLike | None = None,
+        belief_time: DatetimeLike | None = None,
     ):
         TimedBeliefDBMixin.__init__(
             self,
@@ -655,7 +653,7 @@ class BeliefsSeries(pd.Series):
         return super().__repr__() + "\n" + meta_repr(self)
 
     @property
-    def event_frequency(self) -> Optional[timedelta]:
+    def event_frequency(self) -> timedelta | None:
         """Duration between observations of events.
 
         :returns: a timedelta for regularly spaced observations
@@ -762,7 +760,7 @@ class BeliefsDataFrame(pd.DataFrame):
         # Obtain parameters that are specific to our DataFrame subclass
         sensor: Sensor = kwargs.pop("sensor", None)
         event_resolution: TimedeltaLike = kwargs.pop("event_resolution", None)
-        source: Union[BeliefSource, str, int] = kwargs.pop("source", None)
+        source: BeliefSource | str | int = kwargs.pop("source", None)
         source: BeliefSource = source_utils.ensure_source_exists(
             source, allow_none=True
         )
@@ -770,7 +768,7 @@ class BeliefsDataFrame(pd.DataFrame):
         belief_time: DatetimeLike = kwargs.pop("belief_time", None)
         belief_horizon: datetime = kwargs.pop("belief_horizon", None)
         cumulative_probability: float = kwargs.pop("cumulative_probability", None)
-        beliefs: List[TimedBelief] = kwargs.pop("beliefs", None)
+        beliefs: list[TimedBelief] = kwargs.pop("beliefs", None)
         if beliefs is None:  # check if args contains a list of beliefs
             for i, arg in enumerate(args):
                 if isinstance(arg, list):
@@ -941,7 +939,7 @@ class BeliefsDataFrame(pd.DataFrame):
         self,
         event_value_series: pd.Series,
         source: BeliefSource,
-        belief_horizon: Union[timedelta, pd.Series],
+        belief_horizon: timedelta | pd.Series,
         cumulative_probability: float = 0.5,
     ) -> "BeliefsDataFrame":
         """Append beliefs from time series entries into this BeliefsDataFrame. Sensor is assumed to be the same.
@@ -972,7 +970,7 @@ class BeliefsDataFrame(pd.DataFrame):
         return tb_utils.replace_multi_index_level(self, "event_start", self.event_ends)
 
     def convert_timezone_of_belief_timing_index(
-        self, timezone: Union[str, pytz.timezone]
+        self, timezone: str | pytz.timezone
     ) -> "BeliefsDataFrame":
         if "belief_horizon" in self.index.names:
             return self  # timedeltas don't have timezones
@@ -988,7 +986,7 @@ class BeliefsDataFrame(pd.DataFrame):
             )
 
     def convert_timezone_of_event_timing_index(
-        self, timezone: Union[str, pytz.timezone]
+        self, timezone: str | pytz.timezone
     ) -> "BeliefsDataFrame":
         if "event_end" in self.index.names:
             return tb_utils.replace_multi_index_level(
@@ -1041,7 +1039,7 @@ class BeliefsDataFrame(pd.DataFrame):
         return self.probabilistic_depth_per_belief.value_counts()
 
     @property
-    def event_frequency(self) -> Optional[timedelta]:
+    def event_frequency(self) -> timedelta | None:
         """Duration between observations of events.
 
         :returns: a timedelta for regularly spaced observations
@@ -1103,7 +1101,7 @@ class BeliefsDataFrame(pd.DataFrame):
         return self.index.get_level_values("source")
 
     @property
-    def event_time_window(self) -> Tuple[datetime, datetime]:
+    def event_time_window(self) -> tuple[datetime, datetime]:
         start, end = self.index.get_level_values("event_start")[[0, -1]]
         end = end + self.event_resolution
         return start, end
@@ -1111,7 +1109,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @hybrid_method
     def for_each_belief(
         self, fnc: Callable = None, *args: Any, **kwargs: Any
-    ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
+    ) -> "BeliefsDataFrame" | DataFrameGroupBy:
         """Convenient function to apply a function to each belief in the BeliefsDataFrame.
         A belief is a group with unique event start, belief time and source.
         Each individual belief may be deterministic (defined by a single row), or probabilistic (multiple rows).
@@ -1130,7 +1128,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
     def _for_each_belief(
         self, fnc: Callable, collective_beliefs: bool, *args: Any, **kwargs: Any
-    ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
+    ) -> "BeliefsDataFrame" | DataFrameGroupBy:
         """
         If collective_beliefs is True, just group by event start and belief time.
         Otherwise, group beliefs by source, too.
@@ -1161,7 +1159,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @hybrid_method
     def for_each_collective_belief(
         self, fnc: Callable = None, *args: Any, **kwargs: Any
-    ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
+    ) -> "BeliefsDataFrame" | DataFrameGroupBy:
         """Convenient function to apply a function to each collective belief in the BeliefsDataFrame.
         A collective belief is a group with unique event start and belief time, which may contain multiple sources.
         Each individual belief may be deterministic (defined by a single row), or probabilistic (multiple rows).
@@ -1188,13 +1186,11 @@ class BeliefsDataFrame(pd.DataFrame):
     def belief_history(
         self,
         event_start: DatetimeLike,
-        belief_time_window: Tuple[Optional[DatetimeLike], Optional[DatetimeLike]] = (
+        belief_time_window: tuple[DatetimeLike | None, DatetimeLike | None] = (
             None,
             None,
         ),
-        belief_horizon_window: Tuple[
-            Optional[TimedeltaLike], Optional[TimedeltaLike]
-        ] = (
+        belief_horizon_window: tuple[TimedeltaLike | None, TimedeltaLike | None] = (
             None,
             None,
         ),
@@ -1263,7 +1259,7 @@ class BeliefsDataFrame(pd.DataFrame):
     def fixed_viewpoint(
         self,
         belief_time: DatetimeLike = None,
-        belief_time_window: Tuple[Optional[DatetimeLike], Optional[DatetimeLike]] = (
+        belief_time_window: tuple[DatetimeLike | None, DatetimeLike | None] = (
             None,
             None,
         ),
@@ -1324,9 +1320,7 @@ class BeliefsDataFrame(pd.DataFrame):
     def rolling_viewpoint(
         self,
         belief_horizon: TimedeltaLike = None,
-        belief_horizon_window: Tuple[
-            Optional[TimedeltaLike], Optional[TimedeltaLike]
-        ] = (
+        belief_horizon_window: tuple[TimedeltaLike | None, TimedeltaLike | None] = (
             None,
             None,
         ),
@@ -1381,7 +1375,7 @@ class BeliefsDataFrame(pd.DataFrame):
     def resample_events(
         self,
         event_resolution: TimedeltaLike,
-        distribution: Optional[str] = None,
+        distribution: str | None = None,
         keep_only_most_recent_belief: bool = False,
         keep_nan_values: bool = False,
     ) -> "BeliefsDataFrame":
@@ -1531,11 +1525,11 @@ class BeliefsDataFrame(pd.DataFrame):
         belief_time: datetime,
         source: BeliefSource,
         event_start: datetime = None,
-        event_time_window: Optional[Tuple[datetime, datetime]] = (
+        event_time_window: tuple[datetime, datetime] | None = (
             None,
             None,
         ),
-        forecaster: Optional["BaseForecaster"] = None,
+        forecaster: "BaseForecaster" | None = None,
         concatenate: bool = False,
     ):
         """Form new beliefs by applying a given forecaster.
@@ -1665,7 +1659,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
     def accuracy(
         self,
-        t: Union[datetime, timedelta] = None,
+        t: datetime | timedelta = None,
         reference_belief_horizon: timedelta = None,
         reference_source: BeliefSource = None,
         lite_metrics: bool = False,
@@ -1725,7 +1719,7 @@ class BeliefsDataFrame(pd.DataFrame):
     def fixed_viewpoint_accuracy(
         self,
         belief_time: datetime = None,
-        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (
+        belief_time_window: tuple[datetime | None, datetime | None] = (
             None,
             None,
         ),
@@ -1808,7 +1802,7 @@ class BeliefsDataFrame(pd.DataFrame):
     def rolling_viewpoint_accuracy(
         self,
         belief_horizon: timedelta = None,
-        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+        belief_horizon_window: tuple[timedelta | None, timedelta | None] = (
             None,
             None,
         ),
@@ -1879,7 +1873,7 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_source: BeliefSource = None,
         intuitive_forecast_horizon: bool = True,
         interpolate: bool = True,
-        event_value_range: Tuple[Optional[float], Optional[float]] = (None, None),
+        event_value_range: tuple[float | None, float | None] = (None, None),
     ) -> "alt.LayerChart":
         """Visualize the BeliefsDataFrame in an interactive Altair chart.
 
@@ -1926,7 +1920,7 @@ class BeliefsDataFrame(pd.DataFrame):
         df: "BeliefsDataFrame",
         future_only: bool = False,
         distribution: str = "uniform",
-        event_value_window: Tuple[float, float] = None,
+        event_value_window: tuple[float, float] = None,
     ) -> "alt.FacetChart":
         """Create a ridgeline plot of the latest beliefs held at a certain reference time.
 
@@ -1960,7 +1954,7 @@ class BeliefsDataFrame(pd.DataFrame):
         df: "BeliefsDataFrame",
         past_only: bool = False,
         distribution: str = "uniform",
-        event_value_window: Tuple[float, float] = None,
+        event_value_window: tuple[float, float] = None,
     ) -> "alt.FacetChart":
         """Create a ridgeline plot of the belief history about a specific event.
 
@@ -2099,7 +2093,7 @@ def assign_sensor_and_event_resolution(df, sensor, event_resolution):
 
 
 def downsample_beliefs_data_frame(
-    df: BeliefsDataFrame, event_resolution: timedelta, col_att_dict: Dict[str, str]
+    df: BeliefsDataFrame, event_resolution: timedelta, col_att_dict: dict[str, str]
 ) -> BeliefsDataFrame:
     """Because df.resample().agg() doesn't behave nicely for subclassed DataFrames,
     we aggregate each index level and column separately against the resampled event_start level,

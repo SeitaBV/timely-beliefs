@@ -4,7 +4,6 @@ i.e. a duration window in which the knowledge horizon must lie (e.g. between 0 a
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Tuple, Union
 
 import pandas as pd
 
@@ -15,17 +14,17 @@ def at_date(
     event_start: datetime | pd.DatetimeIndex | None,
     knowledge_time: datetime,
     get_bounds: bool = False,
-) -> Union[timedelta | pd.TimedeltaIndex, Tuple[timedelta, timedelta]]:
+) -> timedelta | pd.TimedeltaIndex | tuple[timedelta, timedelta]:
     """Compute the sensor's knowledge horizon to represent the event could be known since some fixed date
     (knowledge time).
 
     For example, can be used for a tariff, in which case the knowledge time is the contract date.
 
-    :param event_start: start of the event, used as an anchor for determining the knowledge horizon.
-    :param knowledge_time: datetime since which all events for the sensor could be known.
-    :param get_bounds: if True, this function returns bounds on the possible return value.
-    These bounds are normally useful for creating more efficient database queries when filtering by belief time.
-    In this case, the knowledge horizon is unbounded.
+    :param event_start:     Start of the event, used as an anchor for determining the knowledge horizon.
+    :param knowledge_time:  Datetime since which all events for the sensor could be known.
+    :param get_bounds:      If True, this function returns bounds on the possible return value.
+                            These bounds are normally useful for creating more efficient database queries when filtering by belief time.
+                            In this case, the knowledge horizon is unbounded.
     """
     if get_bounds:
         return timedelta.min, timedelta.max
@@ -36,7 +35,7 @@ def ex_post(
     event_resolution: timedelta,
     ex_post_horizon: timedelta,
     get_bounds: bool = False,
-) -> Union[timedelta, Tuple[timedelta, timedelta]]:
+) -> timedelta | tuple[timedelta, timedelta]:
     """Compute the sensor's knowledge horizon to represent the event can be known some length of time after it ends.
 
     For example, for most physical events, events can be known when they end.
@@ -44,11 +43,10 @@ def ex_post(
     (i.e. how long before the event starts could the event be known),
     the knowledge horizon in this case is equal to minus the event resolution.
 
-    :param event_resolution: resolution of the event, needed to re-anchor from event_end to event_start.
-    :param ex_post_horizon: length of time after (the end of) the event.
-    :param get_bounds: if True, this function returns bounds on the possible return value.
-    These bounds are useful for creating more efficient database queries when filtering by belief time.
-
+    :param event_resolution:    Resolution of the event, needed to re-anchor from event_end to event_start.
+    :param ex_post_horizon:     Length of time after (the end of) the event.
+    :param get_bounds:          If True, this function returns bounds on the possible return value.
+                                These bounds are useful for creating more efficient database queries when filtering by belief time.
     """
     if get_bounds:
         return -event_resolution - ex_post_horizon, -event_resolution - ex_post_horizon
@@ -58,12 +56,12 @@ def ex_post(
 def ex_ante(
     ex_ante_horizon: timedelta,
     get_bounds: bool = False,
-) -> Union[timedelta, Tuple[timedelta, timedelta]]:
+) -> timedelta | tuple[timedelta, timedelta]:
     """Compute the sensor's knowledge horizon to represent the event can be known some length of time before it starts.
 
-    :param ex_ante_horizon: length of time before (the start of) the event.
-    :param get_bounds: if True, this function returns bounds on the possible return value.
-    These bounds are useful for creating more efficient database queries when filtering by belief time.
+    :param ex_ante_horizon:     Length of time before (the start of) the event.
+    :param get_bounds:          If True, this function returns bounds on the possible return value.
+                                These bounds are useful for creating more efficient database queries when filtering by belief time.
 
     """
     if get_bounds:
@@ -74,18 +72,18 @@ def ex_ante(
 def x_days_ago_at_y_oclock(
     event_start: datetime | pd.DatetimeIndex | None,
     x: int,
-    y: Union[int, float],
+    y: int | float,
     z: str,
     get_bounds: bool = False,
-) -> Union[timedelta | pd.TimedeltaIndex, Tuple[timedelta, timedelta]]:
+) -> timedelta | pd.TimedeltaIndex | tuple[timedelta, timedelta]:
     """Compute the sensor's knowledge horizon to represent the event can be known some previous day at some hour.
 
-    :param event_start: start of the event, used as an anchor for determining the knowledge time.
-    :param x: number of days before the day the event starts.
-    :param y: hour of the day.
-    :param z: timezone string.
-    :param get_bounds: if True, this function returns bounds on the possible return value.
-    These bounds are useful for creating more efficient database queries when filtering by belief time.
+    :param event_start: Start of the event, used as an anchor for determining the knowledge time.
+    :param x:           Number of days before the day the event starts.
+    :param y:           Hour of the day.
+    :param z:           Timezone string.
+    :param get_bounds:  If True, this function returns bounds on the possible return value.
+                        These bounds are useful for creating more efficient database queries when filtering by belief time.
 
     """
     if get_bounds:

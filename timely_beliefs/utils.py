@@ -1,13 +1,15 @@
+from __future__ import annotations
+
 import warnings
 from datetime import datetime, timedelta
-from typing import Optional, Sequence, Union
+from typing import Sequence
 
 import pandas as pd
 
 
 def parse_timedelta_like(
-    td: Union[timedelta, str, pd.Timedelta],
-    variable_name: Optional[str] = None,
+    td: timedelta | str | pd.Timedelta,
+    variable_name: str | None = None,
 ) -> timedelta:
     """Parse timedelta like objects as a datetime.timedelta object.
 
@@ -43,7 +45,7 @@ def parse_timedelta_like(
 
 
 def parse_datetime_like(
-    dt: Union[datetime, str, pd.Timestamp], variable_name: Optional[str] = None
+    dt: datetime | str | pd.Timestamp, variable_name: str | None= None
 ) -> datetime:
     """Parse datetime-like objects as a datetime.datetime object.
 
@@ -63,7 +65,7 @@ def parse_datetime_like(
     return enforce_tz(dt, variable_name)
 
 
-def enforce_tz(dt: datetime, variable_name: Optional[str] = None) -> datetime:
+def enforce_tz(dt: datetime, variable_name: str | None = None) -> datetime:
     """Raise exception in case of a timezone-naive datetime.
 
     :param dt: datetime

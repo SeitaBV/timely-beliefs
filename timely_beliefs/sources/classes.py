@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from functools import total_ordering
-from typing import Union
 
 from sqlalchemy import Column, Integer, String
 
@@ -15,7 +16,7 @@ class BeliefSource(object):
 
     name: str
 
-    def __init__(self, name: Union[str, int]):
+    def __init__(self, name: str | int):
         """Initialize with a name (string or integer identifier)."""
         if not isinstance(name, str):
             if isinstance(name, int):
