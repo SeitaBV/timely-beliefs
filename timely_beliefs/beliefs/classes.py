@@ -4,13 +4,7 @@ import math
 import types
 from datetime import datetime, timedelta
 from functools import partial
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Type,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Callable, Type, Union
 
 from packaging import version
 
@@ -1525,7 +1519,8 @@ class BeliefsDataFrame(pd.DataFrame):
         belief_time: datetime,
         source: BeliefSource,
         event_start: datetime = None,
-        event_time_window: tuple[datetime, datetime] | None = (
+        event_time_window: tuple[datetime, datetime]
+        | None = (
             None,
             None,
         ),

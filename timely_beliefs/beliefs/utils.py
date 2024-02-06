@@ -1037,7 +1037,7 @@ def resample_instantaneous_events(
 
 
 def meta_repr(
-    tb_structure: "classes.BeliefsDataFrame" | "classes.BeliefsSeries"
+    tb_structure: "classes.BeliefsDataFrame" | "classes.BeliefsSeries",
 ) -> str:
     """Returns a string representation of all metadata.
 

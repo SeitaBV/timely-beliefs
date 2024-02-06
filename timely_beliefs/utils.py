@@ -45,7 +45,7 @@ def parse_timedelta_like(
 
 
 def parse_datetime_like(
-    dt: datetime | str | pd.Timestamp, variable_name: str | None= None
+    dt: datetime | str | pd.Timestamp, variable_name: str | None = None
 ) -> datetime:
     """Parse datetime-like objects as a datetime.datetime object.
 
