@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from inspect import getfullargspec, getmembers, isfunction
-from typing import Tuple, Union
 
 import pandas as pd
 from isodate import (
@@ -65,7 +64,7 @@ def eval_verified_knowledge_horizon_fnc(
     event_start: datetime | pd.DatetimeIndex | None = None,
     event_resolution: timedelta = None,
     get_bounds: bool = False,
-) -> Union[timedelta, Tuple[timedelta, timedelta]]:
+) -> timedelta | tuple[timedelta, timedelta]:
     """Evaluate knowledge horizon function to return a knowledge horizon.
     Only function names that represent Callable objects in our function store can be evaluated.
     If get_bounds is True, a tuple is returned with bounds on the possible return value.

@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Optional, Tuple
 
 import altair as alt
 import pandas as pd
@@ -187,7 +188,7 @@ def horizon_selector(
     )
 
 
-def source_color_or(alternative_color: Optional[str] = idle_color, brush=None):
+def source_color_or(alternative_color: str | None = idle_color, brush=None):
     if alternative_color is None:
         alternative_color = ""
     if brush is None:
@@ -215,7 +216,7 @@ def source_selector(source) -> alt.Chart:
 
 
 def ridgeline_selector(
-    probability_scale_range: Tuple[float, float], belief_horizon_unit: str
+    probability_scale_range: tuple[float, float], belief_horizon_unit: str
 ) -> alt.Chart:
     """Transparent selectors across the chart.
     This is what tells us the belief horizon for a given y-value of the cursor.

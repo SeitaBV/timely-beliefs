@@ -29,7 +29,7 @@ def beliefs_recorded_at_unique_knowledge_time(
         DBTimedBelief(
             source=test_source_a,
             sensor=unique_knowledge_time_sensor,
-            value=10 + i,
+            event_value=10 + i,
             belief_time=datetime(1990, 5, 10, 0, tzinfo=utc),
             event_start=datetime(1990, 6, 1 + i, 0, tzinfo=utc),
         )
@@ -48,7 +48,7 @@ def test_query_belief_for_sensor_with_unique_knowledge_time(
         session=session,
         sensor=unique_knowledge_time_sensor,
         beliefs_after=pd.Timestamp("1990-04-01 00:00Z"),
-        belief_before=pd.Timestamp("1990-06-01 00:00Z"),
+        beliefs_before=pd.Timestamp("1990-06-01 00:00Z"),
     ).convert_index_from_belief_time_to_horizon()
     assert belief_df.belief_horizons[0] == timedelta(0)
     assert belief_df.belief_horizons[1] == timedelta(0)
@@ -64,7 +64,7 @@ def day_ahead_belief_about_ex_ante_economical_event(
     belief = DBTimedBelief(
         source=test_source_a,
         sensor=ex_ante_economics_sensor,
-        value=10,
+        event_value=10,
         belief_time=datetime(2018, 1, 1, 10, tzinfo=utc),
         event_start=datetime(2018, 1, 2, 22, 45, tzinfo=utc),
     )
@@ -84,7 +84,7 @@ def multiple_day_ahead_beliefs_about_ex_ante_economical_event(
         belief = DBTimedBelief(
             source=test_source_a,
             sensor=ex_ante_economics_sensor,
-            value=10 + i,
+            event_value=10 + i,
             belief_time=ex_ante_economics_sensor.knowledge_time(event_start)
             - timedelta(hours=i + 1),
             event_start=event_start,
@@ -110,12 +110,12 @@ def multiple_probabilistic_day_ahead_beliefs_about_ex_ante_economical_event(
             for j in range(np):
                 if sensor == ex_ante_economics_sensor and i == 0:
                     # Skip to ensure that sensor B has more recent beliefs
-                    # This is to test the most_recent_only parameter for a query on the other sensor
+                    # This is to test the most_recent_beliefs_only parameter for a query on the other sensor
                     continue
                 belief = DBTimedBelief(
                     source=test_source_a,
                     sensor=sensor,
-                    value=10 + i - j / 100,
+                    event_value=10 + i - j / 100,
                     belief_time=ex_ante_economics_sensor.knowledge_time(event_start)
                     - timedelta(hours=i + 1),
                     event_start=event_start,
@@ -138,7 +138,7 @@ def multiple_day_after_beliefs_about_ex_ante_economical_event(
         belief = DBTimedBelief(
             source=test_source_a,
             sensor=ex_ante_economics_sensor,
-            value=10 + i,
+            event_value=10 + i,
             belief_time=ex_ante_economics_sensor.knowledge_time(event_start)
             + timedelta(hours=i + 1),
             event_start=event_start,
@@ -317,12 +317,14 @@ def test_search_by_sensor_id(
 
     # Query all beliefs for this sensor, using sensor instance (our reference)
     df_by_instance = DBTimedBelief.search_session(
-        session=session, sensor=ex_ante_economics_sensor, most_recent_only=False
+        session=session, sensor=ex_ante_economics_sensor, most_recent_beliefs_only=False
     )
 
     # Query all beliefs for this sensor, using sensor id (our test)
     df_by_id = DBTimedBelief.search_session(
-        session=session, sensor=ex_ante_economics_sensor.id, most_recent_only=False
+        session=session,
+        sensor=ex_ante_economics_sensor.id,
+        most_recent_beliefs_only=False,
     )
     assert not df_by_id.empty
     pd.testing.assert_frame_equal(df_by_id, df_by_instance)
@@ -337,7 +339,7 @@ def test_select_most_recent_deterministic_beliefs(
 
     # Query all beliefs for this sensor
     df = DBTimedBelief.search_session(
-        session=session, sensor=ex_ante_economics_sensor, most_recent_only=False
+        session=session, sensor=ex_ante_economics_sensor, most_recent_beliefs_only=False
     )
 
     # Most recent beliefs selected after query (our reference)
@@ -345,7 +347,7 @@ def test_select_most_recent_deterministic_beliefs(
 
     # Most recent beliefs selected within query (our test)
     df_recent_beliefs_within_query = DBTimedBelief.search_session(
-        session=session, sensor=ex_ante_economics_sensor, most_recent_only=True
+        session=session, sensor=ex_ante_economics_sensor, most_recent_beliefs_only=True
     )
     pd.testing.assert_frame_equal(
         df_recent_beliefs_within_query, df_recent_beliefs_after_query
@@ -374,7 +376,7 @@ def test_select_most_recent_deterministic_beliefs(
     df_recent_both_within_query = DBTimedBelief.search_session(
         session=session,
         sensor=ex_ante_economics_sensor,
-        most_recent_only=True,
+        most_recent_beliefs_only=True,
         most_recent_events_only=True,
     )
     pd.testing.assert_frame_equal(
@@ -389,11 +391,11 @@ def test_select_most_recent_probabilistic_beliefs(
     ],
 ):
     df = DBTimedBelief.search_session(
-        session=session, sensor=ex_ante_economics_sensor, most_recent_only=False
+        session=session, sensor=ex_ante_economics_sensor, most_recent_beliefs_only=False
     )
     most_recent_df = belief_utils.select_most_recent_belief(df)
     df = DBTimedBelief.search_session(
-        session=session, sensor=ex_ante_economics_sensor, most_recent_only=True
+        session=session, sensor=ex_ante_economics_sensor, most_recent_beliefs_only=True
     )
     pd.testing.assert_frame_equal(df, most_recent_df)
 

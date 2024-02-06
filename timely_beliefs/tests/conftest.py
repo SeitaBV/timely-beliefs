@@ -9,8 +9,8 @@ from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
     at_date,
-    determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
     ex_post,
+    x_days_ago_at_y_oclock,
 )
 from timely_beliefs.tests import engine, session
 
@@ -84,7 +84,7 @@ def create_ex_ante_economics_sensor(name: str) -> DBSensor:
         name=name,
         event_resolution=timedelta(minutes=15),
         knowledge_horizon=(
-            determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock,
+            x_days_ago_at_y_oclock,
             dict(x=1, y=12, z="Europe/Amsterdam"),
         ),
     )
@@ -166,7 +166,7 @@ def rolling_day_ahead_beliefs_about_time_slot_events(
         belief = DBTimedBelief(
             sensor=time_slot_sensor,
             source=source,
-            value=10 + i,
+            event_value=10 + i,
             belief_time=datetime(2050, 1, 1, 10, tzinfo=utc) + timedelta(hours=i),
             event_start=datetime(2050, 1, 3, 10, tzinfo=utc) + timedelta(hours=i),
         )
@@ -177,7 +177,7 @@ def rolling_day_ahead_beliefs_about_time_slot_events(
         belief = DBTimedBelief(
             sensor=time_slot_sensor,
             source=source,
-            value=100 + i,
+            event_value=100 + i,
             belief_time=datetime(2050, 1, 1, 10, tzinfo=utc) + timedelta(hours=i - 1),
             event_start=datetime(2050, 1, 3, 10, tzinfo=utc) + timedelta(hours=i),
         )

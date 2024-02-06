@@ -1,18 +1,10 @@
+from __future__ import annotations
+
 import math
 import types
 from datetime import datetime, timedelta
 from functools import partial
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Callable, Type, Union
 
 from packaging import version
 
@@ -89,26 +81,22 @@ class TimedBelief(object):
     source: BeliefSource
     cumulative_probability: float
 
-    def __init__(  # noqa: C901 todo: the noqa can probably be removed when we deprecate the value argument
+    def __init__(
         self,
         sensor: Sensor,
-        source: Union[BeliefSource, str, int],
-        event_value: Optional[float] = None,
-        value: Optional[float] = None,  # deprecated
-        cumulative_probability: Optional[float] = None,
-        cp: Optional[float] = None,
-        sigma: Optional[float] = None,
-        event_start: Optional[DatetimeLike] = None,
-        event_time: Optional[DatetimeLike] = None,
-        belief_horizon: Optional[TimedeltaLike] = None,
-        belief_time: Optional[DatetimeLike] = None,
+        source: BeliefSource | str | int,
+        event_value: float | None = None,
+        cumulative_probability: float | None = None,
+        cp: float | None = None,
+        sigma: float | None = None,
+        event_start: DatetimeLike | None = None,
+        event_time: DatetimeLike | None = None,
+        belief_horizon: TimedeltaLike | None = None,
+        belief_time: DatetimeLike | None = None,
     ):
         self.sensor = sensor
         self.source = source_utils.ensure_source_exists(source)
-        # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.1.0)
-        self.event_value = tb_utils.replace_deprecated_argument(
-            "value", value, "event_value", event_value
-        )
+        self.event_value = event_value
 
         if [cumulative_probability, cp, sigma].count(None) not in (2, 3):
             raise ValueError(
@@ -230,20 +218,15 @@ class TimedBeliefDBMixin(TimedBelief):
         self,
         sensor: DBSensor,
         source: DBBeliefSource,
-        event_value: Optional[float] = None,
-        value: Optional[float] = None,  # deprecated
-        cumulative_probability: Optional[float] = None,
-        cp: Optional[float] = None,
-        sigma: Optional[float] = None,
-        event_start: Optional[DatetimeLike] = None,
-        event_time: Optional[DatetimeLike] = None,
-        belief_horizon: Optional[TimedeltaLike] = None,
-        belief_time: Optional[DatetimeLike] = None,
+        event_value: float | None = None,
+        cumulative_probability: float | None = None,
+        cp: float | None = None,
+        sigma: float | None = None,
+        event_start: DatetimeLike | None = None,
+        event_time: DatetimeLike | None = None,
+        belief_horizon: TimedeltaLike | None = None,
+        belief_time: DatetimeLike | None = None,
     ):
-        # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.3.0)
-        event_value = tb_utils.replace_deprecated_argument(
-            "value", value, "event_value", event_value
-        )
         self.sensor_id = sensor.id
         self.source_id = source.id
         TimedBelief.__init__(
@@ -311,44 +294,26 @@ class TimedBeliefDBMixin(TimedBelief):
             session.commit()
 
     @classmethod
-    @tb_utils.append_doc_of("TimedBeliefDBMixin.search_session")
-    def query(cls, *args, **kwargs):
-        """Function will be deprecated. Please switch to using search_session."""
-        # todo: deprecate this function (announced v1.3.0), which can clash with SQLAlchemy's Model.query()
-        import warnings
-
-        warnings.warn(
-            "Function 'query' will be replaced by 'search_session'.",
-            FutureWarning,
-        )
-        return cls.search_session(*args, **kwargs)
-
-    @classmethod
-    def search_session(  # noqa: C901  # todo: remove after removing deprecated arguments
+    def search_session(  # noqa: C901
         cls,
         session: Session,
-        sensor: Union[SensorDBMixin, int],
-        sensor_class: Optional[Type[SensorDBMixin]] = DBSensor,
-        event_starts_after: Optional[datetime] = None,
-        event_ends_after: Optional[datetime] = None,
-        event_starts_before: Optional[datetime] = None,
-        event_ends_before: Optional[datetime] = None,
-        beliefs_after: Optional[datetime] = None,
-        beliefs_before: Optional[datetime] = None,
-        horizons_at_least: Optional[timedelta] = None,
-        horizons_at_most: Optional[timedelta] = None,
-        event_before: Optional[datetime] = None,  # deprecated
-        event_not_before: Optional[datetime] = None,  # deprecated
-        belief_before: Optional[datetime] = None,  # deprecated
-        belief_not_before: Optional[datetime] = None,  # deprecated
-        source: Optional[Union[BeliefSource, List[BeliefSource]]] = None,
+        sensor: SensorDBMixin | int,
+        sensor_class: Type[SensorDBMixin] | None = DBSensor,
+        event_starts_after: datetime | None = None,
+        event_ends_after: datetime | None = None,
+        event_starts_before: datetime | None = None,
+        event_ends_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
+        horizons_at_least: timedelta | None = None,
+        horizons_at_most: timedelta | None = None,
+        source: BeliefSource | list[BeliefSource] | None = None,
         most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
-        most_recent_only: bool = None,  # deprecated
         place_beliefs_in_sensor_timezone: bool = True,
         place_events_in_sensor_timezone: bool = True,
-        custom_filter_criteria: Optional[List[BinaryExpression]] = None,
-        custom_join_targets: Optional[List[JoinTarget]] = None,
+        custom_filter_criteria: list[BinaryExpression] | None = None,
+        custom_join_targets: list[JoinTarget] | None = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
@@ -378,47 +343,6 @@ class TimedBeliefDBMixin(TimedBelief):
         :returns: a multi-index DataFrame with all relevant beliefs
         """
         source_class = cls.source.property.mapper.class_
-
-        # todo: deprecate the 'event_before' argument in favor of 'event_ends_before' (announced v1.4.1)
-        event_ends_before = tb_utils.replace_deprecated_argument(
-            "event_before",
-            event_before,
-            "event_ends_before",
-            event_ends_before,
-            required_argument=False,
-        )
-        # todo: deprecate the 'event_not_before' argument in favor of 'event_starts_after' (announced v1.4.1)
-        event_starts_after = tb_utils.replace_deprecated_argument(
-            "event_not_before",
-            event_not_before,
-            "event_starts_after",
-            event_starts_after,
-            required_argument=False,
-        )
-        # todo: deprecate the 'belief_before' argument in favor of 'beliefs_before' (announced v1.4.1)
-        beliefs_before = tb_utils.replace_deprecated_argument(
-            "belief_before",
-            belief_before,
-            "beliefs_before",
-            beliefs_before,
-            required_argument=False,
-        )
-        # todo: deprecate the 'belief_not_before' argument in favor of 'beliefs_after' (announced v1.4.1)
-        beliefs_after = tb_utils.replace_deprecated_argument(
-            "belief_not_before",
-            belief_not_before,
-            "beliefs_after",
-            beliefs_after,
-            required_argument=False,
-        )
-        # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v1.7.0)
-        most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
-            "most_recent_only",
-            most_recent_only,
-            "most_recent_beliefs_only",
-            most_recent_beliefs_only,
-            required_argument=False,
-        )
 
         # Check for timezone-aware datetime input
         if not pd.isnull(event_starts_after):
@@ -673,20 +597,15 @@ class DBTimedBelief(Base, TimedBeliefDBMixin):
         self,
         sensor: DBSensor,
         source: DBBeliefSource,
-        event_value: Optional[float] = None,
-        value: Optional[float] = None,  # deprecated
-        cumulative_probability: Optional[float] = None,
-        cp: Optional[float] = None,
-        sigma: Optional[float] = None,
-        event_start: Optional[DatetimeLike] = None,
-        event_time: Optional[DatetimeLike] = None,
-        belief_horizon: Optional[TimedeltaLike] = None,
-        belief_time: Optional[DatetimeLike] = None,
+        event_value: float | None = None,
+        cumulative_probability: float | None = None,
+        cp: float | None = None,
+        sigma: float | None = None,
+        event_start: DatetimeLike | None = None,
+        event_time: DatetimeLike | None = None,
+        belief_horizon: TimedeltaLike | None = None,
+        belief_time: DatetimeLike | None = None,
     ):
-        # todo: deprecate the 'value' argument in favor of 'event_value' (announced v1.3.0)
-        event_value = tb_utils.replace_deprecated_argument(
-            "value", value, "event_value", event_value
-        )
         TimedBeliefDBMixin.__init__(
             self,
             sensor=sensor,
@@ -757,7 +676,7 @@ class BeliefsSeries(pd.Series):
         return super().__repr__() + "\n" + meta_repr(self)
 
     @property
-    def event_frequency(self) -> Optional[timedelta]:
+    def event_frequency(self) -> timedelta | None:
         """Duration between observations of events.
 
         :returns: a timedelta for regularly spaced observations
@@ -864,7 +783,7 @@ class BeliefsDataFrame(pd.DataFrame):
         # Obtain parameters that are specific to our DataFrame subclass
         sensor: Sensor = kwargs.pop("sensor", None)
         event_resolution: TimedeltaLike = kwargs.pop("event_resolution", None)
-        source: Union[BeliefSource, str, int] = kwargs.pop("source", None)
+        source: BeliefSource | str | int = kwargs.pop("source", None)
         source: BeliefSource = source_utils.ensure_source_exists(
             source, allow_none=True
         )
@@ -872,7 +791,7 @@ class BeliefsDataFrame(pd.DataFrame):
         belief_time: DatetimeLike = kwargs.pop("belief_time", None)
         belief_horizon: datetime = kwargs.pop("belief_horizon", None)
         cumulative_probability: float = kwargs.pop("cumulative_probability", None)
-        beliefs: List[TimedBelief] = kwargs.pop("beliefs", None)
+        beliefs: list[TimedBelief] = kwargs.pop("beliefs", None)
         if beliefs is None:  # check if args contains a list of beliefs
             for i, arg in enumerate(args):
                 if isinstance(arg, list):
@@ -1043,7 +962,7 @@ class BeliefsDataFrame(pd.DataFrame):
         self,
         event_value_series: pd.Series,
         source: BeliefSource,
-        belief_horizon: Union[timedelta, pd.Series],
+        belief_horizon: timedelta | pd.Series,
         cumulative_probability: float = 0.5,
     ) -> "BeliefsDataFrame":
         """Append beliefs from time series entries into this BeliefsDataFrame. Sensor is assumed to be the same.
@@ -1074,7 +993,7 @@ class BeliefsDataFrame(pd.DataFrame):
         return tb_utils.replace_multi_index_level(self, "event_start", self.event_ends)
 
     def convert_timezone_of_belief_timing_index(
-        self, timezone: Union[str, pytz.timezone]
+        self, timezone: str | pytz.timezone
     ) -> "BeliefsDataFrame":
         if "belief_horizon" in self.index.names:
             return self  # timedeltas don't have timezones
@@ -1090,7 +1009,7 @@ class BeliefsDataFrame(pd.DataFrame):
             )
 
     def convert_timezone_of_event_timing_index(
-        self, timezone: Union[str, pytz.timezone]
+        self, timezone: str | pytz.timezone
     ) -> "BeliefsDataFrame":
         if "event_end" in self.index.names:
             return tb_utils.replace_multi_index_level(
@@ -1143,7 +1062,7 @@ class BeliefsDataFrame(pd.DataFrame):
         return self.probabilistic_depth_per_belief.value_counts()
 
     @property
-    def event_frequency(self) -> Optional[timedelta]:
+    def event_frequency(self) -> timedelta | None:
         """Duration between observations of events.
 
         :returns: a timedelta for regularly spaced observations
@@ -1205,7 +1124,7 @@ class BeliefsDataFrame(pd.DataFrame):
         return self.index.get_level_values("source")
 
     @property
-    def event_time_window(self) -> Tuple[datetime, datetime]:
+    def event_time_window(self) -> tuple[datetime, datetime]:
         start, end = self.index.get_level_values("event_start")[[0, -1]]
         end = end + self.event_resolution
         return start, end
@@ -1213,7 +1132,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @hybrid_method
     def for_each_belief(
         self, fnc: Callable = None, *args: Any, **kwargs: Any
-    ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
+    ) -> "BeliefsDataFrame" | DataFrameGroupBy:
         """Convenient function to apply a function to each belief in the BeliefsDataFrame.
         A belief is a group with unique event start, belief time and source.
         Each individual belief may be deterministic (defined by a single row), or probabilistic (multiple rows).
@@ -1232,7 +1151,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
     def _for_each_belief(
         self, fnc: Callable, collective_beliefs: bool, *args: Any, **kwargs: Any
-    ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
+    ) -> "BeliefsDataFrame" | DataFrameGroupBy:
         """
         If collective_beliefs is True, just group by event start and belief time.
         Otherwise, group beliefs by source, too.
@@ -1263,7 +1182,7 @@ class BeliefsDataFrame(pd.DataFrame):
     @hybrid_method
     def for_each_collective_belief(
         self, fnc: Callable = None, *args: Any, **kwargs: Any
-    ) -> Union["BeliefsDataFrame", DataFrameGroupBy]:
+    ) -> "BeliefsDataFrame" | DataFrameGroupBy:
         """Convenient function to apply a function to each collective belief in the BeliefsDataFrame.
         A collective belief is a group with unique event start and belief time, which may contain multiple sources.
         Each individual belief may be deterministic (defined by a single row), or probabilistic (multiple rows).
@@ -1290,13 +1209,11 @@ class BeliefsDataFrame(pd.DataFrame):
     def belief_history(
         self,
         event_start: DatetimeLike,
-        belief_time_window: Tuple[Optional[DatetimeLike], Optional[DatetimeLike]] = (
+        belief_time_window: tuple[DatetimeLike | None, DatetimeLike | None] = (
             None,
             None,
         ),
-        belief_horizon_window: Tuple[
-            Optional[TimedeltaLike], Optional[TimedeltaLike]
-        ] = (
+        belief_horizon_window: tuple[TimedeltaLike | None, TimedeltaLike | None] = (
             None,
             None,
         ),
@@ -1365,7 +1282,7 @@ class BeliefsDataFrame(pd.DataFrame):
     def fixed_viewpoint(
         self,
         belief_time: DatetimeLike = None,
-        belief_time_window: Tuple[Optional[DatetimeLike], Optional[DatetimeLike]] = (
+        belief_time_window: tuple[DatetimeLike | None, DatetimeLike | None] = (
             None,
             None,
         ),
@@ -1426,9 +1343,7 @@ class BeliefsDataFrame(pd.DataFrame):
     def rolling_viewpoint(
         self,
         belief_horizon: TimedeltaLike = None,
-        belief_horizon_window: Tuple[
-            Optional[TimedeltaLike], Optional[TimedeltaLike]
-        ] = (
+        belief_horizon_window: tuple[TimedeltaLike | None, TimedeltaLike | None] = (
             None,
             None,
         ),
@@ -1483,7 +1398,7 @@ class BeliefsDataFrame(pd.DataFrame):
     def resample_events(
         self,
         event_resolution: TimedeltaLike,
-        distribution: Optional[str] = None,
+        distribution: str | None = None,
         keep_only_most_recent_belief: bool = False,
         keep_nan_values: bool = False,
     ) -> "BeliefsDataFrame":
@@ -1633,11 +1548,12 @@ class BeliefsDataFrame(pd.DataFrame):
         belief_time: datetime,
         source: BeliefSource,
         event_start: datetime = None,
-        event_time_window: Optional[Tuple[datetime, datetime]] = (
+        event_time_window: tuple[datetime, datetime]
+        | None = (
             None,
             None,
         ),
-        forecaster: Optional["BaseForecaster"] = None,
+        forecaster: "BaseForecaster" | None = None,
         concatenate: bool = False,
     ):
         """Form new beliefs by applying a given forecaster.
@@ -1767,7 +1683,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
     def accuracy(
         self,
-        t: Union[datetime, timedelta] = None,
+        t: datetime | timedelta = None,
         reference_belief_horizon: timedelta = None,
         reference_source: BeliefSource = None,
         lite_metrics: bool = False,
@@ -1827,7 +1743,7 @@ class BeliefsDataFrame(pd.DataFrame):
     def fixed_viewpoint_accuracy(
         self,
         belief_time: datetime = None,
-        belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (
+        belief_time_window: tuple[datetime | None, datetime | None] = (
             None,
             None,
         ),
@@ -1910,7 +1826,7 @@ class BeliefsDataFrame(pd.DataFrame):
     def rolling_viewpoint_accuracy(
         self,
         belief_horizon: timedelta = None,
-        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+        belief_horizon_window: tuple[timedelta | None, timedelta | None] = (
             None,
             None,
         ),
@@ -1981,7 +1897,7 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_source: BeliefSource = None,
         intuitive_forecast_horizon: bool = True,
         interpolate: bool = True,
-        event_value_range: Tuple[Optional[float], Optional[float]] = (None, None),
+        event_value_range: tuple[float | None, float | None] = (None, None),
     ) -> "alt.LayerChart":
         """Visualize the BeliefsDataFrame in an interactive Altair chart.
 
@@ -2028,7 +1944,7 @@ class BeliefsDataFrame(pd.DataFrame):
         df: "BeliefsDataFrame",
         future_only: bool = False,
         distribution: str = "uniform",
-        event_value_window: Tuple[float, float] = None,
+        event_value_window: tuple[float, float] = None,
     ) -> "alt.FacetChart":
         """Create a ridgeline plot of the latest beliefs held at a certain reference time.
 
@@ -2062,7 +1978,7 @@ class BeliefsDataFrame(pd.DataFrame):
         df: "BeliefsDataFrame",
         past_only: bool = False,
         distribution: str = "uniform",
-        event_value_window: Tuple[float, float] = None,
+        event_value_window: tuple[float, float] = None,
     ) -> "alt.FacetChart":
         """Create a ridgeline plot of the belief history about a specific event.
 
@@ -2096,7 +2012,6 @@ class BeliefsDataFrame(pd.DataFrame):
         reference_belief_horizon: timedelta = None,
         reference_source: BeliefSource = None,
         return_reference_type: str = "full",
-        return_expected_value: Optional[bool] = None,  # deprecated
     ) -> "BeliefsDataFrame":
         """Add a column with reference values.
         By default, the reference will be the probabilistic value of the most recent belief held by the same source.
@@ -2116,17 +2031,6 @@ class BeliefsDataFrame(pd.DataFrame):
                - "mean": a deterministic reference using the mean value
                - "median": a deterministic reference using the median value
         """
-
-        # todo: deprecate the 'return_expected_value' argument in favor of 'return_reference_type' (announced v1.9.0)
-        return_expected_value = tb_utils.replace_deprecated_argument(
-            "return_expected_value",
-            return_expected_value,
-            "return_reference_type",
-            return_reference_type,
-            required_argument=False,
-        )
-        if isinstance(return_expected_value, bool):
-            return_reference_type = "mean" if return_expected_value else "full"
 
         df = self
 
@@ -2213,7 +2117,7 @@ def assign_sensor_and_event_resolution(df, sensor, event_resolution):
 
 
 def downsample_beliefs_data_frame(
-    df: BeliefsDataFrame, event_resolution: timedelta, col_att_dict: Dict[str, str]
+    df: BeliefsDataFrame, event_resolution: timedelta, col_att_dict: dict[str, str]
 ) -> BeliefsDataFrame:
     """Because df.resample().agg() doesn't behave nicely for subclassed DataFrames,
     we aggregate each index level and column separately against the resampled event_start level,

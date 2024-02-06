@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import timedelta
-from typing import Optional
 
 from sqlalchemy import Select, and_, func, select
 from sqlalchemy.orm import Query, Session, aliased
@@ -7,8 +8,8 @@ from sqlalchemy.orm import Query, Session, aliased
 
 def query_unchanged_beliefs(
     session: Session,
-    cls: Optional["TimedBeliefDBMixin"] = None,  # noqa F821
-    query: Optional[Query] = None,
+    cls: "TimedBeliefDBMixin" | None = None,  # noqa F821
+    query: Query | None = None,
     include_positive_horizons: bool = True,  # include belief horizons > 0 (i.e. forecasts)
     include_non_positive_horizons: bool = True,  # include belief horizons <= 0 (i.e. measurements, nowcasts and backcasts)
 ) -> Select:

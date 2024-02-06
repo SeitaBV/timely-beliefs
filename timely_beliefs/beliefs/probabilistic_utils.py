@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import math
 from itertools import product
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable
 
 import numpy as np
 import openturns as ot
@@ -14,14 +16,12 @@ from timely_beliefs.beliefs import classes  # noqa: F401
 
 
 def interpret_complete_cdf(
-    cdfs_p: List[Union[list, np.ndarray]],
-    cdfs_v: List[Union[list, np.ndarray]],
+    cdfs_p: list[list | np.ndarray],
+    cdfs_v: list[list | np.ndarray],
     distribution: str = None,
-) -> Union[
-    List[Union[list, np.ndarray]],
-    Tuple[List[Union[list, np.ndarray]], List[Union[list, np.ndarray]]],
-    ot.DistributionImplementation,
-]:
+) -> list[list | np.ndarray] | tuple[
+    list[list | np.ndarray], list[list | np.ndarray]
+] | ot.DistributionImplementation:
     """Interpret the given points on the cumulative distribution function to represent a complete CDF. The default
     policy is to assume discrete probabilities.
     If a distribution name is specified, the CDF is returned as an openturns distribution object.
@@ -81,7 +81,7 @@ def probabilistic_nan_mean(
     df: "classes.BeliefsDataFrame",
     output_resolution,
     input_resolution,
-    distribution: Optional[str] = None,
+    distribution: str | None = None,
 ) -> "classes.BeliefsDataFrame":
     """Calculate the mean value while ignoring nan values."""
 
@@ -125,10 +125,9 @@ def probabilistic_nan_mean(
 
 
 def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
-    marginal_cdfs_p: Union[
-        List[Union[List[float], np.ndarray, ot.DistributionImplementation]], np.ndarray
-    ],
-    marginal_cdfs_v: Union[List[Union[List[float], np.ndarray]], np.ndarray] = None,
+    marginal_cdfs_p: list[list[float] | np.ndarray | ot.DistributionImplementation]
+    | np.ndarray,
+    marginal_cdfs_v: list[list[float] | np.ndarray] | np.ndarray = None,
     a: float = 0,
     b: float = 1,
     copula: ot.DistributionImplementation = None,
@@ -136,7 +135,7 @@ def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
     simplify: bool = True,
     n_draws: int = 100,
     empirical: bool = False,
-) -> Tuple[np.array, np.array]:
+) -> tuple[np.array, np.array]:
     """Calculate univariate joint CDF given a list of multivariate marginal CDFs and a copula,
     returning both the cumulative probabilities and the aggregated outcome of the random variables.
 
@@ -335,9 +334,9 @@ def fill_zeros_with_last(arr):
 
 
 def bin_it(
-    binned_marginal_cdf_v: Union[List[float], np.ndarray],
-    marginal_cdf_v: Union[np.ndarray, List[float]],
-    marginal_cdf_p: Union[np.ndarray, List[float]],
+    binned_marginal_cdf_v: list[float] | np.ndarray,
+    marginal_cdf_v: np.ndarray | list[float],
+    marginal_cdf_p: np.ndarray | list[float],
 ):
     """Given outcome bins, and a marginal cdf (outcomes and probabilities), determine the binned marginal cdf."""
     binned_marginal_cdf_p = np.zeros(len(binned_marginal_cdf_v))
@@ -349,8 +348,8 @@ def bin_it(
 
 
 def equalize_bins(
-    cdf_values: Union[List[List[float]], np.ndarray],
-    cdf_probabilities: List[List[float]],
+    cdf_values: list[list[float]] | np.ndarray,
+    cdf_probabilities: list[list[float]],
     equal_bin_size: bool = False,
 ):
     """Define bins that cover all unique marginal outcomes, and compute each marginal cdf for these bins.
@@ -477,7 +476,7 @@ def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame"
     return df_score
 
 
-def partial_cdf(cdf_p: np.ndarray, cdf_v: np.ndarray, cp_range: Tuple[float, float]):
+def partial_cdf(cdf_p: np.ndarray, cdf_v: np.ndarray, cp_range: tuple[float, float]):
     """Calculate partial cdf within the given cumulative probability range."""
 
     # Select relevant probabilities within the given range
@@ -494,7 +493,7 @@ def partial_cdf(cdf_p: np.ndarray, cdf_v: np.ndarray, cp_range: Tuple[float, flo
 
 def get_cdfs_from_beliefsdataframe(
     df: "classes.BeliefsDataFrame",
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """From a BeliefsDataFrame with a single belief, get the cumulative distribution functions."""
     if df.empty:
         return np.empty(0), np.empty(0)
@@ -509,14 +508,14 @@ def get_cdfs_from_beliefsdataframe(
 
 def get_pdfs_from_beliefsdataframe(
     df: "classes.BeliefsDataFrame",
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """From a BeliefsDataFrame with a single belief, get the probability distribution functions."""
     cdf_p, pdf_v = get_cdfs_from_beliefsdataframe(df)
     pdf_p = cp_to_p(cdf_p)
     return pdf_p, pdf_v
 
 
-def cp_to_p(cp: Union[List[float], np.ndarray]) -> np.ndarray:
+def cp_to_p(cp: list[float] | np.ndarray) -> np.ndarray:
     """Convert numpy array of cumulative probabilities to probabilities. If list, cast to numpy array."""
     return np.concatenate(([cp[0]], np.diff(cp))) if len(cp) != 0 else np.empty(0)
 
@@ -554,7 +553,7 @@ def get_mean_belief(
         cdf_p.append(vp.index.get_level_values("cumulative_probability").values)
 
     # Interpret cumulative probabilities as a description of the complete cdf, and calculate means
-    cdfs: List[ot.DistributionImplementation] = interpret_complete_cdf(
+    cdfs: list[ot.DistributionImplementation] = interpret_complete_cdf(
         cdf_p, cdf_v, distribution=distribution
     )
     means = [cdf.getMean()[0] for cdf in cdfs]

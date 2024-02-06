@@ -1,4 +1,4 @@
-from typing import Tuple, Union
+from __future__ import annotations
 
 import altair as alt
 import pandas as pd
@@ -7,7 +7,7 @@ from timely_beliefs.visualization import selectors
 
 
 def time_series_base_chart(
-    source: Union[pd.DataFrame, str],
+    source: pd.DataFrame | str,
     belief_horizon_unit: str,
     intuitive_forecast_horizon: bool,
 ) -> alt.Chart:
@@ -64,7 +64,7 @@ def value_vs_time_chart(
     intuitive_forecast_horizon: bool,
     interpolate: bool,
     ci: float,
-    event_value_range: Tuple[float, float],
+    event_value_range: tuple[float, float],
 ) -> alt.LayerChart:
 
     # Configure the stepwise line for the reference
@@ -245,7 +245,7 @@ def accuracy_vs_horizon_chart(
 
 def source_vs_hour_chart(
     base: alt.Chart, sensor_unit: str, max_absolute_error: float, faceted: bool = False
-) -> Union[alt.Chart, alt.FacetChart]:
+) -> alt.Chart | alt.FacetChart:
     hd_chart = (
         base.mark_rect()
         .transform_joinaggregate(
@@ -300,7 +300,7 @@ def source_vs_hour_chart(
     )
 
 
-def deterministic_chart(probability_scale_range: Tuple[float, float]):
+def deterministic_chart(probability_scale_range: tuple[float, float]):
     return (
         alt.Chart()
         .mark_circle(color="red")
@@ -320,7 +320,7 @@ def deterministic_chart(probability_scale_range: Tuple[float, float]):
 
 
 def probabilistic_chart(
-    probability_scale_range: Tuple[float, float],
+    probability_scale_range: tuple[float, float],
     belief_horizon_unit: str,
     sensor_name: str,
     sensor_unit: str,

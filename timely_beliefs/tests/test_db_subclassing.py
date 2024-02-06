@@ -127,7 +127,7 @@ def test_custom_source_and_beliefs_with_mixin(db):
         source=source,
         belief_time=now,
         event_start=now + timedelta(minutes=3),
-        value=100,
+        event_value=100,
         happiness=3,
     )
     session.add(belief)
@@ -163,7 +163,6 @@ def test_custom_source_and_beliefs_with_mixin(db):
     assert "my_belief_source" in db.tables.keys()
     assert "my_timed_belief" in db.tables.keys()
 
-    # todo: adjust test for deprecated query method
-    bdf = JoyfulBeliefInCustomTable.query(session, sensor)
+    bdf = JoyfulBeliefInCustomTable.search_session(session, sensor)
     assert isinstance(bdf, BeliefsDataFrame)
     assert len(bdf) == 1
