@@ -501,7 +501,7 @@ class TimedBeliefDBMixin(TimedBelief):
             )
             # Apply event and belief timing filters to the subquery, too,
             # before taking the minimum horizon (the former is crucial for speed)
-            # subq = apply_event_timing_filters(subq)
+            subq = apply_event_timing_filters(subq)
             subq = apply_belief_timing_filters(subq)
             subq = (
                 subq.filter(cls.sensor_id == sensor.id)
