@@ -508,7 +508,6 @@ class TimedBeliefDBMixin(TimedBelief):
                 .group_by(cls.event_start, cls.source_id)
                 .subquery()
             )
-            print(str(subq))
             q = q.join(
                 subq,
                 and_(
