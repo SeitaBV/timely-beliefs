@@ -187,9 +187,9 @@ class TimedBeliefDBMixin(TimedBelief):
             Index(
                 f"{cls.__tablename__}_quad_unique_and_search_idx",
                 "event_start",
-                "belief_horizon",
-                "sensor_id",
                 "source_id",
+                "sensor_id",
+                "belief_horizon",
                 unique=True,
             ),
         )
