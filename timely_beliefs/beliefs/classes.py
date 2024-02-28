@@ -32,7 +32,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import Session, backref, declarative_mixin, relationship
 from sqlalchemy.orm.util import AliasedClass
-from sqlalchemy.schema import Index
+from sqlalchemy.schema import Index, UniqueConstraint
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.expression import Selectable
 
@@ -184,13 +184,20 @@ class TimedBeliefDBMixin(TimedBelief):
     @declared_attr
     def __table_args__(cls):
         return (
+            UniqueConstraint(
+                    "event_start",
+                    "belief_horizon",
+                    "sensor_id",
+                    "source_id",
+                    "cumulative_probability",
+                    name=f"{cls.__tablename__}_one_belief_by_one_source_uc",
+                ),
             Index(
-                f"{cls.__tablename__}_quad_unique_and_search_idx",
+                f"{cls.__tablename__}_quad_search_idx",
                 "event_start",
                 "source_id",
                 "sensor_id",
                 "belief_horizon",
-                unique=True,
             ),
         )
 
