@@ -185,13 +185,13 @@ class TimedBeliefDBMixin(TimedBelief):
     def __table_args__(cls):
         return (
             UniqueConstraint(
-                    "event_start",
-                    "belief_horizon",
-                    "sensor_id",
-                    "source_id",
-                    "cumulative_probability",
-                    name=f"{cls.__tablename__}_one_belief_by_one_source_uc",
-                ),
+                "event_start",
+                "belief_horizon",
+                "sensor_id",
+                "source_id",
+                "cumulative_probability",
+                name=f"{cls.__tablename__}_one_belief_by_one_source_uc",
+            ),
             Index(
                 f"{cls.__tablename__}_quad_search_idx",
                 "event_start",
