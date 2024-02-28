@@ -32,7 +32,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import Session, backref, declarative_mixin, relationship
 from sqlalchemy.orm.util import AliasedClass
-from sqlalchemy.schema import Index, UniqueConstraint
+from sqlalchemy.schema import Index
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.expression import Selectable
 
