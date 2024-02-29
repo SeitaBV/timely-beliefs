@@ -412,7 +412,7 @@ class TimedBeliefDBMixin(TimedBelief):
                 else:
                     # exclusive
                     q = q.filter(
-                        cls.event_start + sensor.event_resolution > event_ends_after
+                        cls.event_start > event_ends_after - sensor.event_resolution
                     )
             if not pd.isnull(event_starts_before):
                 if sensor.event_resolution == timedelta(0):
@@ -423,7 +423,7 @@ class TimedBeliefDBMixin(TimedBelief):
                     q = q.filter(cls.event_start < event_starts_before)
             if not pd.isnull(event_ends_before):
                 q = q.filter(
-                    cls.event_start + sensor.event_resolution <= event_ends_before
+                    cls.event_start <= event_ends_before - sensor.event_resolution
                 )
 
             return q
@@ -441,8 +441,8 @@ class TimedBeliefDBMixin(TimedBelief):
                 knowledge_horizon_min, timedelta.min
             ):
                 q = q.filter(
-                    cls.event_start
-                    >= beliefs_after + cls.belief_horizon + knowledge_horizon_min
+                    cls.event_start - cls.belief_horizon
+                    >= beliefs_after + knowledge_horizon_min
                 )
             if not pd.isnull(
                 beliefs_before
@@ -450,8 +450,8 @@ class TimedBeliefDBMixin(TimedBelief):
                 knowledge_horizon_max, timedelta.max
             ):
                 q = q.filter(
-                    cls.event_start
-                    <= beliefs_before + cls.belief_horizon + knowledge_horizon_max
+                    cls.event_start - cls.belief_horizon
+                    <= beliefs_before + knowledge_horizon_max
                 )
 
             # Apply belief horizon filter
