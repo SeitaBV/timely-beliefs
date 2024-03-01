@@ -30,9 +30,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
-from sqlalchemy.orm import Session, backref, has_inherited_table, relationship
+from sqlalchemy.orm import Session, backref, declarative_mixin, relationship
 from sqlalchemy.orm.util import AliasedClass
-from sqlalchemy.schema import UniqueConstraint
+from sqlalchemy.schema import Index
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.expression import Selectable
 
@@ -174,6 +174,7 @@ class TimedBelief(object):
         return None
 
 
+@declarative_mixin
 class TimedBeliefDBMixin(TimedBelief):
     """
     Mixin class for a table with beliefs.
@@ -182,17 +183,17 @@ class TimedBeliefDBMixin(TimedBelief):
 
     @declared_attr
     def __table_args__(cls):
-        if has_inherited_table(cls):
-            return (
-                UniqueConstraint(
-                    "event_start",
-                    "belief_horizon",
-                    "sensor_id",
-                    "source_id",
-                    name="_one_belief_by_one_source_uc",
-                ),
-            )
-        return None
+        return (
+            Index(
+                f"{cls.__tablename__}_search_session_idx",
+                "event_start",
+                "sensor_id",
+                "source_id",
+                postgresql_include=[
+                    "belief_horizon",  # we use min() on this
+                ],
+            ),
+        )
 
     event_start = Column(DateTime(timezone=True), primary_key=True, index=True)
     belief_horizon = Column(Interval(), nullable=False, primary_key=True)
@@ -1500,9 +1501,9 @@ class BeliefsDataFrame(pd.DataFrame):
                 column_functions = {
                     "event_value": "mean",
                     "source": "first",  # keep the only source
-                    belief_timing_col: "max"
-                    if belief_timing_col == "belief_time"
-                    else "min",  # keep only most recent belief
+                    belief_timing_col: (
+                        "max" if belief_timing_col == "belief_time" else "min"
+                    ),  # keep only most recent belief
                     "cumulative_probability": "mean",  # we just have one point on each CDF
                 }
                 df = downsample_beliefs_data_frame(
