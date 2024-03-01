@@ -185,11 +185,13 @@ class TimedBeliefDBMixin(TimedBelief):
     def __table_args__(cls):
         return (
             Index(
-                f"{cls.__tablename__}_quad_search_idx",
+                f"{cls.__tablename__}_search_session_idx",
                 "event_start",
-                "source_id",
                 "sensor_id",
-                "belief_horizon",
+                "source_id",
+                postgresql_include=[
+                    "belief_horizon",  # we use min() on this
+                ]
             ),
         )
 
