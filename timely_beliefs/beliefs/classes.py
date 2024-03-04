@@ -520,12 +520,18 @@ class TimedBeliefDBMixin(TimedBelief):
 
         # Apply most recent events filter as subquery
         if most_recent_events_only:
+            subq_most_recent_events = select(
+                cls.source_id,
+                func.max(cls.event_start).label("most_recent_event_start"),
+            )
+            subq_most_recent_events = apply_event_timing_filters(
+                subq_most_recent_events
+            )
+            subq_most_recent_events = apply_belief_timing_filters(
+                subq_most_recent_events
+            )
             subq_most_recent_events = (
-                select(
-                    cls.source_id,
-                    func.max(cls.event_start).label("most_recent_event_start"),
-                )
-                .filter(cls.sensor_id == sensor.id)
+                subq_most_recent_events.filter(cls.sensor_id == sensor.id)
                 .group_by(cls.source_id)
                 .subquery()
             )
