@@ -631,16 +631,15 @@ def read_csv(  # noqa C901
             if col not in kwargs.get("usecols", [])
         ]
     ext = find_out_extension(path)
-    dayfirst = None
     if ext.lower() == "csv":
         df = pd.read_csv(path, **kwargs)
     elif ext.lower() in ("xlsm", "xlsx", "xls"):
-        dayfirst = kwargs.pop("dayfirst", None)
         df = pd.read_excel(path, **kwargs)  # requires openpyxl
     else:
         raise TypeError(
             f"Extension {ext} not recognized. Accepted file extensions are csv, xlsm, xlsx and xls."
         )
+    dayfirst = kwargs.pop("dayfirst", None)
     if filter_by_column:
         # Filter the read-in data
         for col, val in filter_by_column.items():
@@ -766,7 +765,7 @@ def interpret_special_read_cases(
     sensor: "classes.Sensor",
     resample: bool,
     timezone: str | None,
-    dayfirst: bool,
+    dayfirst: bool | None,
     split: str | None = None,
 ) -> pd.DataFrame:
     """Interpret the read-in data, either as event starts and event values (2 cols),
