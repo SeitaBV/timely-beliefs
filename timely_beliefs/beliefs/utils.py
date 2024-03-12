@@ -1067,11 +1067,15 @@ def convert_to_instantaneous(
     """
     df2 = df.copy()
     df2.index = df2.index + df.event_resolution
-    df = df.reset_index().set_index(["event_start", "belief_time", "source", "cumulative_probability"])
-    df2 = df2.reset_index().set_index(["event_start", "belief_time", "source", "cumulative_probability"])
+    df = df.reset_index().set_index(
+        ["event_start", "belief_time", "source", "cumulative_probability"]
+    )
+    df2 = df2.reset_index().set_index(
+        ["event_start", "belief_time", "source", "cumulative_probability"]
+    )
     df = pd.concat([df, df2], axis=1)
     if boundary_policy == "first":
-        s = df.fillna(method='bfill', axis=1).iloc[:, 0]
+        s = df.fillna(method="bfill", axis=1).iloc[:, 0]
     else:
         s = getattr(df, boundary_policy)(axis=1).rename("event_value")
     df = s.sort_index().reset_index().set_index("event_start")

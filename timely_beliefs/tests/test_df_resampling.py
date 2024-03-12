@@ -449,6 +449,6 @@ def test_upsample_to_instantaneous(df_4111, test_source_a: BeliefSource):
     ]
     pd.testing.assert_index_equal(
         df.index.get_level_values(level="event_start"),
-        pd.DatetimeIndex(expected_event_starts, name="event_start")
+        pd.DatetimeIndex(expected_event_starts, name="event_start"),
     )
     assert df["event_value"].values.tolist() == expected_values
