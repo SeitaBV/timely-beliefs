@@ -1054,22 +1054,53 @@ def meta_repr(
     )
 
 
+def convert_to_instantaneous(
+    df: "classes.BeliefsDataFrame",
+    boundary_policy: str,
+):
+    """Convert non-instantaneous events to instantaneous events.
+
+    Expects event_start as the sole index, and belief_time, source, cumulative_probability and event_value as columns.
+
+    :param df:              frame to convert
+    :param boundary_policy: 'min', 'max' or 'first'
+    """
+    df2 = df.copy()
+    df2.index = df2.index + df.event_resolution
+    df = df.reset_index().set_index(["event_start", "belief_time", "source", "cumulative_probability"])
+    df2 = df2.reset_index().set_index(["event_start", "belief_time", "source", "cumulative_probability"])
+    df = pd.concat([df, df2], axis=1)
+    if boundary_policy == "first":
+        s = df.fillna(method='bfill', axis=1).iloc[:, 0]
+    else:
+        s = getattr(df, boundary_policy)(axis=1).rename("event_value")
+    df = s.sort_index().reset_index().set_index("event_start")
+    df.event_resolution = timedelta(0)
+    return df
+
+
 def upsample_beliefs_data_frame(
     df: "classes.BeliefsDataFrame" | pd.DataFrame,
     event_resolution: timedelta,
     keep_nan_values: bool = False,
+    boundary_policy: str = "first",
 ) -> "classes.BeliefsDataFrame":
     """Because simply doing df.resample().ffill() does not correctly resample the last event in the data frame.
 
     :param df:                  In case of a regular pd.DataFrame, make sure to set df.event_resolution before passing it to this function.
     :param event_resolution:    Resolution to upsample to.
     :param keep_nan_values:     If True, place back resampled NaN values. Drops NaN values by default.
+    :param boundary_policy:     When upsampling to instantaneous events,
+                                take the 'max', 'min' or 'first' value at event boundaries.
     """
     if df.empty:
         df.event_resolution = event_resolution
         return df
     if event_resolution == timedelta(0):
-        raise NotImplementedError("Cannot upsample to zero event resolution.")
+        return convert_to_instantaneous(
+            df=df,
+            boundary_policy=boundary_policy,
+        )
     from_event_resolution = df.event_resolution
     if from_event_resolution == timedelta(0):
         raise NotImplementedError("Cannot upsample from zero event resolution.")

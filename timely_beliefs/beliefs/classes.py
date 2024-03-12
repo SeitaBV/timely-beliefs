@@ -1419,6 +1419,7 @@ class BeliefsDataFrame(pd.DataFrame):
         distribution: str | None = None,
         keep_only_most_recent_belief: bool = False,
         keep_nan_values: bool = False,
+        boundary_policy: str = "first",
     ) -> "BeliefsDataFrame":
         """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample).
 
@@ -1469,6 +1470,8 @@ class BeliefsDataFrame(pd.DataFrame):
         :param keep_only_most_recent_belief: If True, assign the most recent belief time to each event after resampling.
                                              Only applies in case of multiple beliefs per event.
         :param keep_nan_values: If True, place back resampled NaN values. Drops NaN values by default.
+        :param boundary_policy: When upsampling to instantaneous events,
+                                take the 'max', 'min' or 'first' value at event boundaries.
         """
 
         if self.empty:
@@ -1522,7 +1525,10 @@ class BeliefsDataFrame(pd.DataFrame):
                     level=[belief_timing_col, "source", "cumulative_probability"]
                 )
                 df = belief_utils.upsample_beliefs_data_frame(
-                    df, event_resolution, keep_nan_values
+                    df=df,
+                    event_resolution=event_resolution,
+                    keep_nan_values=keep_nan_values,
+                    boundary_policy=boundary_policy,
                 )
                 df = df.set_index(
                     [belief_timing_col, "source", "cumulative_probability"], append=True

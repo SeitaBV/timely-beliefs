@@ -71,6 +71,24 @@ def df_4323(
 
 
 @pytest.fixture(scope="function", autouse=True)
+def df_4111(
+    time_slot_sensor: Sensor,
+    test_source_a: BeliefSource,
+    test_source_b: BeliefSource,
+    df_wxyz: Callable[
+        [Sensor, int, int, int, int, Optional[datetime]], BeliefsDataFrame
+    ],
+) -> BeliefsDataFrame:
+    """Convenient BeliefsDataFrame to run tests on.
+    For a single sensor, it contains 4 events, for each of which 1 belief by 1 source, described by 1
+    deterministic value.
+    Note that the event resolution of the sensor is 15 minutes.
+    """
+    start = pytz.timezone("utc").localize(datetime(2000, 1, 3, 9))
+    return df_wxyz(time_slot_sensor, 4, 1, 1, 1, start)
+
+
+@pytest.fixture(scope="function", autouse=True)
 def df_instantaneous_8111(
     instantaneous_sensor: Sensor,
     test_source_a: BeliefSource,
@@ -411,3 +429,26 @@ def test_downsample_instantaneous(df_instantaneous_8111):
     assert df_resampled_2.event_resolution == downsampled_event_resolution
     # frequency updated
     assert df_resampled_2.event_frequency == downsampled_event_resolution
+
+
+def test_upsample_to_instantaneous(df_4111, test_source_a: BeliefSource):
+    """Test upsampling deterministic beliefs about time slot event to instantaneous events."""
+    df = df_4111
+    df = df.resample_events(timedelta(minutes=0))
+    assert df.event_resolution == timedelta(minutes=0)
+    expected_values = [0, 0, 1000, 1000, 2000, 2000, 3000, 3000]
+    expected_event_starts = [
+        pd.Timestamp("2000-01-03T09:00+00"),
+        pd.Timestamp("2000-01-03T09:15+00"),
+        pd.Timestamp("2000-01-03T10:00+00"),
+        pd.Timestamp("2000-01-03T10:15+00"),
+        pd.Timestamp("2000-01-03T11:00+00"),
+        pd.Timestamp("2000-01-03T11:15+00"),
+        pd.Timestamp("2000-01-03T12:00+00"),
+        pd.Timestamp("2000-01-03T12:15+00"),
+    ]
+    pd.testing.assert_index_equal(
+        df.index.get_level_values(level="event_start"),
+        pd.DatetimeIndex(expected_event_starts, name="event_start")
+    )
+    assert df["event_value"].values.tolist() == expected_values
