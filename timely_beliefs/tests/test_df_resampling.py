@@ -82,7 +82,7 @@ def df_4111(
     """Convenient BeliefsDataFrame to run tests on.
     For a single sensor, it contains 4 events, for each of which 1 belief by 1 source, described by 1
     deterministic value.
-    Note that the event resolution of the sensor is 15 minutes.
+    Note that the event resolution of the sensor is 15 minutes, while the frequency of the events is hourly.
     """
     start = pytz.timezone("utc").localize(datetime(2000, 1, 3, 9))
     return df_wxyz(time_slot_sensor, 4, 1, 1, 1, start)
