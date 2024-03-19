@@ -31,6 +31,46 @@ def at_date(
     return event_start - knowledge_time.astimezone(event_start.tzinfo)
 
 
+
+def at_date_annually(
+    event_start: datetime | pd.DatetimeIndex,
+    day: int,
+    month : int,
+    get_bounds: bool = False,
+) -> timedelta | pd.TimedeltaIndex | tuple[timedelta, timedelta]:
+    """Compute the sensor's knowledge horizon to represent the event could be known since some fixed date on the same year as the event_start.
+    
+    Note: if the event_start happens before the day and month, the knowledge time will be based on the previous year reference.
+
+    For example, it can be used for a tax rate that changes annually and with a known publication date.
+
+    :param event_start:     Start of the event, used as an anchor for determining the knowledge horizon.
+    :param day:             Reference day of the month of the annual date to compare against.
+    :param month:           The month of the annual date to compare against.
+    :param get_bounds:      If True, this function returns bounds on the possible return value.
+                            These bounds are normally useful for creating more efficient database queries when filtering by belief time.
+                            In this case, the knowledge horizon is unbounded.
+    """
+    if get_bounds:
+        return timedelta.min, timedelta.max
+
+    def at_date_annually_datetime(_event_start : datetime, day : int, month : int) -> timedelta:
+        current_year_anchor = dict(year=_event_start.year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+        previous_year_anchor = dict(year=_event_start.year-1, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+
+        delta_this_year  =  _event_start - _event_start.replace(**current_year_anchor)
+        delta_previous_year  =  _event_start - _event_start.replace(**previous_year_anchor)
+
+        if delta_this_year > timedelta(0):
+            return delta_this_year
+        else:
+            return delta_previous_year
+        
+    if isinstance(event_start, datetime):
+        return at_date_annually_datetime(event_start, day, month)
+    else:
+        return event_start.map(lambda _event_start: at_date_annually_datetime(_event_start,day,month))
+
 def ex_post(
     event_resolution: timedelta,
     ex_post_horizon: timedelta,
