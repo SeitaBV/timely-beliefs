@@ -9,6 +9,7 @@ import pandas as pd
 
 from timely_beliefs.sensors.func_store.utils import datetime_x_days_ago_at_y_oclock
 
+from pytz import timezone
 
 def at_date(
     event_start: datetime | pd.DatetimeIndex | None,
@@ -38,6 +39,7 @@ def x_years_ago_at_date(
     month : int,
     x : int = 1,
     get_bounds: bool = False,
+    z: str | None = None,
 ) -> timedelta | pd.TimedeltaIndex | tuple[timedelta, timedelta]:
     """Compute the sensor's knowledge horizon to represent the event could be known since some date, `x` years ago.
     
@@ -47,22 +49,27 @@ def x_years_ago_at_date(
     :param day:             Reference day of the month of the annual date to compare against.
     :param month:           The month of the annual date to compare against.
     :param x:               The number of years to shift the reference date to.
+    :param z:           Timezone string.
     :param get_bounds:      If True, this function returns bounds on the possible return value.
                             These bounds are normally useful for creating more efficient database queries when filtering by belief time.
                             In this case, the knowledge horizon is unbounded.
     """
     if get_bounds:
         return timedelta.min, timedelta.max
+    def x_years_ago_at_date_datetime(_event_start : datetime, day : int, month : int, x : int, z : str | None) -> timedelta:
+        if z is None:
+            z = _event_start.tzinfo
+        else:
+            z = timezone(z)
 
-    def x_years_ago_at_date_datetime(_event_start : datetime, day : int, month : int) -> timedelta:
-        anchor = dict(year=_event_start.year - x, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+        anchor = dict(year=_event_start.year - x, month=month, day=day, hour=0, minute=0, second=0, microsecond=0, tzinfo=z)
 
         return _event_start - _event_start.replace(**anchor)
         
     if isinstance(event_start, datetime):
-        return x_years_ago_at_date_datetime(event_start, day, month)
+        return x_years_ago_at_date_datetime(event_start, day, month, x, z)
     else:
-        return event_start.map(lambda _event_start: x_years_ago_at_date_datetime(_event_start,day,month))
+        return event_start.map(lambda _event_start: x_years_ago_at_date_datetime(_event_start,day,month, x, z))
 
 def ex_post(
     event_resolution: timedelta,
