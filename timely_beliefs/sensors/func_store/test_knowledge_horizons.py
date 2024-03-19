@@ -6,7 +6,7 @@ from pytz import utc, timezone
 
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
     at_date,
-    at_date_annually,
+    x_years_ago_at_date,
     ex_ante,
     ex_post,
     x_days_ago_at_y_oclock,
@@ -55,57 +55,70 @@ def test_fixed_knowledge_time():
     )
 
 
-def test_at_date_annually():
+def test_x_years_ago_at_date():
     """Check definition of knowledge horizon for events known at a fixed date annually."""
 
     knowledge_func_params = dict(month=11, day=20)    
     
-    # events that occur before the reference
+    # Events that occur before the reference
     # year 2024 is leap
-    assert at_date_annually(
+    assert x_years_ago_at_date(
         event_start=datetime(2024, 11, 19, 1, tzinfo=utc),
         **knowledge_func_params
     ) == timedelta(days=365, hours=1) # 366 days - 1
 
     # year 2025 is not leap, but 2024 is
-    assert at_date_annually(
+    assert x_years_ago_at_date(
         event_start=datetime(2025, 11, 19, 2, tzinfo=utc),
         **knowledge_func_params
     ) == timedelta(days=364, hours=2) # 365 - 1
 
     # year 2023 is not leap and 2022 either
-    assert at_date_annually(
+    assert x_years_ago_at_date(
         event_start=datetime(2022, 11, 19, 2, tzinfo=utc),
         **knowledge_func_params
     ) == timedelta(days=364, hours=2) # 365 - 1
 
-    # events that occur after the reference
-    assert at_date_annually(
+    # Events that occur after the reference
+    assert x_years_ago_at_date(
         event_start=datetime(2021, 11, 21, 3, tzinfo=utc),
         **knowledge_func_params
-    ) == timedelta(days=1, hours=3)
+    ) == timedelta(days=366, hours=3) # 365 + 1
 
-    assert at_date_annually(
+    assert x_years_ago_at_date(
         event_start=datetime(2021, 11, 21, 4, tzinfo=utc),
         **knowledge_func_params
-    ) == timedelta(days=1, hours=4)
+    ) == timedelta(days=366, hours=4) # 365 + 1
+
+    assert x_years_ago_at_date(
+        event_start=datetime(2020, 11, 21, 4, tzinfo=utc),
+        **knowledge_func_params
+    ) == timedelta(days=367, hours=4) # 366 (leap year) + 1
 
     # Test a Daylight Savings Transition
     knowledge_func_params_dst = dict(month=3, day=23) # DST transition 2024
-    assert at_date_annually(
+    assert x_years_ago_at_date(
         event_start=datetime(2024, 3, 25, 0, tzinfo=timezone("Europe/Amsterdam")),
         **knowledge_func_params_dst
-    ) == timedelta(days=2)
+    ) == timedelta(days=368)
 
     # Repeat test with pd.DatetimeIndex instead
     event_start = pd.DatetimeIndex(["2024-11-19T01:00:00", "2025-11-19T02:00:00", "2022-11-19T02:00:00", "2021-11-21T03:00:00", "2021-11-21T04:00:00"], tz="utc")
     assert_index_equal(
-        at_date_annually(
+        x_years_ago_at_date(
             event_start=event_start,
             **knowledge_func_params
         ),
-        pd.TimedeltaIndex([timedelta(days=365, hours=1), timedelta(days=364, hours=2), timedelta(days=364, hours=2), timedelta(days=1, hours=3), timedelta(days=1, hours=4)]),
+        pd.TimedeltaIndex([timedelta(days=365, hours=1), timedelta(days=364, hours=2), timedelta(days=364, hours=2), timedelta(days=366, hours=3), timedelta(days=366, hours=4)]),
     )
+
+    knowledge_func_params_2_years = dict(month=11, day=20, x=2)    
+
+    # Check years parameter
+    assert x_years_ago_at_date(
+        event_start=datetime(2024, 11, 19, 1, tzinfo=utc),
+        **knowledge_func_params_2_years
+    ) == timedelta(days=2*365, hours=1) # 366 days - 1
 
 
 def test_dst():
