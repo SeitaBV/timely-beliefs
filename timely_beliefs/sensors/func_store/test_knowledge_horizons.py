@@ -73,7 +73,7 @@ def test_x_years_ago_at_date():
         **knowledge_func_params
     ) == timedelta(days=364, hours=2) # 365 - 1
 
-    # year 2023 is not leap and 2022 either
+    # year 2023 is not leap and 2022 neither
     assert x_years_ago_at_date(
         event_start=datetime(2022, 11, 19, 2, tzinfo=utc),
         **knowledge_func_params
@@ -118,7 +118,7 @@ def test_x_years_ago_at_date():
     assert x_years_ago_at_date(
         event_start=datetime(2024, 11, 19, 1, tzinfo=utc),
         **knowledge_func_params_2_years
-    ) == timedelta(days=2*365, hours=1) # 366 days - 1
+    ) == timedelta(days=2*365, hours=1) # 365 days + 366 days - 1 day
 
 
 def test_dst():

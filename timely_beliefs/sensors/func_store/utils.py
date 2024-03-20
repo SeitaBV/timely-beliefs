@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 from pytz import timezone
@@ -45,3 +45,25 @@ def datetime_x_days_ago_at_y_oclock(
         )
 
     return tz_aware_earlier_time
+
+
+def x_years_ago_at_date_datetime(
+    event_start: datetime, day: int, month: int, x: int, z: str | None
+) -> timedelta:
+    if z is None:
+        z = event_start.tzinfo
+    else:
+        z = timezone(z)
+
+    anchor = dict(
+        year=event_start.year - x,
+        month=month,
+        day=day,
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+        tzinfo=z,
+    )
+
+    return event_start - event_start.replace(**anchor)
