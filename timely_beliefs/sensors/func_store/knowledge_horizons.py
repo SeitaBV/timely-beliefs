@@ -7,7 +7,10 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from timely_beliefs.sensors.func_store.utils import datetime_x_days_ago_at_y_oclock, x_years_ago_at_date_datetime
+from timely_beliefs.sensors.func_store.utils import (
+    datetime_x_days_ago_at_y_oclock,
+    x_years_ago_at_date_datetime,
+)
 
 
 def at_date(
@@ -31,18 +34,17 @@ def at_date(
     return event_start - knowledge_time.astimezone(event_start.tzinfo)
 
 
-
 def x_years_ago_at_date(
     event_start: datetime | pd.DatetimeIndex,
     day: int,
-    month : int,
-    x : int = 1,
+    month: int,
+    x: int = 1,
     get_bounds: bool = False,
     z: str | None = None,
 ) -> timedelta | pd.TimedeltaIndex | tuple[timedelta, timedelta]:
     """Compute the sensor's knowledge horizon to represent the event could be known since some date, `x` years ago.
-    
-    For example, it can be used for a tax rate that changes annually and with a known publication date. 
+
+    For example, it can be used for a tax rate that changes annually and with a known publication date.
 
     :param event_start:     Start of the event, used as an anchor for determining the knowledge horizon.
     :param day:             Reference day of the month of the annual date to compare against.
@@ -54,11 +56,16 @@ def x_years_ago_at_date(
     """
     if get_bounds:
         return timedelta.min, timedelta.days(366 * x)
-        
+
     if isinstance(event_start, datetime):
         return x_years_ago_at_date_datetime(event_start, day, month, x, z)
     else:
-        return event_start.map(lambda _event_start: x_years_ago_at_date_datetime(_event_start,day,month, x, z))
+        return event_start.map(
+            lambda _event_start: x_years_ago_at_date_datetime(
+                _event_start, day, month, x, z
+            )
+        )
+
 
 def ex_post(
     event_resolution: timedelta,
