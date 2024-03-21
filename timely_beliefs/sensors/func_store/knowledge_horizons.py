@@ -59,7 +59,7 @@ def x_years_ago_at_date(
         raise ValueError("Negative value for `x` not supported.")
 
     if get_bounds:
-        return timedelta(days=(x-1)*366 - 3), timedelta(days=(x+1)*366 +1)
+        return timedelta(days=(x - 1) * 366 - 3), timedelta(days=(x + 1) * 366 + 1)
 
     if isinstance(event_start, datetime):
         return x_years_ago_at_date_datetime(event_start, day, month, x, z)
