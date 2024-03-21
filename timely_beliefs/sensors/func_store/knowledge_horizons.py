@@ -55,7 +55,7 @@ def x_years_ago_at_date(
                             These bounds are normally useful for creating more efficient database queries when filtering by belief time.
     """
 
-    if x >= 0:
+    if x < 0:
         raise ValueError("Negative value for `x` not supported.")
 
     if get_bounds:
