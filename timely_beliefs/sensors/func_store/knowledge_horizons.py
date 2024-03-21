@@ -56,7 +56,7 @@ def x_years_ago_at_date(
     """
 
     MAX_DAYS_IN_A_YEAR = 366
-    MIN_DAYS_IN_A_YEAR = 366
+    MIN_DAYS_IN_A_YEAR = 364
 
     if x <= 0:
         raise ValueError("Only positive values for `x` are supported.")
