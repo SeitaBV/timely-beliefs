@@ -1,3 +1,5 @@
+import pytest
+
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -141,6 +143,25 @@ def test_x_years_ago_at_date():
     ) == timedelta(
         days=2 * 365, hours=1
     )  # 365 days + 366 days - 1 day
+
+
+
+@pytest.mark.parametrize("event_start", [
+    datetime(2024, 1, 1, 0, tzinfo=utc),
+    datetime(2024, 12, 31, 23, 59, 59, tzinfo=utc)
+])
+@pytest.mark.parametrize("year", list(range(6)))
+def test_x_years_ago_at_date_bounds(event_start, year):
+    knowledge_func_params = dict(month=12, day=31, x=year)
+
+    timedelta_bounds = x_years_ago_at_date(event_start, get_bounds=True, **knowledge_func_params)
+
+    assert (
+        timedelta_bounds[0]
+        < x_years_ago_at_date(event_start, **knowledge_func_params)
+        < timedelta_bounds[1]
+    )
+
 
 
 def test_dst():
