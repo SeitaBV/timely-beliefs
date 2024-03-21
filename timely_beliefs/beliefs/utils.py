@@ -631,7 +631,7 @@ def read_csv(  # noqa C901
             if col not in kwargs.get("usecols", [])
         ]
     ext = find_out_extension(path)
-    
+
     dayfirst = kwargs.pop("dayfirst", None)
 
     if ext.lower() == "csv":
