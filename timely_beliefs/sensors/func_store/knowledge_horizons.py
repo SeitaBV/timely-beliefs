@@ -55,11 +55,16 @@ def x_years_ago_at_date(
                             These bounds are normally useful for creating more efficient database queries when filtering by belief time.
     """
 
-    if x < 0:
-        raise ValueError("Negative value for `x` not supported.")
+    MAX_DAYS_IN_A_YEAR = 366
+    MIN_DAYS_IN_A_YEAR = 366
+
+    if x <= 0:
+        raise ValueError("Only positive values for `x` are supported.")
 
     if get_bounds:
-        return timedelta(days=(x - 1) * 366 - 3), timedelta(days=(x + 1) * 366 + 1)
+        # The minimum corresponds to an event at the 1st of January and a reference on the 31st of December on the the year `x` years ago.
+        # The maximum correponds to an event on the 31st of December and a reference on the 1st of January on the year `x` years ago.
+        return timedelta(days=(x - 1) * MIN_DAYS_IN_A_YEAR), timedelta(days=(x + 1) * MAX_DAYS_IN_A_YEAR + 1)
 
     if isinstance(event_start, datetime):
         return x_years_ago_at_date_datetime(event_start, day, month, x, z)
