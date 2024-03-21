@@ -69,11 +69,8 @@ def x_years_ago_at_date(
     if isinstance(event_start, datetime):
         return x_years_ago_at_date_datetime(event_start, day, month, x, z)
     else:
-        return event_start.map(
-            lambda _event_start: x_years_ago_at_date_datetime(
-                _event_start, day, month, x, z
-            )
-        )
+        ref = event_start.to_period("1Y").to_timestamp().tz_localize(event_start.tz) + pd.DateOffset(month=month, day=day)
+        return event_start - ref
 
 
 def ex_post(
