@@ -162,8 +162,8 @@ def test_x_years_ago_at_date_bounds(event_start, years):
 
     assert (
         timedelta_bounds[0]
-        < x_years_ago_at_date(event_start, **knowledge_func_params)
-        < timedelta_bounds[1]
+        <= x_years_ago_at_date(event_start, **knowledge_func_params)
+        <= timedelta_bounds[1]
     )
 
 

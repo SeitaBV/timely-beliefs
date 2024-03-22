@@ -65,8 +65,8 @@ def x_years_ago_at_date(
     if get_bounds:
         # The minimum corresponds to an event at the 1st of January and a publication date on the 31st of December on the year `x` years ago.
         # The maximum corresponds to an event just before new year's midnight and a publication date on the 1st of January on the year `x` years ago.
-        return timedelta(days=(x - 1) * MIN_DAYS_IN_A_YEAR), timedelta(
-            days=(x + 1) * MAX_DAYS_IN_A_YEAR + 1
+        return timedelta(days=(x - 1) * MIN_DAYS_IN_A_YEAR + 1), timedelta(
+            days=(x + 1) * MAX_DAYS_IN_A_YEAR
         )
 
     if isinstance(event_start, datetime):
