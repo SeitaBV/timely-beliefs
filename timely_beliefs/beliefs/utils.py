@@ -574,6 +574,9 @@ def read_csv(  # noqa C901
     :param event_starts_before:     Optionally, keep only events that start before this datetime.
                                     Exclusive for non-instantaneous events, inclusive for instantaneous events.
                                     Note that the last event may transpire partially after this datetime.
+    :param floor_event_start:       Whether to floor the event_start datetime to the sensor event_resolution.
+    :param ceil_event_start:        Whether to ceil the event_start datetime to the sensor event_resolution.
+    :param round_event_start:       Whether to round the event_start datetime to the sensor event_resolution.
     :param datetime_column_split:   Optionally, help parse the datetime column by splitting according to some string.
                                     For example:
                                             "1 jan 2022 00:00 - 1 jan 2022 01:00"
@@ -633,6 +636,9 @@ def read_csv(  # noqa C901
     ext = find_out_extension(path)
 
     dayfirst = kwargs.pop("dayfirst", None)
+    floor_event_start = kwargs.pop("floor_event_start", False)
+    ceil_event_start = kwargs.pop("ceil_event_start", False)
+    round_event_start = kwargs.pop("round_event_start", False)
 
     if ext.lower() == "csv":
         df = pd.read_csv(path, **kwargs)
@@ -699,6 +705,13 @@ def read_csv(  # noqa C901
     # Apply optionally set cumulative probability
     if cumulative_probability is not None:
         df["cumulative_probability"] = cumulative_probability
+
+    if ceil_event_start:
+        df["event_start"] = df["event_start"].dt.ceil(sensor.event_resolution)
+    elif floor_event_start:
+        df["event_start"] = df["event_start"].dt.floor(sensor.event_resolution)
+    elif round_event_start:
+        df["event_start"] = df["event_start"].dt.round(sensor.event_resolution)
 
     # Construct BeliefsDataFrame
     bdf = classes.BeliefsDataFrame(df, sensor=sensor)
