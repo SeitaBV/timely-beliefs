@@ -72,7 +72,9 @@ def x_years_ago_at_date(
     if isinstance(event_start, datetime):
         return x_years_ago_at_date_datetime(event_start, day, month, x, z)
     else:
-        ref = event_start.to_period("1Y").to_timestamp().tz_localize(event_start.tz) + pd.DateOffset(month=month, day=day, years=-x)
+        ref = event_start.to_period("1Y").to_timestamp().tz_localize(
+            event_start.tz
+        ) + pd.DateOffset(month=month, day=day, years=-x)
         return event_start - ref
 
 

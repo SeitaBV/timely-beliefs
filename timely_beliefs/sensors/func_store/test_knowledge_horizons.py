@@ -152,7 +152,7 @@ def test_x_years_ago_at_date():
         datetime(2024, 12, 31, 23, 59, 59, tzinfo=utc),
     ],
 )
-@pytest.mark.parametrize("year", list(range(1,6)))
+@pytest.mark.parametrize("year", list(range(1, 6)))
 def test_x_years_ago_at_date_bounds(event_start, year):
     knowledge_func_params = dict(month=12, day=31, x=year)
 
