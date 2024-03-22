@@ -56,7 +56,7 @@ def x_years_ago_at_date(
     """
 
     MAX_DAYS_IN_A_YEAR = 366
-    MIN_DAYS_IN_A_YEAR = 364
+    MIN_DAYS_IN_A_YEAR = 365
 
     if x <= 0:
         raise ValueError("Only positive values for `x` are supported.")
@@ -69,7 +69,7 @@ def x_years_ago_at_date(
     if isinstance(event_start, datetime):
         return x_years_ago_at_date_datetime(event_start, day, month, x, z)
     else:
-        ref = event_start.to_period("1Y").to_timestamp().tz_localize(event_start.tz) + pd.DateOffset(month=month, day=day)
+        ref = event_start.to_period("1Y").to_timestamp().tz_localize(event_start.tz) + pd.DateOffset(month=month, day=day, years=-x)
         return event_start - ref
 
 
