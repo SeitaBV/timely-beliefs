@@ -1,6 +1,7 @@
 """Function store for computing knowledge horizons given a certain event start and resolution.
 When passed get_bounds=True, these functions return bounds on the knowledge horizon,
 i.e. a duration window in which the knowledge horizon must lie (e.g. between 0 and 2 days before the event start)."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -62,9 +63,11 @@ def x_years_ago_at_date(
         raise ValueError("Only positive values for `x` are supported.")
 
     if get_bounds:
-        # The minimum corresponds to an event at the 1st of January and a reference on the 31st of December on the the year `x` years ago.
-        # The maximum correponds to an event on the 31st of December and a reference on the 1st of January on the year `x` years ago.
-        return timedelta(days=(x - 1) * MIN_DAYS_IN_A_YEAR), timedelta(days=(x + 1) * MAX_DAYS_IN_A_YEAR + 1)
+        # The minimum corresponds to an event at the 1st of January and a publication date on the 31st of December on the year `x` years ago.
+        # The maximum corresponds to an event just before new year's midnight and a publication date on the 1st of January on the year `x` years ago.
+        return timedelta(days=(x - 1) * MIN_DAYS_IN_A_YEAR), timedelta(
+            days=(x + 1) * MAX_DAYS_IN_A_YEAR + 1
+        )
 
     if isinstance(event_start, datetime):
         return x_years_ago_at_date_datetime(event_start, day, month, x, z)
