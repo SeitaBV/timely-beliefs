@@ -48,33 +48,32 @@ def datetime_x_days_ago_at_y_oclock(
 
 
 def datetime_x_years_ago_at_date(
-    event_start: datetime | pd.DatetimeIndex,
+    tz_aware_original_time: datetime | pd.DatetimeIndex,
+    x: int,
     day: int,
     month: int,
-    x: int,
-    z: str | None,
+    z: str,
 ) -> timedelta:
-
-    if isinstance(event_start, datetime):
-        if z is None:
-            z = event_start.tzinfo
-        else:
-            z = timezone(z)
-
-        anchor = dict(
-            year=event_start.year - x,
-            month=month,
-            day=day,
-            hour=0,
-            minute=0,
-            second=0,
-            microsecond=0,
-            tzinfo=z,
+    """Returns the datetime x years ago at the midnight start of the given date, from the perspective of timezone z."""
+    tz = timezone(z)
+    original_tz = tz_aware_original_time.tzinfo
+    micros = 0
+    s = 0
+    m = 0
+    h = 0
+    if isinstance(tz_aware_original_time, datetime):
+        tz_naive_original_time = tz_aware_original_time.astimezone(tz).replace(
+            tzinfo=None
         )
-        earlier_time = event_start.replace(**anchor)
+        tz_naive_earlier_time = (pd.Timestamp(tz_naive_original_time).to_period("1Y").to_timestamp() - pd.DateOffset(years=x)).replace(
+            month=month, day=day, hour=h, minute=m, second=s, microsecond=micros
+        )
+        tz_aware_earlier_time = tz.localize(tz_naive_earlier_time).astimezone(
+            original_tz
+        )
     else:
-        earlier_time = event_start.to_period("1Y").to_timestamp().tz_localize(
-            event_start.tz
+        tz_aware_earlier_time = tz_aware_original_time.to_period("1Y").to_timestamp().tz_localize(
+            tz_aware_original_time.tz
         ) + pd.DateOffset(month=month, day=day, years=-x)
 
-    return earlier_time
+    return tz_aware_earlier_time

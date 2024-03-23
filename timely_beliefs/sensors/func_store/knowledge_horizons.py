@@ -37,21 +37,21 @@ def at_date(
 
 def x_years_ago_at_date(
     event_start: datetime | pd.DatetimeIndex,
+    x: int,
     day: int,
     month: int,
-    x: int = 1,
+    z: str,
     get_bounds: bool = False,
-    z: str | None = None,
 ) -> timedelta | pd.TimedeltaIndex | tuple[timedelta, timedelta]:
     """Compute the sensor's knowledge horizon to represent the event could be known since some date, `x` years ago.
 
     For example, it can be used for a tax rate that changes annually and with a known publication date.
 
     :param event_start:     Start of the event, used as an anchor for determining the knowledge horizon.
+    :param x:               The number of years to shift the reference date to.
     :param day:             Reference day of the month of the annual date to compare against.
     :param month:           The month of the annual date to compare against.
-    :param x:               The number of years to shift the reference date to.
-    :param z:           Timezone string.
+    :param z:               Timezone string.
     :param get_bounds:      If True, this function returns bounds on the possible return value.
                             These bounds are normally useful for creating more efficient database queries when filtering by belief time.
     """
@@ -69,7 +69,7 @@ def x_years_ago_at_date(
             days=(x + 1) * MAX_DAYS_IN_A_YEAR
         )
 
-    return event_start - datetime_x_years_ago_at_date(event_start, day, month, x, z)
+    return event_start - datetime_x_years_ago_at_date(event_start, x, day, month, z)
 
 
 def ex_post(
