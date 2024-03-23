@@ -1,13 +1,17 @@
 """Function store for computing knowledge horizons given a certain event start and resolution.
 When passed get_bounds=True, these functions return bounds on the knowledge horizon,
 i.e. a duration window in which the knowledge horizon must lie (e.g. between 0 and 2 days before the event start)."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
 
 import pandas as pd
 
-from timely_beliefs.sensors.func_store.utils import datetime_x_days_ago_at_y_oclock
+from timely_beliefs.sensors.func_store.utils import (
+    datetime_x_days_ago_at_y_oclock,
+    datetime_x_years_ago_at_date,
+)
 
 
 def at_date(
@@ -29,6 +33,43 @@ def at_date(
     if get_bounds:
         return timedelta.min, timedelta.max
     return event_start - knowledge_time.astimezone(event_start.tzinfo)
+
+
+def x_years_ago_at_date(
+    event_start: datetime | pd.DatetimeIndex,
+    x: int,
+    day: int,
+    month: int,
+    z: str,
+    get_bounds: bool = False,
+) -> timedelta | pd.TimedeltaIndex | tuple[timedelta, timedelta]:
+    """Compute the sensor's knowledge horizon to represent the event could be known since some date, `x` years ago.
+
+    For example, it can be used for a tax rate that changes annually and with a known publication date.
+
+    :param event_start:     Start of the event, used as an anchor for determining the knowledge horizon.
+    :param x:               The number of years to shift the reference date to.
+    :param day:             Reference day of the month of the annual date to compare against.
+    :param month:           The month of the annual date to compare against.
+    :param z:               Timezone string.
+    :param get_bounds:      If True, this function returns bounds on the possible return value.
+                            These bounds are normally useful for creating more efficient database queries when filtering by belief time.
+    """
+
+    MAX_DAYS_IN_A_YEAR = 366
+    MIN_DAYS_IN_A_YEAR = 365
+
+    if x <= 0:
+        raise ValueError("Only positive values for `x` are supported.")
+
+    if get_bounds:
+        # The minimum corresponds to an event at the 1st of January and a publication date on the 31st of December on the year `x` years ago.
+        # The maximum corresponds to an event just before new year's midnight and a publication date on the 1st of January on the year `x` years ago.
+        return timedelta(days=(x - 1) * MIN_DAYS_IN_A_YEAR + 1), timedelta(
+            days=(x + 1) * MAX_DAYS_IN_A_YEAR
+        )
+
+    return event_start - datetime_x_years_ago_at_date(event_start, x, day, month, z)
 
 
 def ex_post(

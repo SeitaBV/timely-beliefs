@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 from pytz import timezone
@@ -42,6 +42,41 @@ def datetime_x_days_ago_at_y_oclock(
         ) + pd.Timedelta(hours=h, minutes=m, seconds=s, microseconds=micros)
         tz_aware_earlier_time = tz_naive_earlier_time.tz_localize(tz).tz_convert(
             original_tz
+        )
+
+    return tz_aware_earlier_time
+
+
+def datetime_x_years_ago_at_date(
+    tz_aware_original_time: datetime | pd.DatetimeIndex,
+    x: int,
+    day: int,
+    month: int,
+    z: str,
+) -> timedelta:
+    """Returns the datetime x years ago at the midnight start of the given date, from the perspective of timezone z."""
+    tz = timezone(z)
+    original_tz = tz_aware_original_time.tzinfo
+    micros = 0
+    s = 0
+    m = 0
+    h = 0
+    if isinstance(tz_aware_original_time, datetime):
+        tz_naive_original_time = tz_aware_original_time.astimezone(tz).replace(
+            tzinfo=None
+        )
+        tz_naive_earlier_time = (
+            pd.Timestamp(tz_naive_original_time).to_period("1Y").to_timestamp()
+            - pd.DateOffset(years=x)
+        ).replace(month=month, day=day, hour=h, minute=m, second=s, microsecond=micros)
+        tz_aware_earlier_time = tz.localize(tz_naive_earlier_time).astimezone(
+            original_tz
+        )
+    else:
+        tz_aware_earlier_time = tz_aware_original_time.to_period(
+            "1Y"
+        ).to_timestamp().tz_localize(tz_aware_original_time.tz) + pd.DateOffset(
+            month=month, day=day, years=-x
         )
 
     return tz_aware_earlier_time
