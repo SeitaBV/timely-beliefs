@@ -147,12 +147,12 @@ def test_x_years_ago_at_date_with_dst():
     - 2024-03-30
     """
 
-    knowledge_func_params_dst = dict(
+    knowledge_func_params = dict(
         x=1, month=3, day=28, z="Europe/Amsterdam"
     )  # before first DST transition 2024
     assert x_years_ago_at_date(
         event_start=timezone("Europe/Amsterdam").localize(datetime(2024, 3, 28, 0)),
-        **knowledge_func_params_dst,
+        **knowledge_func_params,
     ) == timedelta(
         days=366, hours=1
     )  # 365 + 1 day (because of the leap day on 2024-02-29) + 1 hour (fall transition)
@@ -160,10 +160,28 @@ def test_x_years_ago_at_date_with_dst():
     # Try 4 days later, at which we crossed the spring DST transition
     assert x_years_ago_at_date(
         event_start=timezone("Europe/Amsterdam").localize(datetime(2024, 4, 1, 0)),
-        **knowledge_func_params_dst,
+        **knowledge_func_params,
     ) == timedelta(
         days=370, hours=0
     )  # 0 hours (fall and spring transitions cancelled each other out)
+
+    # Repeat test with pd.DatetimeIndex instead
+    event_start = pd.DatetimeIndex(
+        [
+            "2024-03-28T00:00:00",
+            "2024-04-01T00:00:00",
+        ],
+        tz="Europe/Amsterdam",
+    )
+    assert_index_equal(
+        x_years_ago_at_date(event_start=event_start, **knowledge_func_params),
+        pd.TimedeltaIndex(
+            [
+                timedelta(days=366, hours=1),
+                timedelta(days=370, hours=0),
+            ]
+        ),
+    )
 
 
 @pytest.mark.parametrize(
