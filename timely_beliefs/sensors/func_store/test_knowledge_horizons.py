@@ -1,17 +1,16 @@
-import pytest
-
 from datetime import datetime, timedelta
 
 import pandas as pd
+import pytest
 from pandas.testing import assert_index_equal
-from pytz import utc, timezone
+from pytz import timezone, utc
 
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
     at_date,
-    x_years_ago_at_date,
     ex_ante,
     ex_post,
     x_days_ago_at_y_oclock,
+    x_years_ago_at_date,
 )
 
 
