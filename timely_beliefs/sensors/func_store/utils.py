@@ -47,23 +47,34 @@ def datetime_x_days_ago_at_y_oclock(
     return tz_aware_earlier_time
 
 
-def x_years_ago_at_date_datetime(
-    event_start: datetime, day: int, month: int, x: int, z: str | None
+def datetime_x_years_ago_at_date(
+    event_start: datetime | pd.DatetimeIndex,
+    day: int,
+    month: int,
+    x: int,
+    z: str | None,
 ) -> timedelta:
-    if z is None:
-        z = event_start.tzinfo
+
+    if isinstance(event_start, datetime):
+        if z is None:
+            z = event_start.tzinfo
+        else:
+            z = timezone(z)
+
+        anchor = dict(
+            year=event_start.year - x,
+            month=month,
+            day=day,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+            tzinfo=z,
+        )
+        earlier_time = event_start.replace(**anchor)
     else:
-        z = timezone(z)
+        earlier_time = event_start.to_period("1Y").to_timestamp().tz_localize(
+            event_start.tz
+        ) + pd.DateOffset(month=month, day=day, years=-x)
 
-    anchor = dict(
-        year=event_start.year - x,
-        month=month,
-        day=day,
-        hour=0,
-        minute=0,
-        second=0,
-        microsecond=0,
-        tzinfo=z,
-    )
-
-    return event_start - event_start.replace(**anchor)
+    return earlier_time

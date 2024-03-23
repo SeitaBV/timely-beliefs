@@ -10,7 +10,7 @@ import pandas as pd
 
 from timely_beliefs.sensors.func_store.utils import (
     datetime_x_days_ago_at_y_oclock,
-    x_years_ago_at_date_datetime,
+    datetime_x_years_ago_at_date,
 )
 
 
@@ -69,13 +69,7 @@ def x_years_ago_at_date(
             days=(x + 1) * MAX_DAYS_IN_A_YEAR
         )
 
-    if isinstance(event_start, datetime):
-        return x_years_ago_at_date_datetime(event_start, day, month, x, z)
-    else:
-        ref = event_start.to_period("1Y").to_timestamp().tz_localize(
-            event_start.tz
-        ) + pd.DateOffset(month=month, day=day, years=-x)
-        return event_start - ref
+    return event_start - datetime_x_years_ago_at_date(event_start, day, month, x, z)
 
 
 def ex_post(
