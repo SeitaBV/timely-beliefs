@@ -193,6 +193,11 @@ class TimedBeliefDBMixin(TimedBelief):
                     "belief_horizon",  # we use min() on this (most_recent_beliefs_only)
                 ],
             ),
+            Index(
+                f"{cls.__tablename__}_search_session_singleevent_idx",
+                "event_start",
+                "sensor_id",
+            ),
         )
 
     event_start = Column(DateTime(timezone=True), primary_key=True, index=True)
