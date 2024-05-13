@@ -21,7 +21,7 @@ from timely_beliefs.beliefs.probabilistic_utils import (
     get_median_belief,
     probabilistic_nan_mean,
 )
-from timely_beliefs.beliefs.time_utils import iso_duration_to_offset
+from timely_beliefs.beliefs.time_utils import iso_duration_to_offset, to_max_timedelta
 from timely_beliefs.sources import utils as source_utils
 
 TimedeltaLike = Union[timedelta, str, pd.Timedelta]
@@ -1112,7 +1112,7 @@ def convert_to_instantaneous(
 
 def upsample_beliefs_data_frame(
     df: "classes.BeliefsDataFrame" | pd.DataFrame,
-    event_resolution: timedelta,
+    event_resolution: TimedeltaLike,
     keep_nan_values: bool = False,
     boundary_policy: str = "first",
 ) -> "classes.BeliefsDataFrame":
@@ -1125,7 +1125,7 @@ def upsample_beliefs_data_frame(
                                 take the 'max', 'min' or 'first' value at event boundaries.
     """
     if df.empty:
-        df.event_resolution = event_resolution
+        df.event_resolution = to_max_timedelta(event_resolution)
         return df
     if event_resolution == timedelta(0):
         return convert_to_instantaneous(
@@ -1135,9 +1135,9 @@ def upsample_beliefs_data_frame(
     from_event_resolution = df.event_resolution
     if from_event_resolution == timedelta(0):
         raise NotImplementedError("Cannot upsample from zero event resolution.")
-    resample_ratio = pd.to_timedelta(to_offset(from_event_resolution)) / pd.Timedelta(
-        event_resolution
-    )
+    resample_ratio = pd.to_timedelta(
+        to_offset(from_event_resolution)
+    ) / to_max_timedelta(event_resolution)
     if keep_nan_values:
         # Back up NaN values.
         # We are flagging the positions of the NaN values in the original data with a unique number.
@@ -1201,5 +1201,5 @@ def upsample_beliefs_data_frame(
     if keep_nan_values:
         # place back original NaN values
         df = df.replace(unique_event_value_not_in_df, np.NaN)
-    df.event_resolution = event_resolution
+    df.event_resolution = to_max_timedelta(event_resolution)
     return df
