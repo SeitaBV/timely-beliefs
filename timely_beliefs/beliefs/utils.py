@@ -1119,6 +1119,8 @@ def upsample_beliefs_data_frame(
 ) -> "classes.BeliefsDataFrame":
     """Because simply doing df.resample().ffill() does not correctly resample the last event in the data frame.
 
+    todo: stop converting nominal to max absolute durations once BeliefsDataFrames can handle nominal event resolutions
+
     :param df:                  In case of a regular pd.DataFrame, make sure to set df.event_resolution before passing it to this function.
     :param event_resolution:    Resolution to upsample to.
     :param keep_nan_values:     If True, place back resampled NaN values. Drops NaN values by default.
