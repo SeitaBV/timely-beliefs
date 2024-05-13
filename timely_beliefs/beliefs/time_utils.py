@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Union
 
-from isodate import parse_duration
 import pandas as pd
+from isodate import parse_duration
 
 DatetimeLike = Union[datetime, str, pd.Timestamp]
 TimedeltaLike = Union[timedelta, str, pd.Timedelta]
