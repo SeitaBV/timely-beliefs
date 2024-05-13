@@ -575,7 +575,7 @@ class TimedBeliefDBMixin(TimedBelief):
         # apply fast-track most recent event|belief only approach
         if most_recent_event_only:
             if most_recent_belief_only:
-                q = q.order_by(cls.event_start.desc(), cls.belief_horizon.desc()).limit(
+                q = q.order_by(cls.event_start.desc(), cls.belief_horizon.asc()).limit(
                     1
                 )
             else:
