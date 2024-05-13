@@ -20,7 +20,11 @@ from timely_beliefs.beliefs.probabilistic_utils import (
     get_median_belief,
     probabilistic_nan_mean,
 )
-from timely_beliefs.beliefs.time_utils import iso_duration_to_offset, to_max_timedelta, TimedeltaLike
+from timely_beliefs.beliefs.time_utils import (
+    TimedeltaLike,
+    iso_duration_to_offset,
+    to_max_timedelta,
+)
 from timely_beliefs.sources import utils as source_utils
 
 
