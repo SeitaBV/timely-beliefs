@@ -1,9 +1,13 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import Union
 
 from isodate import parse_duration
 import pandas as pd
+
+DatetimeLike = Union[datetime, str, pd.Timestamp]
+TimedeltaLike = Union[timedelta, str, pd.Timedelta]
 
 
 def to_max_timedelta(duration: str | pd.DateOffset | timedelta) -> pd.Timedelta:

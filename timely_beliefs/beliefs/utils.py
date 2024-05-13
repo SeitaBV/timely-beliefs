@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 import warnings
 from datetime import datetime, timedelta
-from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -21,10 +20,8 @@ from timely_beliefs.beliefs.probabilistic_utils import (
     get_median_belief,
     probabilistic_nan_mean,
 )
-from timely_beliefs.beliefs.time_utils import iso_duration_to_offset, to_max_timedelta
+from timely_beliefs.beliefs.time_utils import iso_duration_to_offset, to_max_timedelta, TimedeltaLike
 from timely_beliefs.sources import utils as source_utils
-
-TimedeltaLike = Union[timedelta, str, pd.Timedelta]
 
 
 def select_most_recent_belief(

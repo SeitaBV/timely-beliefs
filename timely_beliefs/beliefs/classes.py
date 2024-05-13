@@ -40,6 +40,7 @@ import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
 from timely_beliefs.beliefs import utils as belief_utils
 from timely_beliefs.beliefs.utils import is_pandas_structure, is_tb_structure, meta_repr
+from timely_beliefs.beliefs.time_utils import DatetimeLike, TimedeltaLike
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors import utils as sensor_utils
 from timely_beliefs.sensors.classes import DBSensor, Sensor, SensorDBMixin
@@ -48,8 +49,6 @@ from timely_beliefs.sources import utils as source_utils
 from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 
 METADATA = ["sensor", "event_resolution"]
-DatetimeLike = Union[datetime, str, pd.Timestamp]
-TimedeltaLike = Union[timedelta, str, pd.Timedelta]
 JoinTarget = Union[
     Selectable,
     type,
