@@ -352,8 +352,8 @@ class TimedBeliefDBMixin(TimedBelief):
         :param source: only return beliefs formed by the given source or list of sources
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start) for each source
-        :param most_recent_belief_only: only return the most recent belief of the most recent event which fits all filter criteria (will also apply most_recent_event_only)
-        :param most_recent_event_only: only return the most recent event which fits all filter criteria
+        :param most_recent_belief_only: only return the most recent belief of the most recent event that fits all filter criteria (will also apply most_recent_event_only)
+        :param most_recent_event_only: only return the most recent event that fits all filter criteria
         :param place_beliefs_in_sensor_timezone: if True (the default), belief times are converted to the timezone of the sensor
         :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
         :param custom_filter_criteria: additional filters, such as ones that rely on subclasses
@@ -572,7 +572,9 @@ class TimedBeliefDBMixin(TimedBelief):
                 ),
             )
 
-        # apply fast-track most recent event|belief only approach
+        # Apply fast-track most recent event|belief only approach
+        # Note that currently, this only works for a deterministic belief. A probabilistic belief would have multiple rows
+        # (sharing the same event start and belief horizon).
         if most_recent_event_only:
             if most_recent_belief_only:
                 q = q.order_by(cls.event_start.desc(), cls.belief_horizon.asc()).limit(
@@ -581,6 +583,7 @@ class TimedBeliefDBMixin(TimedBelief):
             else:
                 q = q.order_by(cls.event_start.desc()).limit(1)
 
+        # Useful debugging code, let's keep it here
         # from sqlalchemy.dialects import postgresql
         # print(q.compile(dialect=postgresql.dialect()))
 
