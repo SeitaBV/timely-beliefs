@@ -316,8 +316,7 @@ class TimedBeliefDBMixin(TimedBelief):
         source: BeliefSource | list[BeliefSource] | None = None,
         most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
-        most_recent_belief_only: bool = False,
-        most_recent_event_only: bool = False,
+        most_recent_only: bool = False,
         place_beliefs_in_sensor_timezone: bool = True,
         place_events_in_sensor_timezone: bool = True,
         custom_filter_criteria: list[BinaryExpression] | None = None,
@@ -329,12 +328,12 @@ class TimedBeliefDBMixin(TimedBelief):
         - sensor_class makes it possible to create a query on sensor subclasses
         - custom_join_targets makes it possible to add custom filters using other (incl. subclassed) targets
 
+        A word about query speed:
         As data sets can become quite large (and get wrapped into a BeliefsDataFrame), we recommend to filter by sensor and source, as well as a time range, in order to limit processing time.
-
-        Also,you might usually want to exclude all data outside of the latest beliefs and/or events.
-        To achieve this, use either of two approaches (it's not possible to mix them):
-        - most_recent_[events|beliefs]_only: Using these filters leads to subqueries, which increase processing time. Thus, use together with event_starts_after and event_ends_before if at all possible.
-        - most_recent_[event|belief]_only: A fast-track for getting only one most recent data point (not most recent for each event within a time range).
+        You should also consider selecting only the most recent beliefs (for each event, there might have been more than one).
+        Also, look into selecting only the most recent events (per source).
+        These two latter tips decrease the dataset and thus post-processing time. They use sub-queries, though, so be sure to use the main filtering, as well, like time range.
+        Finally, if you only need one most recent value (one result row), there is a fast-track (most_recent_only).
 
         :param session: the database session to use
         :param sensor: sensor to which the beliefs pertain, or its unique sensor id
@@ -349,11 +348,10 @@ class TimedBeliefDBMixin(TimedBelief):
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
-        :param source: only return beliefs formed by the given source or list of sources
+        :param source: only return beliefs formed by the given source or list of sources. This speeds up your query, so if you know the source, let the query know.
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start) for each source
-        :param most_recent_belief_only: only return the most recent belief of the most recent event that fits all filter criteria (will also apply most_recent_event_only)
-        :param most_recent_event_only: only return the most recent event that fits all filter criteria
+        :param most_recent_only: only looks up one most recent event and then only returns the most recent belief about that event that it finds. This is a considerable fast-track if only one most recent belief is all you need.
         :param place_beliefs_in_sensor_timezone: if True (the default), belief times are converted to the timezone of the sensor
         :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
         :param custom_filter_criteria: additional filters, such as ones that rely on subclasses
@@ -388,6 +386,14 @@ class TimedBeliefDBMixin(TimedBelief):
                 beliefs_before, "belief_before"
             )
 
+        # Parse source parameter
+        sources: list = []
+        if source is not None:
+            sources = [source] if not isinstance(source, list) else source
+            # Fast-track empty list of sources
+            if sources == []:
+                return BeliefsDataFrame(sensor=sensor, beliefs=[])
+
         # Query sensor, required for its timing properties
         if isinstance(sensor, int):
             # Check for proper sensor class
@@ -400,10 +406,6 @@ class TimedBeliefDBMixin(TimedBelief):
             ).scalar_one_or_none()
             if sensor is None:
                 raise ValueError("No such sensor")
-
-        # Fast-track empty list of sources
-        if source == []:
-            return BeliefsDataFrame(sensor=sensor, beliefs=[])
 
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
         (
@@ -500,19 +502,22 @@ class TimedBeliefDBMixin(TimedBelief):
         q = apply_belief_timing_filters(q)
 
         # Apply source filter
-        if source is not None:
-            sources: list = [source] if not isinstance(source, list) else source
+        if len(sources) > 0:
             q = q.join(source_class).filter(cls.source_id.in_([s.id for s in sources]))
 
-        if most_recent_belief_only:
-            # most recent belief only makes sense on one defined event
-            most_recent_event_only = True
-        # make sure we don't mix the two most-recent-X approaches
-        if (most_recent_beliefs_only or most_recent_events_only) and (
-            most_recent_event_only
+        # Switch to fast-track if user wants both most recent events & beliefs and one source is requested.
+        # In this case, we know only one row will be returned. (If only one source exists in the to-be-returned dataset,
+        #  we'd get one row without filtering for source, but we cannot know if that happens before we query.)
+        if (most_recent_beliefs_only and most_recent_events_only) and len(sources) == 1:
+            most_recent_only = True
+            most_recent_events_only = False
+            most_recent_beliefs_only = False
+        # Otherwise, we should not allow to mix the two most-recent-X approaches, for clarity
+        elif (most_recent_beliefs_only or most_recent_events_only) and (
+            most_recent_only
         ):
             raise ValueError(
-                "most_recent_event|belief_only can not be used with either most_recent_beliefs_only or most_recent_events_only."
+                "most_recent_events|beliefs_only can not be used with most_recent_only."
             )
 
         # Apply most recent beliefs filter as subquery
@@ -572,16 +577,11 @@ class TimedBeliefDBMixin(TimedBelief):
                 ),
             )
 
-        # Apply fast-track most recent event|belief only approach
+        # Apply fast-track most-recent-only approach
         # Note that currently, this only works for a deterministic belief. A probabilistic belief would have multiple rows
         # (sharing the same event start and belief horizon).
-        if most_recent_event_only:
-            if most_recent_belief_only:
-                q = q.order_by(cls.event_start.desc(), cls.belief_horizon.asc()).limit(
-                    1
-                )
-            else:
-                q = q.order_by(cls.event_start.desc()).limit(1)
+        if most_recent_only:
+            q = q.order_by(cls.event_start.desc(), cls.belief_horizon.asc()).limit(1)
 
         # Useful debugging code, let's keep it here
         # from sqlalchemy.dialects import postgresql
