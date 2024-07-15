@@ -289,7 +289,9 @@ class TimedBeliefDBMixin(TimedBelief):
 
         if bulk_save_objects:
             # serialize source and sensor
-            beliefs_data_frame["source_id"] = beliefs_data_frame["source"].apply(lambda x: x.id)
+            beliefs_data_frame["source_id"] = beliefs_data_frame["source"].apply(
+                lambda x: x.id
+            )
             beliefs_data_frame["sensor_id"] = beliefs_data_frame.sensor.id
             beliefs_data_frame = beliefs_data_frame.drop(columns=["source"])
 
@@ -298,12 +300,10 @@ class TimedBeliefDBMixin(TimedBelief):
             if allow_overwrite:
                 smt = smt.on_conflict_do_update(
                     constraint="timed_belief_pkey",
-                    set_=dict(event_value=smt.excluded.event_value)
+                    set_=dict(event_value=smt.excluded.event_value),
                 )
 
-            session.execute(
-                smt
-            )
+            session.execute(smt)
 
         else:
             if allow_overwrite:
@@ -311,7 +311,7 @@ class TimedBeliefDBMixin(TimedBelief):
                     session.merge(belief)
             else:
                 session.add_all(beliefs)
-                
+
         if commit_transaction:
             session.commit()
 
