@@ -277,22 +277,26 @@ class TimedBeliefDBMixin(TimedBelief):
         """
         # Belief timing is stored as the belief horizon rather than as the belief time
         belief_records = (
-            beliefs_data_frame.convert_index_from_belief_time_to_horizon()
-            .reset_index()
+            beliefs_data_frame.convert_index_from_belief_time_to_horizon().reset_index()
         )
-        beliefs = [cls(sensor=beliefs_data_frame.sensor, **d) for d in belief_records.to_dict("records")]
-        
+        beliefs = [
+            cls(sensor=beliefs_data_frame.sensor, **d)
+            for d in belief_records.to_dict("records")
+        ]
+
         if expunge_session:
             session.expunge_all()
-        
+
         if bulk_save_objects:
             # serialize source and sensor
-            belief_records["source_id"] = belief_records["source"].apply(lambda x: x.id) 
+            belief_records["source_id"] = belief_records["source"].apply(lambda x: x.id)
             belief_records["sensor_id"] = belief_records.sensor.id
             belief_records = belief_records.drop(columns=["source"])
-            
+
             session.execute(
-                insert(cls).values(belief_records.to_dict("records")).on_conflict_do_nothing()
+                insert(cls)
+                .values(belief_records.to_dict("records"))
+                .on_conflict_do_nothing()
             )
         elif not allow_overwrite:
             session.add_all(beliefs)
