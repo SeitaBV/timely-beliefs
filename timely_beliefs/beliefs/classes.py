@@ -299,7 +299,13 @@ class TimedBeliefDBMixin(TimedBelief):
 
             if allow_overwrite:
                 smt = smt.on_conflict_do_update(
-                    index_elements=["event_start", "belief_horizon", "source_id", "sensor_id", "cumulative_probability"],
+                    index_elements=[
+                        "event_start",
+                        "belief_horizon",
+                        "source_id",
+                        "sensor_id",
+                        "cumulative_probability",
+                    ],
                     set_=dict(event_value=smt.excluded.event_value),
                 )
 
