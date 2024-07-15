@@ -276,12 +276,12 @@ class TimedBeliefDBMixin(TimedBelief):
                                     and commit it all within an atomic transaction
         """
         # Belief timing is stored as the belief horizon rather than as the belief time
-        belief_records = (
+        beliefs_data_frame = (
             beliefs_data_frame.convert_index_from_belief_time_to_horizon().reset_index()
         )
         beliefs = [
             cls(sensor=beliefs_data_frame.sensor, **d)
-            for d in belief_records.to_dict("records")
+            for d in beliefs_data_frame.to_dict("records")
         ]
 
         if expunge_session:
@@ -289,13 +289,13 @@ class TimedBeliefDBMixin(TimedBelief):
 
         if bulk_save_objects:
             # serialize source and sensor
-            belief_records["source_id"] = belief_records["source"].apply(lambda x: x.id)
-            belief_records["sensor_id"] = belief_records.sensor.id
-            belief_records = belief_records.drop(columns=["source"])
+            beliefs_data_frame["source_id"] = beliefs_data_frame["source"].apply(lambda x: x.id)
+            beliefs_data_frame["sensor_id"] = beliefs_data_frame.sensor.id
+            beliefs_data_frame = beliefs_data_frame.drop(columns=["source"])
 
             session.execute(
                 insert(cls)
-                .values(belief_records.to_dict("records"))
+                .values(beliefs_data_frame.to_dict("records"))
                 .on_conflict_do_nothing()
             )
         elif not allow_overwrite:
