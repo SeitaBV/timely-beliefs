@@ -293,16 +293,25 @@ class TimedBeliefDBMixin(TimedBelief):
             beliefs_data_frame["sensor_id"] = beliefs_data_frame.sensor.id
             beliefs_data_frame = beliefs_data_frame.drop(columns=["source"])
 
+            smt = insert(cls).values(beliefs_data_frame.to_dict("records"))
+
+            if allow_overwrite:
+                smt = smt.on_conflict_do_update(
+                    constraint="timed_belief_pkey",
+                    set_=dict(event_value=smt.excluded.event_value)
+                )
+
             session.execute(
-                insert(cls)
-                .values(beliefs_data_frame.to_dict("records"))
-                .on_conflict_do_nothing()
+                smt
             )
-        elif not allow_overwrite:
-            session.add_all(beliefs)
+
         else:
-            for belief in beliefs:
-                session.merge(belief)
+            if allow_overwrite:
+                for belief in beliefs:
+                    session.merge(belief)
+            else:
+                session.add_all(beliefs)
+                
         if commit_transaction:
             session.commit()
 
