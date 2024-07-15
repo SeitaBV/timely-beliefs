@@ -28,6 +28,7 @@ from sqlalchemy import (
     func,
     select,
 )
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import Session, backref, declarative_mixin, relationship
@@ -35,7 +36,6 @@ from sqlalchemy.orm.util import AliasedClass
 from sqlalchemy.schema import Index
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.expression import Selectable
-from sqlalchemy.dialects.postgresql import insert
 
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
