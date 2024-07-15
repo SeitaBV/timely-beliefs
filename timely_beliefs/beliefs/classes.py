@@ -35,6 +35,7 @@ from sqlalchemy.orm.util import AliasedClass
 from sqlalchemy.schema import Index
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.expression import Selectable
+from sqlalchemy.dialects.postgresql import insert
 
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
@@ -278,16 +279,23 @@ class TimedBeliefDBMixin(TimedBelief):
         belief_records = (
             beliefs_data_frame.convert_index_from_belief_time_to_horizon()
             .reset_index()
-            .to_dict("records")
         )
-        beliefs = [cls(sensor=beliefs_data_frame.sensor, **d) for d in belief_records]
+        beliefs = [cls(sensor=beliefs_data_frame.sensor, **d) for d in belief_records.to_dict("records")]
+        
         if expunge_session:
             session.expunge_all()
-        if not allow_overwrite:
-            if bulk_save_objects:
-                session.bulk_save_objects(beliefs)
-            else:
-                session.add_all(beliefs)
+        
+        if bulk_save_objects:
+            # serialize source and sensor
+            belief_records["source_id"] = belief_records["source"].apply(lambda x: x.id) 
+            belief_records["sensor_id"] = belief_records.sensor.id
+            belief_records = belief_records.drop(columns=["source"])
+            
+            session.execute(
+                insert(cls).values(belief_records.to_dict("records")).on_conflict_do_nothing()
+            )
+        elif not allow_overwrite:
+            session.add_all(beliefs)
         else:
             for belief in beliefs:
                 session.merge(belief)
