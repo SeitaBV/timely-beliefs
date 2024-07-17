@@ -386,14 +386,6 @@ class TimedBeliefDBMixin(TimedBelief):
                 beliefs_before, "belief_before"
             )
 
-        # Parse source parameter
-        sources: list = []
-        if source is not None:
-            sources = [source] if not isinstance(source, list) else source
-            # Fast-track empty list of sources
-            if sources == []:
-                return BeliefsDataFrame(sensor=sensor, beliefs=[])
-
         # Query sensor, required for its timing properties
         if isinstance(sensor, int):
             # Check for proper sensor class
@@ -406,6 +398,14 @@ class TimedBeliefDBMixin(TimedBelief):
             ).scalar_one_or_none()
             if sensor is None:
                 raise ValueError("No such sensor")
+
+        # Parse source parameter
+        sources: list = []
+        if source is not None:
+            sources = [source] if not isinstance(source, list) else source
+            # Fast-track empty list of sources
+            if sources == []:
+                return BeliefsDataFrame(sensor=sensor, beliefs=[])
 
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
         (
