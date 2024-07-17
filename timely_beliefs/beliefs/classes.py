@@ -28,6 +28,7 @@ from sqlalchemy import (
     func,
     select,
 )
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import Session, backref, declarative_mixin, relationship
@@ -251,7 +252,7 @@ class TimedBeliefDBMixin(TimedBelief):
         beliefs_data_frame: "BeliefsDataFrame",
         expunge_session: bool = False,
         allow_overwrite: bool = False,
-        bulk_save_objects: bool = False,
+        bulk_save_objects: bool = True,
         commit_transaction: bool = False,
     ):
         """Add a BeliefsDataFrame as timed beliefs to a database session.
@@ -274,23 +275,53 @@ class TimedBeliefDBMixin(TimedBelief):
                                     if False, you can still add other data to the session
                                     and commit it all within an atomic transaction
         """
+        if beliefs_data_frame.empty:
+            return
         # Belief timing is stored as the belief horizon rather than as the belief time
-        belief_records = (
-            beliefs_data_frame.convert_index_from_belief_time_to_horizon()
-            .reset_index()
-            .to_dict("records")
+        beliefs_data_frame = (
+            beliefs_data_frame.convert_index_from_belief_time_to_horizon().reset_index()
         )
-        beliefs = [cls(sensor=beliefs_data_frame.sensor, **d) for d in belief_records]
+        beliefs = [
+            cls(sensor=beliefs_data_frame.sensor, **d)
+            for d in beliefs_data_frame.to_dict("records")
+        ]
+
         if expunge_session:
             session.expunge_all()
-        if not allow_overwrite:
-            if bulk_save_objects:
-                session.bulk_save_objects(beliefs)
+
+        if bulk_save_objects:
+            # serialize source and sensor
+            beliefs_data_frame["source_id"] = beliefs_data_frame["source"].apply(
+                lambda x: x.id
+            )
+            beliefs_data_frame["sensor_id"] = beliefs_data_frame.sensor.id
+            beliefs_data_frame = beliefs_data_frame.drop(columns=["source"])
+
+            smt = insert(cls).values(beliefs_data_frame.to_dict("records"))
+
+            if allow_overwrite:
+                smt = smt.on_conflict_do_update(
+                    index_elements=[
+                        "event_start",
+                        "belief_horizon",
+                        "source_id",
+                        "sensor_id",
+                        "cumulative_probability",
+                    ],
+                    set_=dict(event_value=smt.excluded.event_value),
+                )
+            else:
+                smt = smt.on_conflict_do_nothing()
+
+            session.execute(smt)
+
+        else:
+            if allow_overwrite:
+                for belief in beliefs:
+                    session.merge(belief)
             else:
                 session.add_all(beliefs)
-        else:
-            for belief in beliefs:
-                session.merge(belief)
+
         if commit_transaction:
             session.commit()
 
