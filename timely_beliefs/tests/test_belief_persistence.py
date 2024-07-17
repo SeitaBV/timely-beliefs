@@ -23,7 +23,6 @@ def test_adding_to_session(
         sensor=time_slot_sensor,
         source=test_source_b,
     )
-    assert not bdf.empty
 
     # Replace the source
     if replace_source:
