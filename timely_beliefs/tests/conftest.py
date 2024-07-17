@@ -129,6 +129,7 @@ def test_source_a(db):
     """Define source for test beliefs."""
     source = DBBeliefSource("Source A")
     session.add(source)
+    session.flush()  # assign ID
     return source
 
 
@@ -137,6 +138,7 @@ def test_source_b(db):
     """Define source for test beliefs."""
     source = DBBeliefSource("Source B")
     session.add(source)
+    session.flush()  # assign ID
     return source
 
 
@@ -148,14 +150,14 @@ def test_source_without_initial_data(db):
     return source
 
 
-@pytest.fixture(scope="function", params=[1, 2])
+@pytest.fixture(scope="function")
 def rolling_day_ahead_beliefs_about_time_slot_events(
-    request, time_slot_sensor: DBSensor
+    request, time_slot_sensor: DBSensor, test_source_b
 ):
     """Define multiple day-ahead beliefs about an ex post time slot event."""
     source = (
         session.query(DBBeliefSource)
-        .filter(DBBeliefSource.id == request.param)
+        .filter(DBBeliefSource.id == test_source_b.id)
         .one_or_none()
     )
 
