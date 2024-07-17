@@ -61,9 +61,10 @@ def test_fail_adding_to_session(
         session=session,
         sensor=time_slot_sensor,
     )
+    n_beliefs_before = len(bdf)
 
-    # Attempting to save the same data should fail, even if we expunge everything from the session
-    with pytest.raises(IntegrityError):
+    if bulk_save_objects:
+        # Attempting to save the same data should not yield new data in the database
         DBTimedBelief.add_to_session(
             session,
             bdf,
@@ -71,3 +72,19 @@ def test_fail_adding_to_session(
             bulk_save_objects=bulk_save_objects,
             commit_transaction=True,
         )
+        bdf = DBTimedBelief.search_session(
+            session=session,
+            sensor=time_slot_sensor,
+        )
+        n_beliefs_after = len(bdf)
+        assert n_beliefs_after == n_beliefs_before
+    else:
+        # Attempting to save the same data should fail, even if we expunge everything from the session
+        with pytest.raises(IntegrityError):
+            DBTimedBelief.add_to_session(
+                session,
+                bdf,
+                expunge_session=True,
+                bulk_save_objects=bulk_save_objects,
+                commit_transaction=True,
+            )
