@@ -295,6 +295,9 @@ class TimedBeliefDBMixin(TimedBelief):
             beliefs_data_frame["sensor_id"] = beliefs_data_frame.sensor.id
             beliefs_data_frame = beliefs_data_frame.drop(columns=["source"])
 
+            if len(beliefs_data_frame) == 0:
+                return
+
             smt = insert(cls).values(beliefs_data_frame.to_dict("records"))
 
             if allow_overwrite:
