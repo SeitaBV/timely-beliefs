@@ -252,7 +252,7 @@ class TimedBeliefDBMixin(TimedBelief):
         beliefs_data_frame: "BeliefsDataFrame",
         expunge_session: bool = False,
         allow_overwrite: bool = False,
-        bulk_save_objects: bool = False,
+        bulk_save_objects: bool = True,
         commit_transaction: bool = False,
     ):
         """Add a BeliefsDataFrame as timed beliefs to a database session.
@@ -308,6 +308,8 @@ class TimedBeliefDBMixin(TimedBelief):
                     ],
                     set_=dict(event_value=smt.excluded.event_value),
                 )
+            else:
+                smt = smt.on_conflict_do_nothing()
 
             session.execute(smt)
 
