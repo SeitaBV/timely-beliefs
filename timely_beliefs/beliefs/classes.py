@@ -275,6 +275,8 @@ class TimedBeliefDBMixin(TimedBelief):
                                     if False, you can still add other data to the session
                                     and commit it all within an atomic transaction
         """
+        if beliefs_data_frame.empty:
+            return
         # Belief timing is stored as the belief horizon rather than as the belief time
         beliefs_data_frame = (
             beliefs_data_frame.convert_index_from_belief_time_to_horizon().reset_index()
@@ -294,9 +296,6 @@ class TimedBeliefDBMixin(TimedBelief):
             )
             beliefs_data_frame["sensor_id"] = beliefs_data_frame.sensor.id
             beliefs_data_frame = beliefs_data_frame.drop(columns=["source"])
-
-            if len(beliefs_data_frame) == 0:
-                return
 
             smt = insert(cls).values(beliefs_data_frame.to_dict("records"))
 
