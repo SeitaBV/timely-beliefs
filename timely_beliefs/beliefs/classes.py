@@ -295,10 +295,23 @@ class TimedBeliefDBMixin(TimedBelief):
             session.expunge_all()
 
         if bulk_save_objects:
-            # serialize source and sensor
+            # serialize sources and sensor, while adding new sources
+
+            # serialize sources
             beliefs_data_frame["source_id"] = beliefs_data_frame["source"].apply(
                 lambda x: x.id
             )
+
+            # Add new sources
+            newbies = pd.isnull(beliefs_data_frame["source_id"])
+            if any(newbies):
+                session.add_all(beliefs_data_frame.loc[newbies, "source"])
+                session.flush()  # assign IDs
+                beliefs_data_frame.loc[newbies, "source_id"] = beliefs_data_frame.loc[
+                    newbies, "source"
+                ].apply(lambda x: x.id)
+
+            # serialize sensor
             beliefs_data_frame["sensor_id"] = beliefs_data_frame.sensor.id
             beliefs_data_frame = beliefs_data_frame.drop(columns=["source"])
 
