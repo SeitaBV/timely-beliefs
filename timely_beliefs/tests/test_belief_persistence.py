@@ -49,31 +49,9 @@ def test_adding_to_session(
     assert len(bdf) == len(new_bdf)
 
 
-def test_adding_to_session_succeeds(
-    time_slot_sensor: DBSensor,
-    rolling_day_ahead_beliefs_about_time_slot_events,
-):
-
-    # Retrieve some data from the database
-    bdf = DBTimedBelief.search_session(
-        session=session,
-        sensor=time_slot_sensor,
-    )
-
-    # Attempting to save the same data should not fail, even if we expunge everything from the session
-    try:
-        DBTimedBelief.add_to_session(
-            session,
-            bdf,
-            expunge_session=True,
-            bulk_save_objects=True,
-            commit_transaction=True,
-        )
-    except IntegrityError as exception:
-        raise pytest.fail("DID RAISE {0}".format(exception))
-
-
-def test_adding_to_session_fails(
+@pytest.mark.parametrize("bulk_save_objects", [False, True])
+def test_fail_adding_to_session(
+    bulk_save_objects: bool,
     time_slot_sensor: DBSensor,
     rolling_day_ahead_beliefs_about_time_slot_events,
 ):
@@ -90,6 +68,6 @@ def test_adding_to_session_fails(
             session,
             bdf,
             expunge_session=True,
-            bulk_save_objects=False,
+            bulk_save_objects=bulk_save_objects,
             commit_transaction=True,
         )

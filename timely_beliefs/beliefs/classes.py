@@ -328,8 +328,6 @@ class TimedBeliefDBMixin(TimedBelief):
                     ],
                     set_=dict(event_value=smt.excluded.event_value),
                 )
-            else:
-                smt = smt.on_conflict_do_nothing()
 
             session.execute(smt)
 
