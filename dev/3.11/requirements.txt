@@ -12,7 +12,7 @@ importlib-metadata==8.5.0
     # via timely-beliefs (setup.py)
 isodate==0.6.1
     # via timely-beliefs (setup.py)
-numpy==2.1.1 ; python_version > "3.7"
+numpy==1.26.4 ; python_version > "3.7"
     # via
     #   pandas
     #   properscoring
@@ -20,7 +20,7 @@ numpy==2.1.1 ; python_version > "3.7"
     #   timely-beliefs (setup.py)
 openturns==1.23
     # via timely-beliefs (setup.py)
-pandas==2.2.2 ; python_version > "3.7"
+pandas==2.2.1 ; python_version > "3.7"
     # via timely-beliefs (setup.py)
 properscoring==0.1
     # via timely-beliefs (setup.py)
