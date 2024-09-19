@@ -303,7 +303,7 @@ def test_downsample_once_upsample_once_around_dst(
     df = df_wxyz(
         time_slot_sensor, 25, 1, 1, 1, start
     )  # 1 deterministic belief per event
-    df.iloc[0] = np.NaN  # introduce 1 NaN value
+    df.iloc[0] = np.nan  # introduce 1 NaN value
     print(df)
 
     # Downsample the original frame
