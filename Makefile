@@ -4,7 +4,7 @@ PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_
 
 # Note: use tabs (not spaces) for indentation
 # actions which are virtual, i.e. not a script
-.PHONY: install-deps install-tb freeze-deps test
+.PHONY: install-deps install-tb freeze-deps upgrade-deps test
 
 install: install-deps install-tb
 
@@ -16,6 +16,11 @@ install-deps:
 freeze-deps:
 	pip install --upgrade pip-tools
 	pip-compile -o dev/${PYV}/requirements.txt	 # use --upgrade or --upgrade-package to actually change versions
+
+upgrade-deps:
+	pip install --upgrade pip-tools
+	pip-compile -o dev/${PYV}/requirements.txt --upgrade
+	make test
 
 install-tb:
 	pip install -e .
