@@ -1,3 +1,7 @@
+# Check Python major and minor version
+# For more information, see https://stackoverflow.com/a/22105036
+PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
+
 # Note: use tabs (not spaces) for indentation
 # actions which are virtual, i.e. not a script
 .PHONY: install-deps install-tb freeze-deps test
@@ -6,12 +10,12 @@ install: install-deps install-tb
 
 install-deps:
 	pip install --upgrade pip-tools
-	pip-sync dev/requirements.txt
+	pip-sync dev/${PYV}/requirements.txt
 	pip install pre-commit
 
 freeze-deps:
 	pip install --upgrade pip-tools
-	pip-compile -o dev/requirements.txt	 # use --upgrade or --upgrade-package to actually change versions
+	pip-compile -o dev/${PYV}/requirements.txt	 # use --upgrade or --upgrade-package to actually change versions
 
 install-tb:
 	pip install -e .
