@@ -26,7 +26,9 @@ upgrade-deps:
 	make ensure-deps-folder
 	pip install --upgrade pip-tools
 	pip-compile -o dev/${PYV}/requirements.txt --upgrade
+ifneq ($(skip-test), yes)
 	make test
+endif
 
 test:
 	pip install -e .[forecast,viz]
