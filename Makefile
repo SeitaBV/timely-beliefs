@@ -18,6 +18,11 @@ install-tb:
 	pre-commit install
 
 test:
+	make test-core
+	make test-forecast
+	make test-viz
+
+test-core:
 	pip install -e .
 	pip install setuptools_scm pytest
 	pytest --ignore test_forecast__ --ignore test_viz__
