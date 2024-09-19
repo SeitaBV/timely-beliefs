@@ -1,4 +1,4 @@
-# Note: use tabs
+# Note: use tabs (not spaces) for indentation
 # actions which are virtual, i.e. not a script
 .PHONY: install-deps install-tb freeze-deps test
 
