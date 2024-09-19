@@ -4,7 +4,7 @@ PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_
 
 # Note: use tabs (not spaces) for indentation
 # actions which are virtual, i.e. not a script
-.PHONY: install install-deps install-tb freeze-deps upgrade-deps test test-core test-forecast test-viz
+.PHONY: install install-deps install-tb freeze-deps upgrade-deps test test-core test-forecast test-viz ensure-deps-folder
 
 install: install-deps install-tb
 
@@ -18,10 +18,12 @@ install-tb:
 	pre-commit install
 
 freeze-deps:
+	make ensure-deps-folder
 	pip install --upgrade pip-tools
 	pip-compile -o dev/${PYV}/requirements.txt	 # use --upgrade or --upgrade-package to actually change versions
 
 upgrade-deps:
+	make ensure-deps-folder
 	pip install --upgrade pip-tools
 	pip-compile -o dev/${PYV}/requirements.txt --upgrade
 	make test
@@ -45,3 +47,6 @@ test-viz:
 	pip install -e .[viz]
 	pip install setuptools_scm pytest
 	pytest -k test_viz__
+
+ensure-deps-folder:
+	mkdir -p dev/${PYV}
