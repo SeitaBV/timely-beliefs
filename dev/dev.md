@@ -21,8 +21,8 @@ And run tests:
 
 To update dependencies run:
 
-    pip-compile -o dev/requirements.txt -U
+    make upgrade-deps
 
 To install dependencies run:
 
-    pip install -r dev/requirements.txt
+    make install-deps
