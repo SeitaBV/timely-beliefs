@@ -4,7 +4,7 @@ PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_
 
 # Note: use tabs (not spaces) for indentation
 # actions which are virtual, i.e. not a script
-.PHONY: install-deps install-tb freeze-deps upgrade-deps test
+.PHONY: install install-deps install-tb freeze-deps upgrade-deps test test-core test-forecast test-viz
 
 install: install-deps install-tb
 
@@ -12,6 +12,10 @@ install-deps:
 	pip install --upgrade pip-tools
 	pip-sync dev/${PYV}/requirements.txt
 	pip install pre-commit
+
+install-tb:
+	pip install -e .
+	pre-commit install
 
 freeze-deps:
 	pip install --upgrade pip-tools
@@ -21,10 +25,6 @@ upgrade-deps:
 	pip install --upgrade pip-tools
 	pip-compile -o dev/${PYV}/requirements.txt --upgrade
 	make test
-
-install-tb:
-	pip install -e .
-	pre-commit install
 
 test:
 	make test-core
