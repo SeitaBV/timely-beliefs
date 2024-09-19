@@ -29,7 +29,7 @@ upgrade-deps:
 	make test
 
 test:
-	pip install -e .
+	pip install -e .[forecast,viz]
 	pip install setuptools_scm pytest
 	pytest
 
