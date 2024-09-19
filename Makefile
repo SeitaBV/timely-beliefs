@@ -34,6 +34,10 @@ ifneq ($(skip-test), yes)
 endif
 
 test:
+	make test-core  # test just the core, which may have fewer pinned dependencies
+	make test-all  # test everything sharing the same dependencies
+
+test-all:
 	pip install -e .[forecast,viz]
 	make install-for-test
 	pytest
