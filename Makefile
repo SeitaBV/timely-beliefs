@@ -20,7 +20,7 @@ install-tb:
 freeze-deps:
 	make ensure-deps-folder
 	pip install --upgrade pip-tools
-	pip-compile -o dev/${PYV}/requirements.txt	 # use --upgrade or --upgrade-package to actually change versions
+	pip-compile -o dev/${PYV}/requirements.txt
 
 upgrade-deps:
 	make ensure-deps-folder
