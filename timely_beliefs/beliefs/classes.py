@@ -879,6 +879,8 @@ class BeliefsDataFrame(pd.DataFrame):
         # Initialized with a BeliefsSeries or BeliefsDataFrame
         if len(args) > 0 and isinstance(args[0], (BeliefsSeries, BeliefsDataFrame)):
             super().__init__(*args, **kwargs)
+            self.__finalize__(self, method="inherit")
+
             assign_sensor_and_event_resolution(
                 self, args[0].sensor, args[0].event_resolution
             )
@@ -959,6 +961,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 [[getattr(i, j) for j in indices] for i in beliefs], names=indices
             )
             super().__init__(*args, **kwargs)
+            self.__finalize__(self, method="inherit")
 
         else:
             # Method 2 and 3
@@ -983,6 +986,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 args = tuple(args)
 
             super().__init__(*args, **kwargs)
+            self.__finalize__(self, method="inherit")
 
             if len(args) == 0 or (self.empty and is_pandas_structure(args[0])):
                 set_columns_and_indices_for_empty_frame(
