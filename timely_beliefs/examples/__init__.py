@@ -13,9 +13,9 @@ def get_temperature_df():
     return tb.read_csv(
         os.path.join(get_examples_path(), "temperature.csv"),
         sensor=tb.Sensor(
-            "Thermometer A", unit="°C", event_resolution=timedelta(hours=1)
+            "Ambient temperature", unit="°C", event_resolution=timedelta(hours=1)
         ),
-        source=tb.BeliefSource("Source X"),
+        source=tb.BeliefSource("Thermometer A"),
     )
 
 

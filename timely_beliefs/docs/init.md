@@ -77,8 +77,8 @@ An example, adapted from `timely_beliefs/example/__init__.py`:
 
     temperature_df = tb.read_csv(
         "temperature.csv",
-        sensor=tb.Sensor("Thermometer A", unit="°C", event_resolution=timedelta(hours=1)),
-        source=tb.BeliefSource("Source X"),
+        sensor=tb.Sensor("Ambient temperature", unit="°C", event_resolution=timedelta(hours=1)),
+        source=tb.BeliefSource("Thermometer A"),
     )
 
 In case the csv file contains multiple source names, you can pass a list of sources.
