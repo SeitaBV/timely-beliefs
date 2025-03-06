@@ -12,7 +12,7 @@ entrypoints==0.3
     # via altair
 isodate==0.6.0
     # via timely-beliefs (setup.py)
-jinja2==3.1.4
+jinja2==3.1.6
     # via altair
 jsonschema==3.2.0
     # via altair
