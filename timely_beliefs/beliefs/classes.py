@@ -1772,7 +1772,8 @@ class BeliefsDataFrame(pd.DataFrame):
                     resolution=df.event_resolution,
                 )
                 forecaster.fit(
-                    df["event_value"], df.loc[:, df.columns != "event_value"]
+                    pd.Series(df["event_value"]),
+                    pd.DataFrame(df.loc[:, df.columns != "event_value"]),
                 )
                 y_pred = forecaster.predict(forecast_event_starts)
             else:

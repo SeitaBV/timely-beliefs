@@ -98,9 +98,8 @@ def upsample_event_start(
     if fill_method is None:
         return df.reindex(mux)
     elif fill_method == "ffill":
-        return df.reindex(mux).fillna(
-            method="ffill"
-        )  # ffill (formerly 'pad') is the reverse of mean downsampling
+        # ffill (formerly 'pad') is the reverse of mean downsampling
+        return df.reindex(mux).ffill()
     else:
         raise NotImplementedError("Unknown upsample method.")
 
@@ -1091,7 +1090,7 @@ def convert_to_instantaneous(
     )
     df = pd.concat([df, df2], axis=1)
     if boundary_policy == "first":
-        s = df.fillna(method="bfill", axis=1).iloc[:, 0]
+        s = df.bfill(axis=1).iloc[:, 0]
     else:
         s = getattr(df, boundary_policy)(axis=1).rename("event_value")
     df = s.sort_index().reset_index().set_index("event_start")
@@ -1180,8 +1179,7 @@ def upsample_beliefs_data_frame(
         index_levels = df.index.names
         df = df.reset_index().set_index("event_start")
     df = df.reindex(new_index)
-    df = df.fillna(
-        method="ffill",
+    df = df.ffill(
         limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
     )
     df = df.dropna()
