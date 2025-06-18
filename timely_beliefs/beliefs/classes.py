@@ -2197,7 +2197,10 @@ def set_columns_and_indices_for_empty_frame(df, columns, indices, default_types)
         elif default_types[col] == timedelta:
             df[col] = pd.to_timedelta(df[col])
         elif default_types[col] in (int, float):
-            df[col] = pd.to_numeric(df[col])
+            try:
+                df[col] = pd.to_numeric(df[col])
+            except:
+                pass
 
     df.set_index(indices, inplace=True)  # todo: pandas GH30517
 
