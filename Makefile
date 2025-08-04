@@ -23,12 +23,12 @@ install-tb:
 freeze-deps:
 	make ensure-deps-folder
 	pip install --upgrade pip-tools
-	pip-compile -o dev/${PYV}/requirements.txt
+	pip-compile -o dev/${PYV}/requirements.txt --extra=forecast --extra=viz
 
 upgrade-deps:
 	make ensure-deps-folder
 	pip install --upgrade pip-tools
-	pip-compile -o dev/${PYV}/requirements.txt --upgrade
+	pip-compile -o dev/${PYV}/requirements.txt --upgrade --extra=forecast --extra=viz
 ifneq ($(skip-test), yes)
 	make test
 endif
