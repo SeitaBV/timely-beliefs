@@ -196,8 +196,8 @@ class TimedBeliefDBMixin(TimedBelief):
             ),
             Index(
                 f"{cls.__tablename__}_search_session_singleevent_idx",
-                "event_start",
                 "sensor_id",
+                "event_start",
             ),
         )
 
