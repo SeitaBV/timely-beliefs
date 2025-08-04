@@ -58,7 +58,7 @@ sqlalchemy==2.0.0
     # via timely-beliefs (setup.py)
 toolz==0.10.0
     # via altair
-urllib3==1.26.19
+urllib3==2.5.0
     # via selenium
 
 # The following packages are considered to be unsafe in a requirements file:
