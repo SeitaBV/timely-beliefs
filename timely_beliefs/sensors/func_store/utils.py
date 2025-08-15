@@ -73,10 +73,13 @@ def datetime_x_years_ago_at_date(
             original_tz
         )
     else:
-        tz_aware_earlier_time = tz_aware_original_time.to_period(
-            "1Y"
-        ).to_timestamp().tz_localize(tz_aware_original_time.tz) + pd.DateOffset(
-            month=month, day=day, years=-x
+        tz_aware_earlier_time = tz_aware_original_time.map(
+            lambda ts: ts.replace(
+                year=ts.year - x,
+                month=month,
+                day=day,
+                hour=0, minute=0, second=0, microsecond=0
+            )
         )
 
     return tz_aware_earlier_time
