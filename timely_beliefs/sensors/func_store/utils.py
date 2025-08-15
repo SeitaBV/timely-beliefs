@@ -78,7 +78,10 @@ def datetime_x_years_ago_at_date(
                 year=ts.year - x,
                 month=month,
                 day=day,
-                hour=0, minute=0, second=0, microsecond=0
+                hour=0,
+                minute=0,
+                second=0,
+                microsecond=0,
             )
         )
 
