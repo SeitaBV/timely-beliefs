@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 import warnings
 from datetime import datetime, timedelta
-from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -21,9 +20,12 @@ from timely_beliefs.beliefs.probabilistic_utils import (
     get_median_belief,
     probabilistic_nan_mean,
 )
+from timely_beliefs.beliefs.time_utils import (
+    TimedeltaLike,
+    iso_duration_to_offset,
+    to_max_timedelta,
+)
 from timely_beliefs.sources import utils as source_utils
-
-TimedeltaLike = Union[timedelta, str, pd.Timedelta]
 
 
 def select_most_recent_belief(
@@ -903,9 +905,14 @@ def convert_to_timezone(
 if version.parse(pd.__version__) >= version.parse("1.4.0"):
 
     def initialize_index(
-        start: datetime, end: datetime, resolution: timedelta, inclusive: str = "left"
+        start: datetime,
+        end: datetime,
+        resolution: timedelta | pd.DateOffset | str,
+        inclusive: str = "left",
     ) -> pd.DatetimeIndex:
         """Initialize DatetimeIndex for event starts."""
+        if isinstance(resolution, str):
+            resolution = iso_duration_to_offset(resolution)
         return pd.date_range(
             start=start,
             end=end,
@@ -917,9 +924,14 @@ if version.parse(pd.__version__) >= version.parse("1.4.0"):
 else:
 
     def initialize_index(
-        start: datetime, end: datetime, resolution: timedelta, inclusive: str = "left"
+        start: datetime,
+        end: datetime,
+        resolution: timedelta | pd.DateOffset | str,
+        inclusive: str = "left",
     ) -> pd.DatetimeIndex:
         """Initialize DatetimeIndex for event starts."""
+        if isinstance(resolution, str):
+            resolution = iso_duration_to_offset(resolution)
         return pd.date_range(
             start=start, end=end, freq=resolution, closed=inclusive, name="event_start"
         )
@@ -1100,11 +1112,13 @@ def convert_to_instantaneous(
 
 def upsample_beliefs_data_frame(
     df: "classes.BeliefsDataFrame" | pd.DataFrame,
-    event_resolution: timedelta,
+    event_resolution: TimedeltaLike,
     keep_nan_values: bool = False,
     boundary_policy: str = "first",
 ) -> "classes.BeliefsDataFrame":
     """Because simply doing df.resample().ffill() does not correctly resample the last event in the data frame.
+
+    todo: stop converting nominal to max absolute durations once BeliefsDataFrames can handle nominal event resolutions
 
     :param df:                  In case of a regular pd.DataFrame, make sure to set df.event_resolution before passing it to this function.
     :param event_resolution:    Resolution to upsample to.
@@ -1113,7 +1127,7 @@ def upsample_beliefs_data_frame(
                                 take the 'max', 'min' or 'first' value at event boundaries.
     """
     if df.empty:
-        df.event_resolution = event_resolution
+        df.event_resolution = to_max_timedelta(event_resolution)
         return df
     if event_resolution == timedelta(0):
         return convert_to_instantaneous(
@@ -1123,9 +1137,9 @@ def upsample_beliefs_data_frame(
     from_event_resolution = df.event_resolution
     if from_event_resolution == timedelta(0):
         raise NotImplementedError("Cannot upsample from zero event resolution.")
-    resample_ratio = pd.to_timedelta(to_offset(from_event_resolution)) / pd.Timedelta(
-        event_resolution
-    )
+    resample_ratio = pd.to_timedelta(
+        to_offset(from_event_resolution)
+    ) / to_max_timedelta(event_resolution)
     if keep_nan_values:
         # Back up NaN values.
         # We are flagging the positions of the NaN values in the original data with a unique number.
@@ -1188,5 +1202,5 @@ def upsample_beliefs_data_frame(
     if keep_nan_values:
         # place back original NaN values
         df = df.replace(unique_event_value_not_in_df, np.NaN)
-    df.event_resolution = event_resolution
+    df.event_resolution = to_max_timedelta(event_resolution)
     return df
