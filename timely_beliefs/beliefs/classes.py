@@ -26,7 +26,6 @@ from sqlalchemy import (
     Interval,
     and_,
     func,
-    MetaData,
     select,
     Table,
 )
@@ -366,6 +365,7 @@ class TimedBeliefDBMixin(TimedBelief):
         custom_filter_criteria: list[BinaryExpression] | None = None,
         custom_join_targets: list[JoinTarget] | None = None,
         use_materialized_view: bool = True,
+        timed_belief_min_v: Table | None = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
@@ -574,34 +574,8 @@ class TimedBeliefDBMixin(TimedBelief):
             and not most_recent_beliefs_only_incompatible_criteria
         ):
             # Check if we should use materialized view (for better performance on large datasets)
-            
-            if use_materialized_view:
-                try:
-                    # Define the materialized view structure explicitly
-                    metadata = MetaData()
-                    timed_belief_min_v = Table(
-                        'timed_belief_min_v', 
-                        metadata,
-                        Column('sensor_id', Integer),
-                        Column('event_start', DateTime),
-                        Column('source_id', Integer), 
-                        Column('most_recent_belief_horizon', Interval),
-                        schema='public'  # explicitly specify schema
-                    )
 
-                    # Join with the materialized view
-                    q = q.join(
-                        timed_belief_min_v,
-                        and_(
-                            cls.sensor_id == timed_belief_min_v.c.sensor_id,
-                            cls.event_start == timed_belief_min_v.c.event_start,
-                            cls.source_id == timed_belief_min_v.c.source_id,
-                            cls.belief_horizon == timed_belief_min_v.c.most_recent_belief_horizon,
-                        )
-                    )
-                except Exception as e:
-                    print(f"Materialized view join failed: {e}")
-            else:
+            def use_original_subquery_for_most_recent_beliefs(q):
                 # Use original subquery approach
                 subq = select(
                     cls.event_start,
@@ -625,34 +599,29 @@ class TimedBeliefDBMixin(TimedBelief):
                         cls.belief_horizon == subq.c.most_recent_belief_horizon,
                     ),
                 )
-
-        # Apply most recent events filter as subquery
-        if most_recent_events_only:
-            if use_materialized_view:
+            
+            if use_materialized_view and timed_belief_min_v:
                 try:
-                    # Define the materialized view structure explicitly
-                    metadata = MetaData()
-                    timed_belief_max_v = Table(
-                        'timed_belief_max_v', 
-                        metadata,
-                        Column('sensor_id', Integer),
-                        Column('source_id', Integer), 
-                        Column('most_recent_event_start', DateTime),
-                        schema='public'  # explicitly specify schema
-                    )
-
                     # Join with the materialized view
                     q = q.join(
-                        timed_belief_max_v,
+                        timed_belief_min_v,
                         and_(
-                            cls.sensor_id == timed_belief_max_v.c.sensor_id,
-                            cls.source_id == timed_belief_max_v.c.source_id,
-                            cls.event_start == timed_belief_max_v.c.most_recent_event_start,
+                            cls.sensor_id == timed_belief_min_v.c.sensor_id,
+                            cls.event_start == timed_belief_min_v.c.event_start,
+                            cls.source_id == timed_belief_min_v.c.source_id,
+                            cls.belief_horizon == timed_belief_min_v.c.most_recent_belief_horizon,
                         )
                     )
                 except Exception as e:
                     print(f"Materialized view join failed: {e}")
+                    # Fallback to the original subquery approach
+                    use_original_subquery_for_most_recent_beliefs(q)
             else:
+                use_original_subquery_for_most_recent_beliefs(q)
+
+        # Apply most recent events filter as subquery
+        if most_recent_events_only:
+            def use_original_subquery_for_most_recent_events(q):
                 subq_most_recent_events = select(
                     cls.source_id,
                     func.max(cls.event_start).label("most_recent_event_start"),
@@ -676,6 +645,24 @@ class TimedBeliefDBMixin(TimedBelief):
                         == subq_most_recent_events.c.most_recent_event_start,
                     ),
                 )
+
+            if use_materialized_view and timed_belief_min_v:
+                try:
+                    # Join with the materialized view
+                    q = q.join(
+                        timed_belief_min_v,
+                        and_(
+                            cls.sensor_id == timed_belief_min_v.c.sensor_id,
+                            cls.source_id == timed_belief_min_v.c.source_id,
+                            cls.event_start == timed_belief_min_v.c.most_recent_event_start,
+                        )
+                    )
+                except Exception as e:
+                    print(f"Materialized view join failed: {e}")
+                    # Fallback to the original subquery approach
+                    use_original_subquery_for_most_recent_events(q)
+            else:
+                use_original_subquery_for_most_recent_events(q)
 
         # Apply fast-track most-recent-only approach
         # Note that currently, this only works for a deterministic belief. A probabilistic belief would have multiple rows
