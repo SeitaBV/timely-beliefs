@@ -599,8 +599,9 @@ class TimedBeliefDBMixin(TimedBelief):
                         cls.belief_horizon == subq.c.most_recent_belief_horizon,
                     ),
                 )
+                return q
             
-            if use_materialized_view and timed_belief_min_v:
+            if use_materialized_view == True and timed_belief_min_v != None:
                 try:
                     # Join with the materialized view
                     q = q.join(
@@ -613,11 +614,11 @@ class TimedBeliefDBMixin(TimedBelief):
                         )
                     )
                 except Exception as e:
-                    print(f"Materialized view join failed: {e}")
+                    print(f"Materialized view join failed: {e}. Falling back to original subquery approach.")
                     # Fallback to the original subquery approach
-                    use_original_subquery_for_most_recent_beliefs(q)
+                    q = use_original_subquery_for_most_recent_beliefs(q)
             else:
-                use_original_subquery_for_most_recent_beliefs(q)
+                q = use_original_subquery_for_most_recent_beliefs(q)
 
         # Apply most recent events filter as subquery
         if most_recent_events_only:
@@ -645,6 +646,7 @@ class TimedBeliefDBMixin(TimedBelief):
                         == subq_most_recent_events.c.most_recent_event_start,
                     ),
                 )
+                return q
 
             if use_materialized_view and timed_belief_min_v:
                 try:
@@ -658,11 +660,11 @@ class TimedBeliefDBMixin(TimedBelief):
                         )
                     )
                 except Exception as e:
-                    print(f"Materialized view join failed: {e}")
+                    print(f"Materialized view join failed: {e}. Falling back to original subquery approach.")
                     # Fallback to the original subquery approach
-                    use_original_subquery_for_most_recent_events(q)
+                    q = use_original_subquery_for_most_recent_events(q)
             else:
-                use_original_subquery_for_most_recent_events(q)
+                q = use_original_subquery_for_most_recent_events(q)
 
         # Apply fast-track most-recent-only approach
         # Note that currently, this only works for a deterministic belief. A probabilistic belief would have multiple rows
@@ -672,7 +674,9 @@ class TimedBeliefDBMixin(TimedBelief):
 
         # Useful debugging code, let's keep it here
         # from sqlalchemy.dialects import postgresql
+        # print("\nQuery for beliefs:\n")
         # print(q.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+        # print("\n\n")
 
         # Build our DataFrame of beliefs
         df = pd.DataFrame(session.execute(q))
