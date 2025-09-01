@@ -600,6 +600,7 @@ class TimedBeliefDBMixin(TimedBelief):
                     ),
                 )
                 return q
+
             if use_materialized_view and timed_belief_min_v is not None:
                 try:
                     # Join with the materialized view
