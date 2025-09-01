@@ -24,10 +24,10 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Interval,
+    Table,
     and_,
     func,
     select,
-    Table,
 )
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.declarative import declared_attr
@@ -600,7 +600,6 @@ class TimedBeliefDBMixin(TimedBelief):
                     ),
                 )
                 return q
-            
             if use_materialized_view and timed_belief_min_v is not None:
                 try:
                     # Join with the materialized view
@@ -610,11 +609,14 @@ class TimedBeliefDBMixin(TimedBelief):
                             cls.sensor_id == timed_belief_min_v.c.sensor_id,
                             cls.event_start == timed_belief_min_v.c.event_start,
                             cls.source_id == timed_belief_min_v.c.source_id,
-                            cls.belief_horizon == timed_belief_min_v.c.most_recent_belief_horizon,
-                        )
+                            cls.belief_horizon
+                            == timed_belief_min_v.c.most_recent_belief_horizon,
+                        ),
                     )
                 except Exception as e:
-                    print(f"Materialized view join failed: {e}. Falling back to original subquery approach.")
+                    print(
+                        f"Materialized view join failed: {e}. Falling back to original subquery approach."
+                    )
                     # Fallback to the original subquery approach
                     q = use_original_subquery_for_most_recent_beliefs(q)
             else:
@@ -622,6 +624,7 @@ class TimedBeliefDBMixin(TimedBelief):
 
         # Apply most recent events filter as subquery
         if most_recent_events_only:
+
             def use_original_subquery_for_most_recent_events(q):
                 subq_most_recent_events = select(
                     cls.source_id,
@@ -656,11 +659,14 @@ class TimedBeliefDBMixin(TimedBelief):
                         and_(
                             cls.sensor_id == timed_belief_min_v.c.sensor_id,
                             cls.source_id == timed_belief_min_v.c.source_id,
-                            cls.event_start == timed_belief_min_v.c.most_recent_event_start,
-                        )
+                            cls.event_start
+                            == timed_belief_min_v.c.most_recent_event_start,
+                        ),
                     )
                 except Exception as e:
-                    print(f"Materialized view join failed: {e}. Falling back to original subquery approach.")
+                    print(
+                        f"Materialized view join failed: {e}. Falling back to original subquery approach."
+                    )
                     # Fallback to the original subquery approach
                     q = use_original_subquery_for_most_recent_events(q)
             else:
