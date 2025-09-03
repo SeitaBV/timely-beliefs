@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from typing import Sequence
 
 import pandas as pd
+from sqlalchemy import Column, DateTime, Integer, Interval, MetaData, Table, text
+from sqlalchemy.orm import Session
 
 
 def parse_timedelta_like(
@@ -206,3 +208,29 @@ def remove_class_init_kwargs(cls, kwargs: dict) -> dict:
     for param in params:
         kwargs.pop(param, None)
     return kwargs
+
+
+def get_timed_belief_min_v(session: Session) -> Table | None:
+    """Define the structure of the timed_belief_min_v materialized view."""
+
+    timed_belief_min_v = session.execute(
+        text(
+            """
+            SELECT *
+            FROM pg_matviews
+            WHERE matviewname = 'timed_belief_min_v';
+        """
+        )
+    ).fetchone()
+    if timed_belief_min_v:
+        metadata = MetaData()
+        timed_belief_min_v = Table(
+            "timed_belief_min_v",
+            metadata,
+            Column("sensor_id", Integer),
+            Column("event_start", DateTime),
+            Column("source_id", Integer),
+            Column("most_recent_belief_horizon", Interval),
+        )
+
+    return timed_belief_min_v
