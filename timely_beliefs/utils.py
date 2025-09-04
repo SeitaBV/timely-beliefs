@@ -210,22 +210,22 @@ def remove_class_init_kwargs(cls, kwargs: dict) -> dict:
     return kwargs
 
 
-def get_timed_belief_min_v(session: Session) -> Table | None:
-    """Define the structure of the timed_belief_min_v materialized view."""
+def get_most_recent_beliefs_mview(session: Session) -> Table | None:
+    """Define the structure of the most_recent_beliefs_mview materialized view."""
 
-    timed_belief_min_v = session.execute(
+    most_recent_beliefs_mview = session.execute(
         text(
             """
             SELECT *
             FROM pg_matviews
-            WHERE matviewname = 'timed_belief_min_v';
+            WHERE matviewname = 'most_recent_beliefs_mview';
         """
         )
     ).fetchone()
-    if timed_belief_min_v:
+    if most_recent_beliefs_mview:
         metadata = MetaData()
-        timed_belief_min_v = Table(
-            "timed_belief_min_v",
+        most_recent_beliefs_mview = Table(
+            "most_recent_beliefs_mview",
             metadata,
             Column("sensor_id", Integer),
             Column("event_start", DateTime),
@@ -233,4 +233,4 @@ def get_timed_belief_min_v(session: Session) -> Table | None:
             Column("most_recent_belief_horizon", Interval),
         )
 
-    return timed_belief_min_v
+    return most_recent_beliefs_mview

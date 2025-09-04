@@ -365,7 +365,7 @@ class TimedBeliefDBMixin(TimedBelief):
         custom_filter_criteria: list[BinaryExpression] | None = None,
         custom_join_targets: list[JoinTarget] | None = None,
         use_materialized_view: bool = True,
-        timed_belief_min_v: Table | None = None,
+        most_recent_beliefs_mview: Table | None = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
@@ -601,17 +601,17 @@ class TimedBeliefDBMixin(TimedBelief):
                 )
                 return q
 
-            if use_materialized_view and timed_belief_min_v is not None:
+            if use_materialized_view and most_recent_beliefs_mview is not None:
                 try:
                     # Join with the materialized view
                     q = q.join(
-                        timed_belief_min_v,
+                        most_recent_beliefs_mview,
                         and_(
-                            cls.sensor_id == timed_belief_min_v.c.sensor_id,
-                            cls.event_start == timed_belief_min_v.c.event_start,
-                            cls.source_id == timed_belief_min_v.c.source_id,
+                            cls.sensor_id == most_recent_beliefs_mview.c.sensor_id,
+                            cls.event_start == most_recent_beliefs_mview.c.event_start,
+                            cls.source_id == most_recent_beliefs_mview.c.source_id,
                             cls.belief_horizon
-                            == timed_belief_min_v.c.most_recent_belief_horizon,
+                            == most_recent_beliefs_mview.c.most_recent_belief_horizon,
                         ),
                     )
                 except Exception as e:
@@ -652,16 +652,16 @@ class TimedBeliefDBMixin(TimedBelief):
                 )
                 return q
 
-            if use_materialized_view and timed_belief_min_v:
+            if use_materialized_view and most_recent_beliefs_mview:
                 try:
                     # Join with the materialized view
                     q = q.join(
-                        timed_belief_min_v,
+                        most_recent_beliefs_mview,
                         and_(
-                            cls.sensor_id == timed_belief_min_v.c.sensor_id,
-                            cls.source_id == timed_belief_min_v.c.source_id,
+                            cls.sensor_id == most_recent_beliefs_mview.c.sensor_id,
+                            cls.source_id == most_recent_beliefs_mview.c.source_id,
                             cls.event_start
-                            == timed_belief_min_v.c.most_recent_event_start,
+                            == most_recent_beliefs_mview.c.most_recent_event_start,
                         ),
                     )
                 except Exception as e:
