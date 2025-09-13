@@ -969,9 +969,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 args[0] = args[0].copy()  # avoid inplace operations
                 args[0] = args[0].to_frame(name="event_value")
                 if isinstance(args[0].index, pd.DatetimeIndex) and event_start is None:
-                    args[0].index.name = (
-                        "event_start" if not args[0].index.name else args[0].index.name
-                    )
+                    args[0].index.name = "event_start"
                     args[0].reset_index(inplace=True)
                 args = tuple(args)
             elif len(args) > 0 and isinstance(args[0], pd.DataFrame):
