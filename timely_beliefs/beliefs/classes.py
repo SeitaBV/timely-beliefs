@@ -1558,7 +1558,7 @@ class BeliefsDataFrame(pd.DataFrame):
         event_resolution = tb_utils.parse_timedelta_like(event_resolution)
         if event_resolution == self.event_resolution:
             return self
-        df = self
+        df = self.copy()  # avoid inplace operation
 
         if df.empty:
             df.event_resolution = event_resolution
