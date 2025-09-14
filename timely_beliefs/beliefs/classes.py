@@ -1555,14 +1555,14 @@ class BeliefsDataFrame(pd.DataFrame):
         :param boundary_policy: When upsampling to instantaneous events,
                                 take the 'max', 'min' or 'first' value at event boundaries.
         """
-
-        if self.empty:
-            self.event_resolution = event_resolution
-            return self
         event_resolution = tb_utils.parse_timedelta_like(event_resolution)
         if event_resolution == self.event_resolution:
             return self
         df = self
+
+        if df.empty:
+            df.event_resolution = event_resolution
+            return df
 
         # Resample instantaneous sensors
         # The event resolution stays zero, but the event frequency is updated
