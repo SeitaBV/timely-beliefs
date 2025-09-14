@@ -1557,6 +1557,7 @@ class BeliefsDataFrame(pd.DataFrame):
         """
 
         if self.empty:
+            self.event_resolution = event_resolution
             return self
         event_resolution = tb_utils.parse_timedelta_like(event_resolution)
         if event_resolution == self.event_resolution:
