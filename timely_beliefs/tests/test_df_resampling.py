@@ -147,9 +147,15 @@ def test_resample_empty_frame(time_slot_sensor):
     """Test resampling an empty frame does assign the requested event_resolution."""
     bdf = BeliefsDataFrame(sensor=time_slot_sensor)
     bdf2 = bdf.resample_events(timedelta(minutes=5))
-    assert bdf.event_resolution == timedelta(minutes=15), "expected no inplace operation"
-    assert bdf2.sensor.event_resolution == timedelta(minutes=15), "Sensor expected to retain original resolution"
-    assert bdf2.event_resolution == timedelta(minutes=5), "BeliefsDataFrame expected to get new resolution"
+    assert bdf.event_resolution == timedelta(
+        minutes=15
+    ), "expected no inplace operation"
+    assert bdf2.sensor.event_resolution == timedelta(
+        minutes=15
+    ), "Sensor expected to retain original resolution"
+    assert bdf2.event_resolution == timedelta(
+        minutes=5
+    ), "BeliefsDataFrame expected to get new resolution"
 
 
 def test_downsample_twice_upsample_once(df_4323):
