@@ -241,11 +241,11 @@ def align_belief_times(
             previous_slice_with_existing_belief_time = slice_with_existing_belief_time
 
     # Create new BeliefsDataFrame
-    df = slice.copy().reset_index().iloc[0:0]
-    sensor = df.sensor
+    empty_bdf = slice.copy().reset_index().iloc[0:0]
+    sensor = empty_bdf.sensor
     df = pd.concat(
         [
-            df,
+            empty_bdf,
             pd.DataFrame(
                 data,
                 columns=[
