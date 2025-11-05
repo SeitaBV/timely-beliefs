@@ -1002,7 +1002,8 @@ def resample_instantaneous_events(
         resampled_df.index.freq = pd.infer_freq(resampled_df.index)
 
     # Restore the original index levels
-    resampled_df = resampled_df.reset_index().set_index(index_levels)
+    resampled_df["event_start"] = resampled_df.index
+    resampled_df = resampled_df.set_index(index_levels)
 
     if method in (
         "mean",
