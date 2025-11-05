@@ -968,7 +968,8 @@ def resample_instantaneous_events(
 
     # Use event_start as the only index level
     index_names = df.index.names
-    df = df.reset_index().set_index("event_start")
+    levels_to_reset = [lvl for lvl in index_names if lvl != "event_start"]
+    df = df.reset_index(level=levels_to_reset)
 
     # Resample the data in each unique fixed timezone offset that belongs to the given IANA timezone, then recombine
     unique_offsets = df.index.map(lambda x: x.utcoffset()).unique()
