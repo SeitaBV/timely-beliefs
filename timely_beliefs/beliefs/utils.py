@@ -1082,10 +1082,8 @@ def convert_to_instantaneous(
     """
     df2 = df.copy()
     df2.index = df2.index + df.event_resolution
-    df["event_start"] = df.index
-    df = df.set_index(["event_start", "belief_time", "source", "cumulative_probability"])
-    df2["event_start"] = df2.index
-    df2 = df2.set_index(["event_start", "belief_time", "source", "cumulative_probability"])
+    df = df.set_index(["belief_time", "source", "cumulative_probability"], append=True)
+    df2 = df2.set_index(["belief_time", "source", "cumulative_probability"], append=True)
     df = pd.concat([df, df2], axis=1)
     if boundary_policy == "first":
         s = df.bfill(axis=1).iloc[:, 0]
@@ -1183,8 +1181,7 @@ def upsample_beliefs_data_frame(
     )
     df = df.dropna()
     if isinstance(df, classes.BeliefsDataFrame):
-        df["event_start"] = df.index
-        df = df.set_index(index_levels)
+        df = df.set_index(levels_to_reset, append=True)
     if keep_nan_values:
         # place back original NaN values
         df = df.replace(unique_event_value_not_in_df, np.NaN)
