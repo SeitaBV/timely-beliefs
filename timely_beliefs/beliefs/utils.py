@@ -226,9 +226,9 @@ def align_belief_times(
             # If not already present, create a new row with the most recent belief (or nan if no previous exists)
             if previous_slice_with_existing_belief_time is not None:
                 ps = previous_slice_with_existing_belief_time.reset_index()
-                ps[
-                    "belief_time"
-                ] = ubt  # Update belief time to reflect propagation of beliefs over time
+                ps["belief_time"] = (
+                    ubt  # Update belief time to reflect propagation of beliefs over time
+                )
                 data.extend(ps.values.tolist())
             else:
                 data.append([event_start, ubt, source, np.nan, np.nan])
@@ -519,9 +519,11 @@ def set_reference(
     return pd.concat(
         [reference_df] * df.lineage.number_of_belief_horizons,
         keys=df.lineage.belief_horizons,
-        names=["belief_horizon", "source"]
-        if return_reference_type != "full"
-        else ["belief_horizon", "source", "cumulative_probability"],
+        names=(
+            ["belief_horizon", "source"]
+            if return_reference_type != "full"
+            else ["belief_horizon", "source", "cumulative_probability"]
+        ),
     )
 
 
@@ -1083,13 +1085,17 @@ def convert_to_instantaneous(
     df2 = df.copy()
     df2.index = df2.index + df.event_resolution
     df = df.set_index(["belief_time", "source", "cumulative_probability"], append=True)
-    df2 = df2.set_index(["belief_time", "source", "cumulative_probability"], append=True)
+    df2 = df2.set_index(
+        ["belief_time", "source", "cumulative_probability"], append=True
+    )
     df = pd.concat([df, df2], axis=1)
     if boundary_policy == "first":
         s = df.bfill(axis=1).iloc[:, 0]
     else:
         s = getattr(df, boundary_policy)(axis=1).rename("event_value")
-    df = s.sort_index().reset_index(level=['belief_time', 'source', 'cumulative_probability'])
+    df = s.sort_index().reset_index(
+        level=["belief_time", "source", "cumulative_probability"]
+    )
     df.event_resolution = timedelta(0)
     return df
 
