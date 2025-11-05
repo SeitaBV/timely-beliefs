@@ -343,10 +343,8 @@ def resample_event_start(
     if input_resolution == output_resolution:
         return df
 
-    # Determine unique set of belief times
-    unique_belief_times = np.sort(
-        df.reset_index()["belief_time"].unique()
-    )  # Sorted from past to present
+    # Determine unique set of belief times, sorted from past to present
+    unique_belief_times = np.sort(df.index.get_level_values("belief_time").unique())
 
     if keep_only_most_recent_belief:
         # faster
