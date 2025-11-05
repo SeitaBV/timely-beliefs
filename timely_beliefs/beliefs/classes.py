@@ -2229,15 +2229,15 @@ def downsample_beliefs_data_frame(
     we aggregate each index level and column separately against the resampled event_start level,
     and then recombine them afterwards.
     """
+    index_levels = df.index.names
     belief_timing_col = (
-        "belief_time" if "belief_time" in df.index.names else "belief_horizon"
+        "belief_time" if "belief_time" in index_levels else "belief_horizon"
     )
-    event_timing_col = "event_start" if "event_start" in df.index.names else "event_end"
+    event_timing_col = "event_start" if "event_start" in index_levels else "event_end"
     return pd.concat(
         [
             getattr(
-                df.reset_index()
-                .set_index(event_timing_col)[col]
+                df.reset_index(level=[lvl for lvl in index_levels if lvl != event_timing_col])[col]
                 .to_frame()
                 .resample(event_resolution),
                 att,
