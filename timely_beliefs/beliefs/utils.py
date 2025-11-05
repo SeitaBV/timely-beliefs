@@ -967,8 +967,8 @@ def resample_instantaneous_events(
         method = "asfreq"
 
     # Use event_start as the only index level
-    index_names = df.index.names
-    levels_to_reset = [lvl for lvl in index_names if lvl != "event_start"]
+    index_levels = df.index.names
+    levels_to_reset = [lvl for lvl in index_levels if lvl != "event_start"]
     df = df.reset_index(level=levels_to_reset)
 
     # Resample the data in each unique fixed timezone offset that belongs to the given IANA timezone, then recombine
@@ -1002,7 +1002,7 @@ def resample_instantaneous_events(
         resampled_df.index.freq = pd.infer_freq(resampled_df.index)
 
     # Restore the original index levels
-    resampled_df = resampled_df.reset_index().set_index(index_names)
+    resampled_df = resampled_df.reset_index().set_index(index_levels)
 
     if method in (
         "mean",
@@ -1174,7 +1174,7 @@ def upsample_beliefs_data_frame(
     # 2020-03-29 12:40:00+02:00 NaN
     if isinstance(df, classes.BeliefsDataFrame):
         index_levels = df.index.names
-        levels_to_reset = [lvl for lvl in df.index.names if lvl != "event_start"]
+        levels_to_reset = [lvl for lvl in index_levels if lvl != "event_start"]
         df = df.reset_index(level=levels_to_reset)
     df = df.reindex(new_index)
     df = df.ffill(
