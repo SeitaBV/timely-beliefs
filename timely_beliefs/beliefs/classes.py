@@ -1735,9 +1735,7 @@ class BeliefsDataFrame(pd.DataFrame):
             )
         else:
             # Simplify index
-            df = df.reset_index()[["event_start", "event_value"]].set_index(
-                "event_start"
-            )
+            df.index = df.index.droplevel([lvl for lvl in df.index.names if lvl != "event_start"])
 
             # Convert to local time in UTC, which sktime expects
             tz = event_time_window[0].tzinfo
