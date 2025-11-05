@@ -1091,7 +1091,7 @@ def convert_to_instantaneous(
         s = df.bfill(axis=1).iloc[:, 0]
     else:
         s = getattr(df, boundary_policy)(axis=1).rename("event_value")
-    df = s.sort_index().reset_index().set_index("event_start")
+    df = s.sort_index().reset_index(level=['belief_time', 'source', 'cumulative_probability'])
     df.event_resolution = timedelta(0)
     return df
 
