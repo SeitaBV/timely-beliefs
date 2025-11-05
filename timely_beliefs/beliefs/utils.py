@@ -1175,14 +1175,16 @@ def upsample_beliefs_data_frame(
     # 2020-03-29 12:40:00+02:00 NaN
     if isinstance(df, classes.BeliefsDataFrame):
         index_levels = df.index.names
-        df = df.reset_index().set_index("event_start")
+        levels_to_reset = [lvl for lvl in df.index.names if lvl != "event_start"]
+        df = df.reset_index(level=levels_to_reset)
     df = df.reindex(new_index)
     df = df.ffill(
         limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
     )
     df = df.dropna()
     if isinstance(df, classes.BeliefsDataFrame):
-        df = df.reset_index().set_index(index_levels)
+        df["event_start"] = df.index
+        df = df.set_index(index_levels)
     if keep_nan_values:
         # place back original NaN values
         df = df.replace(unique_event_value_not_in_df, np.NaN)
