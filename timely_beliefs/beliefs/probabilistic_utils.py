@@ -19,9 +19,11 @@ def interpret_complete_cdf(
     cdfs_p: list[list | np.ndarray],
     cdfs_v: list[list | np.ndarray],
     distribution: str = None,
-) -> list[list | np.ndarray] | tuple[
-    list[list | np.ndarray], list[list | np.ndarray]
-] | ot.DistributionImplementation:
+) -> (
+    list[list | np.ndarray]
+    | tuple[list[list | np.ndarray], list[list | np.ndarray]]
+    | ot.DistributionImplementation
+):
     """Interpret the given points on the cumulative distribution function to represent a complete CDF. The default
     policy is to assume discrete probabilities.
     If a distribution name is specified, the CDF is returned as an openturns distribution object.
@@ -125,8 +127,9 @@ def probabilistic_nan_mean(
 
 
 def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
-    marginal_cdfs_p: list[list[float] | np.ndarray | ot.DistributionImplementation]
-    | np.ndarray,
+    marginal_cdfs_p: (
+        list[list[float] | np.ndarray | ot.DistributionImplementation] | np.ndarray
+    ),
     marginal_cdfs_v: list[list[float] | np.ndarray] | np.ndarray = None,
     a: float = 0,
     b: float = 1,
@@ -353,7 +356,8 @@ def equalize_bins(
     equal_bin_size: bool = False,
 ):
     """Define bins that cover all unique marginal outcomes, and compute each marginal cdf for these bins.
-    Note that the bins do not necessarily have the same bin size. If this is needed, set equal_bin_size to True."""
+    Note that the bins do not necessarily have the same bin size. If this is needed, set equal_bin_size to True.
+    """
     if equal_bin_size is False:
         values = np.unique(cdf_values)  # Also flattens and sorts
     else:

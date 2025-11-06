@@ -4,6 +4,7 @@
 
 Below, we register customer accessors.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -101,7 +102,8 @@ class BeliefsAccessor(object):
     @property
     def number_of_beliefs(self) -> int:
         """Return the total number of beliefs in the BeliefsDataFrame, including both deterministic beliefs (which
-        require a single row) and probabilistic beliefs (which require multiple rows)."""
+        require a single row) and probabilistic beliefs (which require multiple rows).
+        """
         return len(self._obj.probabilistic_depth_per_belief)
 
     @property

@@ -36,9 +36,9 @@ class Sensor(object):
         unit: str = "",
         timezone: str = "UTC",
         event_resolution: timedelta | None = None,
-        knowledge_horizon: timedelta
-        | tuple[Callable[[datetime, Any], timedelta], dict]
-        | None = None,
+        knowledge_horizon: (
+            timedelta | tuple[Callable[[datetime, Any], timedelta], dict] | None
+        ) = None,
     ):
         if name == "":
             raise Exception("Please give this sensor a name to be identifiable.")
@@ -129,9 +129,9 @@ class SensorDBMixin(Sensor):
         unit: str = "",
         timezone: str = "UTC",
         event_resolution: timedelta | None = None,
-        knowledge_horizon: timedelta
-        | tuple[Callable[[datetime, Any], timedelta], dict]
-        | None = None,
+        knowledge_horizon: (
+            timedelta | tuple[Callable[[datetime, Any], timedelta], dict] | None
+        ) = None,
     ):
         Sensor.__init__(self, name, unit, timezone, event_resolution, knowledge_horizon)
 
@@ -147,9 +147,9 @@ class DBSensor(Base, SensorDBMixin):
         unit: str = "",
         timezone: str = "UTC",
         event_resolution: timedelta | None = None,
-        knowledge_horizon: timedelta
-        | tuple[Callable[[datetime, Any], timedelta], dict]
-        | None = None,
+        knowledge_horizon: (
+            timedelta | tuple[Callable[[datetime, Any], timedelta], dict] | None
+        ) = None,
     ):
         SensorDBMixin.__init__(
             self, name, unit, timezone, event_resolution, knowledge_horizon
