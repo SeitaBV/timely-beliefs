@@ -1618,14 +1618,11 @@ class BeliefsDataFrame(pd.DataFrame):
             if belief_timing_col == "belief_horizon":
                 df = df.convert_index_from_belief_horizon_to_time()
             df = (
-                df.groupby(
-                    [pd.Grouper(freq=event_resolution, level="event_start"), "source"],
-                    group_keys=False,
-                )
+                df.groupby("source", group_keys=False)
                 .apply(
                     lambda x: belief_utils.resample_event_start(
                         x,
-                        event_resolution,
+                        output_resolution=event_resolution,
                         input_resolution=self.event_resolution,
                         distribution=distribution,
                         keep_only_most_recent_belief=keep_only_most_recent_belief,

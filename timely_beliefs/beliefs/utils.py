@@ -191,80 +191,120 @@ def propagate_beliefs(
 
 
 def align_belief_times(
-    slice: "classes.BeliefsDataFrame", unique_belief_times
+    df: "classes.BeliefsDataFrame",
+    unique_belief_times,
 ) -> "classes.BeliefsDataFrame":
     """Align belief times such that each event has the same set of unique belief times.
+
     We do this by assuming beliefs propagate over time (ceteris paribus, you still believe what you believed before).
     That is, the most recent belief about an event is valid until a new belief is formed.
     If no previous belief has been formed, a row is still explicitly included with a NaN value.
     The input BeliefsDataFrame should represent beliefs about a single event formed by a single source.
     """
 
-    # Check input
-    if not slice.lineage.number_of_events == 1:
-        raise ValueError("BeliefsDataFrame slice must describe a single event.")
-    if not slice.lineage.number_of_sources == 1:
-        raise ValueError(
-            "BeliefsDataFrame slice must describe beliefs by a single source"
+    if df.lineage.probabilistic_depth > 1:
+        # Convert probabilistic beliefs: long → wide
+        df_wide = beliefs_long_to_wide(df)
+
+        # Reindex the belief_time level for each event_start/source combination
+        # (this ensures each event has a full set of unique_belief_times)
+        idx = pd.MultiIndex.from_product(
+            [
+                df_wide.index.get_level_values("event_start").unique(),
+                unique_belief_times,
+                df_wide.index.get_level_values("source").unique(),
+            ],
+            names=["event_start", "belief_time", "source"],
+        )
+        df_wide = (
+            df_wide.reindex(idx)
+            .groupby(level=["event_start", "source"])
+            .ffill()
+            .dropna()
         )
 
-    # Get unique source for this slice
-    assert slice.lineage.number_of_sources == 1
-    source = slice.lineage.sources[0]
+        # Convert probabilistic beliefs: wide → long
+        df_aligned = beliefs_wide_to_long(df_wide)
+    else:
+        # Reindex the belief_time level for each event_start/source/cp combination
+        # (this ensures each event has a full set of unique_belief_times)
+        idx = pd.MultiIndex.from_product(
+            [
+                df.index.get_level_values("event_start").unique(),
+                unique_belief_times,
+                df.index.get_level_values("source").unique(),
+                df.index.get_level_values("cumulative_probability").unique(),
+            ],
+            names=["event_start", "belief_time", "source", "cumulative_probability"],
+        )
+        df_aligned = (
+            df.reindex(idx)
+            .groupby(level=["event_start", "source", "cumulative_probability"])
+            .ffill()
+            .dropna()
+        )
 
-    # Get unique event start for this slice
-    event_start = slice.index.get_level_values(level="event_start").unique()
-    assert len(event_start) == 1
-    event_start = event_start[0]
+    # Preserve metadata (sensor, event_resolution, etc.)
+    for attr in ("sensor", "event_resolution"):
+        if hasattr(df, attr):
+            setattr(df_aligned, attr, getattr(df, attr))
 
-    # Build up input data for new BeliefsDataFrame
-    data = []
-    previous_slice_with_existing_belief_time = None
-    for ubt in unique_belief_times:
-        # Check if the unique belief time (ubt) is already in the DataFrame
-        if ubt not in slice.index.get_level_values("belief_time"):
-            # If not already present, create a new row with the most recent belief (or nan if no previous exists)
-            if previous_slice_with_existing_belief_time is not None:
-                ps = previous_slice_with_existing_belief_time.reset_index()
-                ps["belief_time"] = (
-                    ubt  # Update belief time to reflect propagation of beliefs over time
-                )
-                data.extend(ps.values.tolist())
-            else:
-                data.append([event_start, ubt, source, np.nan, np.nan])
-        else:
-            # If already present, copy the row (may be multiple rows in case of a probabilistic belief)
-            slice_with_existing_belief_time = slice.xs(
-                ubt, level="belief_time", drop_level=False
-            )
-            data.extend(slice_with_existing_belief_time.reset_index().values.tolist())
-            previous_slice_with_existing_belief_time = slice_with_existing_belief_time
+    return df_aligned
 
-    # Create new BeliefsDataFrame
-    empty_bdf = slice.copy().reset_index().iloc[0:0]
-    sensor = empty_bdf.sensor
-    df = pd.concat(
-        [
-            empty_bdf,
-            pd.DataFrame(
-                data,
-                columns=[
-                    "event_start",
-                    "belief_time",
-                    "source",
-                    "cumulative_probability",
-                    "event_value",
-                ],
-            ),
-        ],
-        axis=0,
+
+def beliefs_long_to_wide(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame":
+    """
+    Convert a BeliefsDataFrame with 'cumulative_probability' in the index
+    to a wide format where each cumulative_probability becomes a separate column.
+
+    Output index: (event_start, belief_time, source)
+    Output columns: event_value_<cp>
+    """
+    # Ensure cumulative_probability is a level in the index
+    if "cumulative_probability" not in df.index.names:
+        raise ValueError("Expected 'cumulative_probability' in the index")
+
+    # Pivot the event_value column to wide format
+    df_wide = (
+        df["event_value"].unstack("cumulative_probability").rename_axis(columns=None)
     )
-    df.sensor = sensor
-    df = df.set_index(
+
+    # Optionally label columns explicitly (use the cp as suffix)
+    df_wide.columns = [f"event_value_{cp:g}" for cp in df_wide.columns]
+
+    return df_wide
+
+
+def beliefs_wide_to_long(
+    df_wide: "classes.BeliefsDataFrame",
+) -> "classes.BeliefsDataFrame":
+    """
+    Convert a wide-format BeliefsDataFrame (with columns event_value_<cp>)
+    back to the long format where 'cumulative_probability' is an index level.
+    """
+    # Identify columns that encode cumulative probabilities
+    value_cols = [c for c in df_wide.columns if c.startswith("event_value_")]
+
+    if not value_cols:
+        raise ValueError("No event_value_<cp> columns found")
+
+    # Extract cumulative probabilities from column names
+    cps = [float(c.split("_")[-1]) for c in value_cols]
+
+    # Melt back to long format
+    df_long = (
+        df_wide[value_cols]
+        .rename(columns=dict(zip(value_cols, cps)))
+        .stack()  # stack cps into a new level
+        .rename("event_value")
+        .to_frame()
+    )
+
+    df_long.index = df_long.index.set_names(
         ["event_start", "belief_time", "source", "cumulative_probability"]
     )
 
-    return df
+    return df_long
 
 
 def join_beliefs(
@@ -354,9 +394,7 @@ def resample_event_start(
     else:
         # slower
         # Propagate beliefs so that each event has the same set of unique belief times
-        df = df.groupby(["event_start"], group_keys=False).apply(
-            lambda x: align_belief_times(x, unique_belief_times)
-        )
+        df = align_belief_times(df, unique_belief_times)
 
     # Resample to make sure the df slice contains events with the same frequency as the input_resolution
     # (make nan rows if you have to)
@@ -367,7 +405,10 @@ def resample_event_start(
     # ).pipe(respect_event_resolution, input_resolution)
 
     # For each unique belief time, determine the joint belief about the time-aggregated event
-    df = df.groupby(["belief_time"], group_keys=False).apply(
+    df = df.groupby(
+        [pd.Grouper(freq=output_resolution, level="event_start"), "belief_time"],
+        group_keys=False,
+    ).apply(
         lambda x: join_beliefs(
             x, output_resolution, input_resolution, distribution=distribution
         )
