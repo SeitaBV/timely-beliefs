@@ -9,7 +9,6 @@ from timely_beliefs.db_base import Base
 
 @total_ordering
 class BeliefSource(object):
-
     """
     A belief source is any data-creating entity such as a user, a ML model or a script.
     """

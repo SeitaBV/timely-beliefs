@@ -104,7 +104,7 @@ class JoyfulBeliefInCustomTable(Base, TimedBeliefDBMixin):
         sensor: DBSensor,
         source: DBBeliefSource,
         happiness: float = None,
-        **kwargs
+        **kwargs,
     ):
         self.happiness = happiness
         TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
