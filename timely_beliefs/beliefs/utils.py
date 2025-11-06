@@ -406,7 +406,7 @@ def resample_event_start(
 
     # For each unique belief time, determine the joint belief about the time-aggregated event
     df = df.groupby(
-        [pd.Grouper(freq=output_resolution, level="event_start"), "belief_time"],
+        [pd.Grouper(freq=output_resolution, level="event_start"), "belief_time", "source"],
         group_keys=False,
     ).apply(
         lambda x: join_beliefs(

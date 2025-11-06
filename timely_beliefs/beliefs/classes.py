@@ -1617,19 +1617,13 @@ class BeliefsDataFrame(pd.DataFrame):
         else:
             if belief_timing_col == "belief_horizon":
                 df = df.convert_index_from_belief_horizon_to_time()
-            df = (
-                df.groupby("source", group_keys=False)
-                .apply(
-                    lambda x: belief_utils.resample_event_start(
-                        x,
-                        output_resolution=event_resolution,
-                        input_resolution=self.event_resolution,
-                        distribution=distribution,
-                        keep_only_most_recent_belief=keep_only_most_recent_belief,
-                    )
-                )
-                .sort_index()
-            )
+            df = belief_utils.resample_event_start(
+                df,
+                output_resolution=event_resolution,
+                input_resolution=self.event_resolution,
+                distribution=distribution,
+                keep_only_most_recent_belief=keep_only_most_recent_belief,
+            ).sort_index()
 
             # Update metadata with new resolution
             df.event_resolution = event_resolution
