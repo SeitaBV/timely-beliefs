@@ -62,46 +62,58 @@ def select_most_recent_belief(
 
 
 def upsample_event_start(
-    df,
+    df: "classes.BeliefsDataFrame",
     output_resolution: timedelta,
     input_resolution: timedelta,
     fill_method: str | None = "ffill",
-):
+) -> "classes.BeliefsDataFrame":
     """Upsample event_start (which must be the first index level) from input_resolution to output_resolution."""
 
     # Check input
     if output_resolution > input_resolution:
         raise ValueError(
-            "Cannot use an upsampling policy to downsample from %s to %s."
-            % (input_resolution, output_resolution)
+            f"Cannot use an upsampling policy to downsample from {input_resolution} to {output_resolution}."
         )
     if df.empty:
         return df
-    if df.index.names[0] != "event_start":
-        raise KeyError(
-            "Upsampling only works if the event_start is the first index level."
-        )
 
-    lvl0 = pd.date_range(
-        start=df.index.get_level_values(0)[0],
-        periods=input_resolution // output_resolution,
-        freq=output_resolution,
+    # Ensure MultiIndex and event_start is first
+    if df.index.names[0] != "event_start":
+        raise KeyError("event_start must be the first index level.")
+
+    # Compute upsampling factor
+    factor = int(input_resolution / output_resolution)
+    if factor <= 1:
+        return df.copy()
+
+    # Repeat each event_start factor times, offset by output_resolution * k
+    event_starts = df.index.get_level_values("event_start")
+    offsets = np.arange(factor) * output_resolution
+    expanded_event_starts = np.add.outer(event_starts.to_numpy(), offsets).ravel()
+
+    # Repeat other index levels accordingly
+    new_levels = []
+    for name in df.index.names[1:]:
+        vals = df.index.get_level_values(name).to_numpy()
+        new_levels.append(np.repeat(vals, factor))
+
+    # Combine into a new MultiIndex
+    new_index = pd.MultiIndex.from_arrays(
+        [expanded_event_starts, *new_levels], names=df.index.names
     )
-    new_index_values = [lvl0]
-    if df.index.nlevels > 0:
-        new_index_values.extend(
-            [[df.index.get_level_values(i)[0]] for i in range(1, df.index.nlevels)]
-        )
-    mux = pd.MultiIndex.from_product(new_index_values, names=df.index.names)
+
+    # Reindex to expanded grid
+    df_expanded = df.reindex(df.index.repeat(factor))
+    df_expanded.index = new_index
 
     # Todo: allow customisation for de-aggregating event values
     if fill_method is None:
-        return df.reindex(mux)
+        return df_expanded
     elif fill_method == "ffill":
         # ffill (formerly 'pad') is the reverse of mean downsampling
-        return df.reindex(mux).ffill()
+        return df_expanded.ffill()
     else:
-        raise NotImplementedError("Unknown upsample method.")
+        raise NotImplementedError(f"Unknown fill method: {fill_method}")
 
 
 def respect_event_resolution(grouper: DataFrameGroupBy, resolution):
@@ -308,7 +320,7 @@ def beliefs_wide_to_long(
 
 
 def join_beliefs(
-    slice: "classes.BeliefsDataFrame",
+    df: "classes.BeliefsDataFrame",
     output_resolution: timedelta,
     input_resolution: timedelta,
     distribution: str | None = None,
@@ -321,16 +333,6 @@ def join_beliefs(
     multiple rows).
     """
 
-    # Check input
-    if not slice.lineage.number_of_belief_times == 1:
-        raise ValueError(
-            "BeliefsDataFrame slice must describe beliefs formed at the exact same time."
-        )
-    if not slice.lineage.number_of_sources == 1:
-        raise ValueError(
-            "BeliefsDataFrame slice must describe beliefs by a single source"
-        )
-
     if output_resolution > input_resolution:
         # Create new BeliefsDataFrame with downsampled event_start
         if input_resolution == timedelta(
@@ -340,7 +342,7 @@ def join_beliefs(
                 "Cannot downsample from resolution %s to %s."
                 % (input_resolution, output_resolution)
             )
-        df = slice.groupby(
+        df = df.groupby(
             [
                 pd.Grouper(freq=output_resolution, level="event_start"),
                 "belief_time",
@@ -352,6 +354,9 @@ def join_beliefs(
                 x, output_resolution, input_resolution, distribution=distribution
             )
         )  # Todo: allow customisation for aggregating event values
+        # df = probabilistic_nan_mean(
+        #     df, output_resolution, input_resolution, distribution=distribution
+        # )  # Todo: allow customisation for aggregating event values
     else:
         # Create new BeliefsDataFrame with upsampled event_start
         if input_resolution % output_resolution != timedelta():
@@ -359,15 +364,7 @@ def join_beliefs(
                 "Cannot upsample from resolution %s to %s."
                 % (input_resolution, output_resolution)
             )
-        df = slice.groupby(
-            [
-                pd.Grouper(freq=output_resolution, level="event_start"),
-                "belief_time",
-                "source",
-                "cumulative_probability",
-            ],
-            group_keys=False,
-        ).apply(lambda x: upsample_event_start(x, output_resolution, input_resolution))
+        df = upsample_event_start(df, output_resolution, input_resolution)
     return df
 
 
@@ -405,13 +402,8 @@ def resample_event_start(
     # ).pipe(respect_event_resolution, input_resolution)
 
     # For each unique belief time, determine the joint belief about the time-aggregated event
-    df = df.groupby(
-        [pd.Grouper(freq=output_resolution, level="event_start"), "belief_time", "source"],
-        group_keys=False,
-    ).apply(
-        lambda x: join_beliefs(
-            x, output_resolution, input_resolution, distribution=distribution
-        )
+    df = join_beliefs(
+        df, output_resolution, input_resolution, distribution=distribution
     )
 
     return df
