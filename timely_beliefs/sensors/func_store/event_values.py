@@ -1,4 +1,5 @@
 """Function store for aggregating event values."""
+
 import numpy as np
 
 from timely_beliefs.beliefs import classes  # noqa: F401

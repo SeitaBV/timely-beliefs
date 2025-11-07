@@ -1261,16 +1261,12 @@ class BeliefsDataFrame(pd.DataFrame):
         index_names.extend(
             ["event_start"]
             if "event_start" in df.index.names
-            else ["event_end"]
-            if "event_end" in df.index.names
-            else []
+            else ["event_end"] if "event_end" in df.index.names else []
         )
         index_names.extend(
             ["belief_time"]
             if "belief_time" in df.index.names
-            else ["belief_horizon"]
-            if "belief_horizon" in df.index.names
-            else []
+            else ["belief_horizon"] if "belief_horizon" in df.index.names else []
         )
         if collective_beliefs is False:
             index_names.append("source")
@@ -1655,8 +1651,7 @@ class BeliefsDataFrame(pd.DataFrame):
         belief_time: datetime,
         source: BeliefSource,
         event_start: datetime = None,
-        event_time_window: tuple[datetime, datetime]
-        | None = (
+        event_time_window: tuple[datetime, datetime] | None = (
             None,
             None,
         ),
@@ -2218,9 +2213,7 @@ def assign_sensor_and_event_resolution(df, sensor, event_resolution):
     df.event_resolution = (
         event_resolution
         if event_resolution
-        else sensor.event_resolution
-        if sensor
-        else None
+        else sensor.event_resolution if sensor else None
     )
 
 
