@@ -226,9 +226,9 @@ def align_belief_times(
             # If not already present, create a new row with the most recent belief (or nan if no previous exists)
             if previous_slice_with_existing_belief_time is not None:
                 ps = previous_slice_with_existing_belief_time.reset_index()
-                ps[
-                    "belief_time"
-                ] = ubt  # Update belief time to reflect propagation of beliefs over time
+                ps["belief_time"] = (
+                    ubt  # Update belief time to reflect propagation of beliefs over time
+                )
                 data.extend(ps.values.tolist())
             else:
                 data.append([event_start, ubt, source, np.nan, np.nan])
@@ -521,9 +521,11 @@ def set_reference(
     return pd.concat(
         [reference_df] * df.lineage.number_of_belief_horizons,
         keys=df.lineage.belief_horizons,
-        names=["belief_horizon", "source"]
-        if return_reference_type != "full"
-        else ["belief_horizon", "source", "cumulative_probability"],
+        names=(
+            ["belief_horizon", "source"]
+            if return_reference_type != "full"
+            else ["belief_horizon", "source", "cumulative_probability"]
+        ),
     )
 
 
