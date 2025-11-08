@@ -232,7 +232,7 @@ def align_belief_times(
             df_wide.reindex(idx)
             .groupby(level=["event_start", "source"])
             .ffill()
-            .dropna()
+            .dropna(how="all")
         )
 
         # Convert probabilistic beliefs: wide → long
@@ -253,7 +253,7 @@ def align_belief_times(
             df.reindex(idx)
             .groupby(level=["event_start", "source", "cumulative_probability"])
             .ffill()
-            .dropna()
+            .dropna(how="all")
         )
 
     # Preserve metadata (sensor, event_resolution, etc.)
