@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import operator
 import types
 from datetime import datetime, timedelta
 from functools import partial
@@ -298,8 +299,8 @@ class TimedBeliefDBMixin(TimedBelief):
             # serialize sources and sensor, while adding new sources
 
             # serialize sources
-            beliefs_data_frame["source_id"] = beliefs_data_frame["source"].apply(
-                lambda x: x.id
+            beliefs_data_frame["source_id"] = beliefs_data_frame["source"].map(
+                operator.attrgetter("id")
             )
 
             # Add new sources
@@ -309,7 +310,7 @@ class TimedBeliefDBMixin(TimedBelief):
                 session.flush()  # assign IDs
                 beliefs_data_frame.loc[newbies, "source_id"] = beliefs_data_frame.loc[
                     newbies, "source"
-                ].apply(lambda x: x.id)
+                ].map(operator.attrgetter("id"))
 
             # serialize sensor
             beliefs_data_frame["sensor_id"] = beliefs_data_frame.sensor.id
@@ -991,9 +992,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 elif "source" not in self:
                     raise KeyError("DataFrame should contain column named 'source'.")
                 elif not isinstance(self["source"].dtype, BeliefSource):
-                    self["source"] = self["source"].apply(
-                        source_utils.ensure_source_exists
-                    )
+                    source_utils.ensure_sources_exists(self["source"])
                 if event_start is not None:
                     self["event_start"] = tb_utils.parse_datetime_like(
                         event_start, "event_start"
@@ -1003,7 +1002,9 @@ class BeliefsDataFrame(pd.DataFrame):
                         "DataFrame should contain column named 'event_start' or 'event_end'."
                     )
                 else:
-                    self["event_start"] = tb_utils.parse_datetime_like(self["event_start"], "event_start")
+                    self["event_start"] = tb_utils.parse_datetime_like(
+                        self["event_start"], "event_start"
+                    )
                 if belief_time is not None:
                     self["belief_time"] = tb_utils.parse_datetime_like(
                         belief_time, "belief_time"
@@ -1015,7 +1016,9 @@ class BeliefsDataFrame(pd.DataFrame):
                         "DataFrame should contain column named 'belief_time' or 'belief_horizon'."
                     )
                 elif "belief_time" in self:
-                    self["belief_time"] = tb_utils.parse_datetime_like(self["belief_time"], "belief_time")
+                    self["belief_time"] = tb_utils.parse_datetime_like(
+                        self["belief_time"], "belief_time"
+                    )
                 elif not pd.api.types.is_timedelta64_dtype(
                     self["belief_horizon"]
                 ) and self["belief_horizon"].dtype not in (timedelta, pd.Timedelta):
