@@ -65,14 +65,22 @@ def parse_datetime_like(
     return enforce_tz(dt, variable_name)
 
 
-def enforce_tz(dt: datetime, variable_name: str | None = None) -> datetime:
+def enforce_tz(
+    dt: datetime | pd.DatetimeIndex, variable_name: str | None = None
+) -> datetime | pd.DatetimeIndex:
     """Raise exception in case of a timezone-naive datetime.
 
-    :param dt: datetime
+    :param dt: datetime or pd.DatetimeIndex
     :param variable_name: used to give a better error message in case the variable contained a timezone-naive datetime
     :return: timezone-aware datetime
     """
-    if not hasattr(dt, "tzinfo") or dt.tzinfo is None:
+    if isinstance(dt, pd.DatetimeIndex) and dt.tz is None:
+        if len(dt) == 0:
+            return dt
+        raise TypeError(
+            f"The timely-beliefs package does not work with timezone-naive datetimes. Please localize your {variable_name if variable_name else 'DatetimeIndex'} starting with {dt[0]}."
+        )
+    elif not hasattr(dt, "tzinfo") or dt.tzinfo is None:
         raise TypeError(
             f"The timely-beliefs package does not work with timezone-naive datetimes. Please localize your {variable_name if variable_name else 'datetime'} {dt}."
         )
