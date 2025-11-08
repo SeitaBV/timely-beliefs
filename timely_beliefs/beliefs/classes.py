@@ -1199,22 +1199,14 @@ class BeliefsDataFrame(pd.DataFrame):
         if "event_start" in self.index.names:
             return pd.DatetimeIndex(self.index.get_level_values("event_start"))
         else:
-            return pd.DatetimeIndex(
-                self.event_ends.to_series(name="event_start").apply(
-                    lambda event_end: event_end - self.event_resolution
-                )
-            )
+            return pd.DatetimeIndex(self.event_ends - self.event_resolution)
 
     @property
     def event_ends(self) -> pd.DatetimeIndex:
         if "event_end" in self.index.names:
             return pd.DatetimeIndex(self.index.get_level_values("event_end"))
         else:
-            return pd.DatetimeIndex(
-                self.event_starts.to_series(name="event_end").apply(
-                    lambda event_start: event_start + self.event_resolution
-                )
-            )
+            return pd.DatetimeIndex(self.event_starts + self.event_resolution)
 
     @property
     def sources(self) -> pd.Index:
