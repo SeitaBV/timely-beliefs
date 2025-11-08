@@ -1003,9 +1003,7 @@ class BeliefsDataFrame(pd.DataFrame):
                         "DataFrame should contain column named 'event_start' or 'event_end'."
                     )
                 else:
-                    self["event_start"] = self["event_start"].apply(
-                        lambda x: tb_utils.parse_datetime_like(x, "event_start")
-                    )
+                    self["event_start"] = tb_utils.parse_datetime_like(self["event_start"], "event_start")
                 if belief_time is not None:
                     self["belief_time"] = tb_utils.parse_datetime_like(
                         belief_time, "belief_time"
@@ -1017,9 +1015,7 @@ class BeliefsDataFrame(pd.DataFrame):
                         "DataFrame should contain column named 'belief_time' or 'belief_horizon'."
                     )
                 elif "belief_time" in self:
-                    self["belief_time"] = self["belief_time"].apply(
-                        lambda x: tb_utils.parse_datetime_like(x, "belief_time")
-                    )
+                    self["belief_time"] = tb_utils.parse_datetime_like(self["belief_time"], "belief_time")
                 elif not pd.api.types.is_timedelta64_dtype(
                     self["belief_horizon"]
                 ) and self["belief_horizon"].dtype not in (timedelta, pd.Timedelta):
