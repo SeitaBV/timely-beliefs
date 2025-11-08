@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from functools import total_ordering
 
-from sqlalchemy import Column, Integer, String
 import numpy as np
+from sqlalchemy import Column, Integer, String
 
 from timely_beliefs.db_base import Base
 

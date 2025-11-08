@@ -1,6 +1,5 @@
-import pytest
-
 import pandas as pd
+import pytest
 
 from timely_beliefs.examples import get_example_df
 from timely_beliefs.utils import (
