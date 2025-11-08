@@ -228,12 +228,14 @@ def align_belief_times(
             ],
             names=["event_start", "belief_time", "source"],
         )
-        df_wide = (
-            df_wide.reindex(idx)
-            .groupby(level=["event_start", "source"])
-            .ffill()
-            .dropna(how="all")
-        )
+        df_wide = df_wide.reindex(idx)
+
+        # Compute forward-filled version within each (event_start, source) group
+        ffilled = df_wide.groupby(level=["event_start", "source"]).ffill()
+
+        # Only apply ffill to rows where *all* columns were NaN originally
+        mask = df_wide.isna().all(axis=1)
+        df_wide = df_wide.where(~mask, ffilled).dropna(how="all")
 
         # Convert probabilistic beliefs: wide → long
         df_aligned = beliefs_wide_to_long(df_wide)
