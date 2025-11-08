@@ -388,7 +388,7 @@ def set_truth(
 ) -> "classes.BeliefsDataFrame":
     """Overwrite the beliefs of each source by those of the given source.
     Terminology-wise, we say the given source is considered to be right,
-    so it's beliefs contain the truth to be used as a reference for accuracy calculations.
+    so its beliefs contain the truth to be used as a reference for accuracy calculations.
     """
 
     # Pick out the group that is considered to contain the true observations
