@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import total_ordering
 
 from sqlalchemy import Column, Integer, String
+import numpy as np
 
 from timely_beliefs.db_base import Base
 
@@ -18,7 +19,7 @@ class BeliefSource(object):
     def __init__(self, name: str | int):
         """Initialize with a name (string or integer identifier)."""
         if not isinstance(name, str):
-            if isinstance(name, int):
+            if isinstance(name, (int, np.int64)):
                 name = str(name)
             else:
                 raise TypeError("Please give this source a name to be identifiable.")

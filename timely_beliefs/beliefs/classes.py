@@ -1038,7 +1038,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 self["event_start"] = pd.to_datetime(self["event_start"])
                 if "belief_time" in self:
                     self["belief_time"] = pd.to_datetime(self["belief_time"])
-                self["source"] = self["source"].apply(source_utils.ensure_source_exists)
+                self["source"] = source_utils.ensure_sources_exists(self["source"])
 
                 # Set index levels and metadata
                 if "belief_horizon" in self and "belief_time" not in self:
