@@ -2217,6 +2217,25 @@ def assign_sensor_and_event_resolution(df, sensor, event_resolution):
     )
 
 
+def append_shifted_last_row(bdf: BeliefsDataFrame) -> BeliefsDataFrame:
+    """Append a new row to a BeliefsDataFrame, duplicating the last row but with its event_start set to just before its event_end."""
+    # Grab the last row
+    last = bdf.tail(1).copy()
+
+    # Compute the shifted event_start
+    level = bdf.index.names.index("event_start")
+    old_ts = last.index.get_level_values(level)[0]
+    new_ts = old_ts + bdf.event_resolution - timedelta(milliseconds=1)
+
+    # Replace the event_start level value of the appended row
+    new_index = list(last.index[0])
+    new_index[level] = new_ts
+    last.index = pd.MultiIndex.from_tuples([tuple(new_index)], names=bdf.index.names)
+
+    # Append new row
+    return pd.concat([bdf, last])
+
+
 def downsample_beliefs_data_frame(
     df: BeliefsDataFrame, event_resolution: timedelta, col_att_dict: dict[str, str]
 ) -> BeliefsDataFrame:
@@ -2228,6 +2247,7 @@ def downsample_beliefs_data_frame(
         "belief_time" if "belief_time" in df.index.names else "belief_horizon"
     )
     event_timing_col = "event_start" if "event_start" in df.index.names else "event_end"
+    df = append_shifted_last_row(df)  # take full event span into account
     return pd.concat(
         [
             getattr(
