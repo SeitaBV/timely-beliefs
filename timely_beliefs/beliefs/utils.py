@@ -1137,25 +1137,15 @@ def upsample_beliefs_data_frame(
         # For example, for x = [0, 2, 0, 0, 0]  =>  y = L1 norm + 1 = 2 + 1 = 3
         unique_event_value_not_in_df = df["event_value"].abs().sum() + 1
         df = df.fillna(unique_event_value_not_in_df)
-    if isinstance(df, classes.BeliefsDataFrame):
-        start = df.event_starts[0]
-        end = df.event_starts[-1] + from_event_resolution
-    else:
-        start = df.index[0]
-        end = df.index[-1] + from_event_resolution
-    new_index = initialize_index(
-        start=start,
-        end=end,
-        resolution=event_resolution,
-    )
-    # Reindex to introduce NaN values, then forward fill by the number of steps
+
+    # Resample to introduce NaN values, then forward fill by the number of steps
     # needed to have the new resolution cover the old resolution.
     # For example, when resampling from a resolution of 30 to 20 minutes (NB frequency is 1 hour):
     # event_start               event_value
     # 2020-03-29 10:00:00+02:00 1000.0
     # 2020-03-29 11:00:00+02:00 NaN
     # 2020-03-29 12:00:00+02:00 2000.0
-    # After reindexing
+    # After resampling
     # event_start               event_value
     # 2020-03-29 10:00:00+02:00 1000.0
     # 2020-03-29 10:20:00+02:00 NaN
@@ -1180,9 +1170,8 @@ def upsample_beliefs_data_frame(
     if isinstance(df, classes.BeliefsDataFrame):
         index_levels = df.index.names
         df = df.reset_index().set_index("event_start")
-    df = df.reindex(new_index)
-    df = df.ffill(
-        limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
+    df = df.resample(event_resolution).ffill(
+        limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None
     )
     df = df.dropna()
     if isinstance(df, classes.BeliefsDataFrame):
@@ -1192,3 +1181,28 @@ def upsample_beliefs_data_frame(
         df = df.replace(unique_event_value_not_in_df, np.NaN)
     df.event_resolution = event_resolution
     return df
+
+
+def append_shifted_last_row(
+    bdf: "classes.BeliefsDataFrame", event_resolution: TimedeltaLike
+) -> "classes.BeliefsDataFrame":
+    """Append a new row to a BeliefsDataFrame, duplicating the last row but with its event_start set to just before its event_end."""
+
+    if event_resolution == timedelta(0):
+        return bdf
+
+    # Grab the last row
+    last = bdf.tail(1).copy()
+
+    # Compute the shifted event_start
+    level = bdf.index.names.index("event_start")
+    old_ts = last.index.get_level_values(level)[0]
+    new_ts = old_ts + bdf.event_resolution - timedelta(milliseconds=1)
+
+    # Replace the event_start level value of the appended row
+    new_index = list(last.index[0])
+    new_index[level] = new_ts
+    last.index = pd.MultiIndex.from_tuples([tuple(new_index)], names=bdf.index.names)
+
+    # Append new row
+    return pd.concat([bdf, last])
