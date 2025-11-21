@@ -1180,10 +1180,7 @@ def upsample_beliefs_data_frame(
     if isinstance(df, classes.BeliefsDataFrame):
         index_levels = df.index.names
         df = df.reset_index().set_index("event_start")
-    df = df.reindex(new_index)
-    df = df.ffill(
-        limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
-    )
+    df = df.resample(event_resolution).ffill(limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None)
     df = df.dropna()
     if isinstance(df, classes.BeliefsDataFrame):
         df = df.reset_index().set_index(index_levels)
@@ -1192,3 +1189,26 @@ def upsample_beliefs_data_frame(
         df = df.replace(unique_event_value_not_in_df, np.NaN)
     df.event_resolution = event_resolution
     return df
+
+
+def append_shifted_last_row(bdf: "classes.BeliefsDataFrame", event_resolution: TimedeltaLike) -> "classes.BeliefsDataFrame":
+    """Append a new row to a BeliefsDataFrame, duplicating the last row but with its event_start set to just before its event_end."""
+
+    if event_resolution == timedelta(0):
+        return bdf
+
+    # Grab the last row
+    last = bdf.tail(1).copy()
+
+    # Compute the shifted event_start
+    level = bdf.index.names.index("event_start")
+    old_ts = last.index.get_level_values(level)[0]
+    new_ts = old_ts + bdf.event_resolution - timedelta(milliseconds=1)
+
+    # Replace the event_start level value of the appended row
+    new_index = list(last.index[0])
+    new_index[level] = new_ts
+    last.index = pd.MultiIndex.from_tuples([tuple(new_index)], names=bdf.index.names)
+
+    # Append new row
+    return pd.concat([bdf, last])
