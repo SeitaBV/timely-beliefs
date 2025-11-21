@@ -1137,25 +1137,15 @@ def upsample_beliefs_data_frame(
         # For example, for x = [0, 2, 0, 0, 0]  =>  y = L1 norm + 1 = 2 + 1 = 3
         unique_event_value_not_in_df = df["event_value"].abs().sum() + 1
         df = df.fillna(unique_event_value_not_in_df)
-    if isinstance(df, classes.BeliefsDataFrame):
-        start = df.event_starts[0]
-        end = df.event_starts[-1] + from_event_resolution
-    else:
-        start = df.index[0]
-        end = df.index[-1] + from_event_resolution
-    new_index = initialize_index(
-        start=start,
-        end=end,
-        resolution=event_resolution,
-    )
-    # Reindex to introduce NaN values, then forward fill by the number of steps
+
+    # Resample to introduce NaN values, then forward fill by the number of steps
     # needed to have the new resolution cover the old resolution.
     # For example, when resampling from a resolution of 30 to 20 minutes (NB frequency is 1 hour):
     # event_start               event_value
     # 2020-03-29 10:00:00+02:00 1000.0
     # 2020-03-29 11:00:00+02:00 NaN
     # 2020-03-29 12:00:00+02:00 2000.0
-    # After reindexing
+    # After resampling
     # event_start               event_value
     # 2020-03-29 10:00:00+02:00 1000.0
     # 2020-03-29 10:20:00+02:00 NaN
