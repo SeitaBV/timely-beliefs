@@ -1600,7 +1600,9 @@ class BeliefsDataFrame(pd.DataFrame):
                 df.event_resolution = event_resolution
             else:
                 # upsample
-                df = belief_utils.append_shifted_last_row(df, event_resolution)  # take full event span into account
+                df = belief_utils.append_shifted_last_row(
+                    df, event_resolution
+                )  # take full event span into account
                 df = df.reset_index(
                     level=[belief_timing_col, "source", "cumulative_probability"]
                 )
@@ -2229,7 +2231,9 @@ def downsample_beliefs_data_frame(
         "belief_time" if "belief_time" in df.index.names else "belief_horizon"
     )
     event_timing_col = "event_start" if "event_start" in df.index.names else "event_end"
-    df = belief_utils.append_shifted_last_row(df, event_resolution)  # take full event span into account
+    df = belief_utils.append_shifted_last_row(
+        df, event_resolution
+    )  # take full event span into account
     return pd.concat(
         [
             getattr(

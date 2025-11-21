@@ -1180,7 +1180,9 @@ def upsample_beliefs_data_frame(
     if isinstance(df, classes.BeliefsDataFrame):
         index_levels = df.index.names
         df = df.reset_index().set_index("event_start")
-    df = df.resample(event_resolution).ffill(limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None)
+    df = df.resample(event_resolution).ffill(
+        limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None
+    )
     df = df.dropna()
     if isinstance(df, classes.BeliefsDataFrame):
         df = df.reset_index().set_index(index_levels)
@@ -1191,7 +1193,9 @@ def upsample_beliefs_data_frame(
     return df
 
 
-def append_shifted_last_row(bdf: "classes.BeliefsDataFrame", event_resolution: TimedeltaLike) -> "classes.BeliefsDataFrame":
+def append_shifted_last_row(
+    bdf: "classes.BeliefsDataFrame", event_resolution: TimedeltaLike
+) -> "classes.BeliefsDataFrame":
     """Append a new row to a BeliefsDataFrame, duplicating the last row but with its event_start set to just before its event_end."""
 
     if event_resolution == timedelta(0):
