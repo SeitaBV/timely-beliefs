@@ -45,8 +45,8 @@ def parse_timedelta_like(
 
 
 def parse_datetime_like(
-    dt: datetime | str | pd.Timestamp, variable_name: str | None = None
-) -> datetime:
+    dt: datetime | str | pd.Timestamp | pd.Series, variable_name: str | None = None
+) -> datetime | pd.DatetimeIndex | pd.Series:
     """Parse datetime-like objects as a datetime.datetime object.
 
     :param dt: datetime-like object
@@ -58,6 +58,8 @@ def parse_datetime_like(
             dt = pd.Timestamp(dt)
         if isinstance(dt, pd.Timestamp):
             dt = dt.to_pydatetime()
+        if isinstance(dt, pd.Series):
+            dt = pd.to_datetime(dt)
     except ValueError as e:
         raise ValueError(
             f"Could not parse {variable_name if variable_name else 'datetime'} {dt}, because {e}"
@@ -65,14 +67,32 @@ def parse_datetime_like(
     return enforce_tz(dt, variable_name)
 
 
-def enforce_tz(dt: datetime, variable_name: str | None = None) -> datetime:
+def enforce_tz(
+    dt: datetime | pd.DatetimeIndex | pd.Series, variable_name: str | None = None
+) -> datetime | pd.DatetimeIndex | pd.Series:
     """Raise exception in case of a timezone-naive datetime.
 
-    :param dt: datetime
+    :param dt: datetime, pd.DatetimeIndex or pd.Series
     :param variable_name: used to give a better error message in case the variable contained a timezone-naive datetime
     :return: timezone-aware datetime
     """
-    if not hasattr(dt, "tzinfo") or dt.tzinfo is None:
+    if isinstance(dt, pd.Series):
+        if len(dt) == 0:
+            return dt
+        elif dt.dt.tz is None:
+            raise TypeError(
+                f"The timely-beliefs package does not work with timezone-naive datetimes. Please localize your {variable_name if variable_name else 'Series'} starting with {dt[0]}."
+            )
+        return dt
+    elif isinstance(dt, pd.DatetimeIndex):
+        if len(dt) == 0:
+            return dt
+        elif dt.tz is None:
+            raise TypeError(
+                f"The timely-beliefs package does not work with timezone-naive datetimes. Please localize your {variable_name if variable_name else 'DatetimeIndex'} starting with {dt[0]}."
+            )
+        return dt
+    elif not hasattr(dt, "tzinfo") or dt.tzinfo is None:
         raise TypeError(
             f"The timely-beliefs package does not work with timezone-naive datetimes. Please localize your {variable_name if variable_name else 'datetime'} {dt}."
         )
