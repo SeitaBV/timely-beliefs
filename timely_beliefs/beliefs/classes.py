@@ -17,7 +17,6 @@ import numpy as np
 import pandas as pd
 import pytz
 from pandas.core.groupby import DataFrameGroupBy
-# from pandas.core.internals import SingleBlockManager
 from pandas.util._decorators import cache_readonly
 from sqlalchemy import (
     Column,
