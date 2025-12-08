@@ -754,13 +754,15 @@ class BeliefsSeries(pd.Series):
         if version.parse(pd.__version__) >= version.parse("2.2.0"):
 
             def _constructor_from_mgr(self, mgr, axes):
-                # assert isinstance(mgr, SingleBlockManager)
-                # if not isinstance(mgr.blocks[0].dtype, TimedBelief):
-                #     return pd.Series._from_mgr(mgr, axes)
-                return BeliefsSeries._from_mgr(mgr, axes)
+                s = BeliefsSeries._from_mgr(mgr, axes)
+                for name in self._metadata:
+                    object.__setattr__(s, name, getattr(self, name, None))
+                return s
 
             def _constructor_expanddim_from_mgr(self, mgr, axes):
                 df = BeliefsDataFrame._from_mgr(mgr, axes)
+                for name in self._metadata:
+                    object.__setattr__(df, name, getattr(self, name, None))
                 return df
 
     @property
@@ -842,18 +844,18 @@ class BeliefsDataFrame(pd.DataFrame):
 
         return f
 
-    # if version.parse(pd.__version__) >= version.parse("2.2.0"):
-    #     def _constructor_from_mgr(self, mgr, axes):
-    #         # assert isinstance(mgr, SingleBlockManager)
-    #         # if not isinstance(mgr.blocks[0].dtype, TimedBelief):
-    #         #     return pd.Series._from_mgr(mgr, axes)
-    #         return BeliefsDataFrame._from_mgr(mgr, axes)
-    #
-    #     def _constructor_sliced_from_mgr(self, mgr, axes):
-    #         is_row_proxy = mgr.index.is_(self.columns)
-    #         if not is_row_proxy:
-    #             return BeliefsSeries._from_mgr(mgr, axes)
-    #         return pd.Series._from_mgr(mgr, axes)
+    if version.parse(pd.__version__) >= version.parse("2.2.0"):
+        def _constructor_from_mgr(self, mgr, axes):
+            df = BeliefsDataFrame._from_mgr(mgr, axes)
+            for name in self._metadata:
+                object.__setattr__(df, name, getattr(self, name, None))
+            return df
+
+        def _constructor_sliced_from_mgr(self, mgr, axes):
+            s = BeliefsSeries._from_mgr(mgr, axes)
+            for name in self._metadata:
+                object.__setattr__(s, name, getattr(self, name, None))
+            return s
 
     @property
     def _constructor_sliced(self):
