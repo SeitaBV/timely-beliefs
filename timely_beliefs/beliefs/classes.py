@@ -844,6 +844,7 @@ class BeliefsDataFrame(pd.DataFrame):
         return f
 
     if version.parse(pd.__version__) >= version.parse("2.2.0"):
+
         def _constructor_from_mgr(self, mgr, axes):
             df = BeliefsDataFrame._from_mgr(mgr, axes)
             for name in self._metadata:
