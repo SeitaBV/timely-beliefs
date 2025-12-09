@@ -750,6 +750,20 @@ class BeliefsSeries(pd.Series):
         def _constructor(self):
             return partial(BeliefsSeries)
 
+        if version.parse(pd.__version__) >= version.parse("2.2.0"):
+
+            def _constructor_from_mgr(self, mgr, axes):
+                s = BeliefsSeries._from_mgr(mgr, axes)
+                for name in self._metadata:
+                    object.__setattr__(s, name, getattr(self, name, None))
+                return s
+
+            def _constructor_expanddim_from_mgr(self, mgr, axes):
+                df = BeliefsDataFrame._from_mgr(mgr, axes)
+                for name in self._metadata:
+                    object.__setattr__(df, name, getattr(self, name, None))
+                return df
+
     @property
     def _constructor_expanddim(self):
         def f(*args, **kwargs):
@@ -828,6 +842,20 @@ class BeliefsDataFrame(pd.DataFrame):
             )
 
         return f
+
+    if version.parse(pd.__version__) >= version.parse("2.2.0"):
+
+        def _constructor_from_mgr(self, mgr, axes):
+            df = BeliefsDataFrame._from_mgr(mgr, axes)
+            for name in self._metadata:
+                object.__setattr__(df, name, getattr(self, name, None))
+            return df
+
+        def _constructor_sliced_from_mgr(self, mgr, axes):
+            s = BeliefsSeries._from_mgr(mgr, axes)
+            for name in self._metadata:
+                object.__setattr__(s, name, getattr(self, name, None))
+            return s
 
     @property
     def _constructor_sliced(self):
