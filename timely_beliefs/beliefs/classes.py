@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import operator
 import types
 from datetime import datetime, timedelta
 from functools import partial
@@ -299,8 +300,8 @@ class TimedBeliefDBMixin(TimedBelief):
             # serialize sources and sensor, while adding new sources
 
             # serialize sources
-            beliefs_data_frame["source_id"] = beliefs_data_frame["source"].apply(
-                lambda x: x.id
+            beliefs_data_frame["source_id"] = beliefs_data_frame["source"].map(
+                operator.attrgetter("id")
             )
 
             # Add new sources
@@ -310,7 +311,7 @@ class TimedBeliefDBMixin(TimedBelief):
                 session.flush()  # assign IDs
                 beliefs_data_frame.loc[newbies, "source_id"] = beliefs_data_frame.loc[
                     newbies, "source"
-                ].apply(lambda x: x.id)
+                ].map(operator.attrgetter("id"))
 
             # serialize sensor
             beliefs_data_frame["sensor_id"] = beliefs_data_frame.sensor.id
@@ -805,6 +806,20 @@ class BeliefsSeries(pd.Series):
         def _constructor(self):
             return partial(BeliefsSeries)
 
+        if version.parse(pd.__version__) >= version.parse("2.2.0"):
+
+            def _constructor_from_mgr(self, mgr, axes):
+                s = BeliefsSeries._from_mgr(mgr, axes)
+                for name in self._metadata:
+                    object.__setattr__(s, name, getattr(self, name, None))
+                return s
+
+            def _constructor_expanddim_from_mgr(self, mgr, axes):
+                df = BeliefsDataFrame._from_mgr(mgr, axes)
+                for name in self._metadata:
+                    object.__setattr__(df, name, getattr(self, name, None))
+                return df
+
     @property
     def _constructor_expanddim(self):
         def f(*args, **kwargs):
@@ -883,6 +898,20 @@ class BeliefsDataFrame(pd.DataFrame):
             )
 
         return f
+
+    if version.parse(pd.__version__) >= version.parse("2.2.0"):
+
+        def _constructor_from_mgr(self, mgr, axes):
+            df = BeliefsDataFrame._from_mgr(mgr, axes)
+            for name in self._metadata:
+                object.__setattr__(df, name, getattr(self, name, None))
+            return df
+
+        def _constructor_sliced_from_mgr(self, mgr, axes):
+            s = BeliefsSeries._from_mgr(mgr, axes)
+            for name in self._metadata:
+                object.__setattr__(s, name, getattr(self, name, None))
+            return s
 
     @property
     def _constructor_sliced(self):
@@ -1023,13 +1052,9 @@ class BeliefsDataFrame(pd.DataFrame):
             if len(args) > 0 and isinstance(args[0], pd.Series):
                 args = list(args)
                 args[0] = args[0].copy()  # avoid inplace operations
-                args[0] = args[0].to_frame(
-                    name="event_value" if not args[0].name else args[0].name
-                )
+                args[0] = args[0].to_frame(name="event_value")
                 if isinstance(args[0].index, pd.DatetimeIndex) and event_start is None:
-                    args[0].index.name = (
-                        "event_start" if not args[0].index.name else args[0].index.name
-                    )
+                    args[0].index.name = "event_start"
                     args[0].reset_index(inplace=True)
                 args = tuple(args)
             elif len(args) > 0 and isinstance(args[0], pd.DataFrame):
@@ -1051,9 +1076,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 elif "source" not in self:
                     raise KeyError("DataFrame should contain column named 'source'.")
                 elif not isinstance(self["source"].dtype, BeliefSource):
-                    self["source"] = self["source"].apply(
-                        source_utils.ensure_source_exists
-                    )
+                    source_utils.ensure_sources_exists(self["source"])
                 if event_start is not None:
                     self["event_start"] = tb_utils.parse_datetime_like(
                         event_start, "event_start"
@@ -1063,8 +1086,8 @@ class BeliefsDataFrame(pd.DataFrame):
                         "DataFrame should contain column named 'event_start' or 'event_end'."
                     )
                 else:
-                    self["event_start"] = self["event_start"].apply(
-                        lambda x: tb_utils.parse_datetime_like(x, "event_start")
+                    self["event_start"] = tb_utils.parse_datetime_like(
+                        self["event_start"], "event_start"
                     )
                 if belief_time is not None:
                     self["belief_time"] = tb_utils.parse_datetime_like(
@@ -1077,8 +1100,8 @@ class BeliefsDataFrame(pd.DataFrame):
                         "DataFrame should contain column named 'belief_time' or 'belief_horizon'."
                     )
                 elif "belief_time" in self:
-                    self["belief_time"] = self["belief_time"].apply(
-                        lambda x: tb_utils.parse_datetime_like(x, "belief_time")
+                    self["belief_time"] = tb_utils.parse_datetime_like(
+                        self["belief_time"], "belief_time"
                     )
                 elif not pd.api.types.is_timedelta64_dtype(
                     self["belief_horizon"]
@@ -1099,7 +1122,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 self["event_start"] = pd.to_datetime(self["event_start"])
                 if "belief_time" in self:
                     self["belief_time"] = pd.to_datetime(self["belief_time"])
-                self["source"] = self["source"].apply(source_utils.ensure_source_exists)
+                self["source"] = source_utils.ensure_sources_exists(self["source"])
 
                 # Set index levels and metadata
                 if "belief_horizon" in self and "belief_time" not in self:
@@ -1260,22 +1283,14 @@ class BeliefsDataFrame(pd.DataFrame):
         if "event_start" in self.index.names:
             return pd.DatetimeIndex(self.index.get_level_values("event_start"))
         else:
-            return pd.DatetimeIndex(
-                self.event_ends.to_series(name="event_start").apply(
-                    lambda event_end: event_end - self.event_resolution
-                )
-            )
+            return pd.DatetimeIndex(self.event_ends - self.event_resolution)
 
     @property
     def event_ends(self) -> pd.DatetimeIndex:
         if "event_end" in self.index.names:
             return pd.DatetimeIndex(self.index.get_level_values("event_end"))
         else:
-            return pd.DatetimeIndex(
-                self.event_starts.to_series(name="event_end").apply(
-                    lambda event_start: event_start + self.event_resolution
-                )
-            )
+            return pd.DatetimeIndex(self.event_starts + self.event_resolution)
 
     @property
     def sources(self) -> pd.Index:
@@ -1321,16 +1336,12 @@ class BeliefsDataFrame(pd.DataFrame):
         index_names.extend(
             ["event_start"]
             if "event_start" in df.index.names
-            else ["event_end"]
-            if "event_end" in df.index.names
-            else []
+            else ["event_end"] if "event_end" in df.index.names else []
         )
         index_names.extend(
             ["belief_time"]
             if "belief_time" in df.index.names
-            else ["belief_horizon"]
-            if "belief_horizon" in df.index.names
-            else []
+            else ["belief_horizon"] if "belief_horizon" in df.index.names else []
         )
         if collective_beliefs is False:
             index_names.append("source")
@@ -1615,13 +1626,14 @@ class BeliefsDataFrame(pd.DataFrame):
         :param boundary_policy: When upsampling to instantaneous events,
                                 take the 'max', 'min' or 'first' value at event boundaries.
         """
-
-        if self.empty:
-            return self
         event_resolution = tb_utils.parse_timedelta_like(event_resolution)
         if event_resolution == self.event_resolution:
             return self
-        df = self
+        df = self.copy()  # avoid inplace operation
+
+        if df.empty:
+            df.event_resolution = event_resolution
+            return df
 
         # Resample instantaneous sensors
         # The event resolution stays zero, but the event frequency is updated
@@ -1680,22 +1692,13 @@ class BeliefsDataFrame(pd.DataFrame):
         else:
             if belief_timing_col == "belief_horizon":
                 df = df.convert_index_from_belief_horizon_to_time()
-            df = (
-                df.groupby(
-                    [pd.Grouper(freq=event_resolution, level="event_start"), "source"],
-                    group_keys=False,
-                )
-                .apply(
-                    lambda x: belief_utils.resample_event_start(
-                        x,
-                        event_resolution,
-                        input_resolution=self.event_resolution,
-                        distribution=distribution,
-                        keep_only_most_recent_belief=keep_only_most_recent_belief,
-                    )
-                )
-                .sort_index()
-            )
+            df = belief_utils.resample_event_start(
+                df,
+                output_resolution=event_resolution,
+                input_resolution=self.event_resolution,
+                distribution=distribution,
+                keep_only_most_recent_belief=keep_only_most_recent_belief,
+            ).sort_index()
 
             # Update metadata with new resolution
             df.event_resolution = event_resolution
@@ -1714,8 +1717,7 @@ class BeliefsDataFrame(pd.DataFrame):
         belief_time: datetime,
         source: BeliefSource,
         event_start: datetime = None,
-        event_time_window: tuple[datetime, datetime]
-        | None = (
+        event_time_window: tuple[datetime, datetime] | None = (
             None,
             None,
         ),
@@ -1794,8 +1796,8 @@ class BeliefsDataFrame(pd.DataFrame):
             )
         else:
             # Simplify index
-            df = df.reset_index()[["event_start", "event_value"]].set_index(
-                "event_start"
+            df.index = df.index.droplevel(
+                [lvl for lvl in df.index.names if lvl != "event_start"]
             )
 
             # Convert to local time in UTC, which sktime expects
@@ -2277,9 +2279,7 @@ def assign_sensor_and_event_resolution(df, sensor, event_resolution):
     df.event_resolution = (
         event_resolution
         if event_resolution
-        else sensor.event_resolution
-        if sensor
-        else None
+        else sensor.event_resolution if sensor else None
     )
 
 
@@ -2290,15 +2290,16 @@ def downsample_beliefs_data_frame(
     we aggregate each index level and column separately against the resampled event_start level,
     and then recombine them afterwards.
     """
+    index_levels = df.index.names
     belief_timing_col = (
-        "belief_time" if "belief_time" in df.index.names else "belief_horizon"
+        "belief_time" if "belief_time" in index_levels else "belief_horizon"
     )
-    event_timing_col = "event_start" if "event_start" in df.index.names else "event_end"
+    event_timing_col = "event_start" if "event_start" in index_levels else "event_end"
+    levels_to_reset = [lvl for lvl in index_levels if lvl != event_timing_col]
     return pd.concat(
         [
             getattr(
-                df.reset_index()
-                .set_index(event_timing_col)[col]
+                df.reset_index(level=levels_to_reset)[col]
                 .to_frame()
                 .resample(event_resolution),
                 att,

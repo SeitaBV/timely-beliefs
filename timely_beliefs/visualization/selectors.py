@@ -58,19 +58,23 @@ def fixed_viewpoint_selector(
     """
     selector = base.mark_rule().encode(
         x=alt.X("belief_time:T", scale={"domain": time_selection_brush.ref()}),
-        color=alt.ColorValue(idle_color)
-        if not active_fixed_viewpoint_selector
-        else alt.ColorValue("#c21431"),
+        color=(
+            alt.ColorValue(idle_color)
+            if not active_fixed_viewpoint_selector
+            else alt.ColorValue("#c21431")
+        ),
         opacity=alt.condition(nearest_x_hover_brush, alt.value(1), alt.value(0)),
-        tooltip=[
-            alt.Tooltip(
-                "belief_time:T",
-                timeUnit="yearmonthdatehoursminutes",
-                title="Click to select belief time",
-            )
-        ]
-        if active_fixed_viewpoint_selector is True
-        else [],
+        tooltip=(
+            [
+                alt.Tooltip(
+                    "belief_time:T",
+                    timeUnit="yearmonthdatehoursminutes",
+                    title="Click to select belief time",
+                )
+            ]
+            if active_fixed_viewpoint_selector is True
+            else []
+        ),
     )
     # Create selection brush that chooses the x-value nearest to the cursor on selection
     nearest_x_select_brush = alt.selection_single(

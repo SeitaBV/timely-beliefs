@@ -1,6 +1,7 @@
 """Function store for computing knowledge horizons given a certain event start and resolution.
 When passed get_bounds=True, these functions return bounds on the knowledge horizon,
-i.e. a duration window in which the knowledge horizon must lie (e.g. between 0 and 2 days before the event start)."""
+i.e. a duration window in which the knowledge horizon must lie (e.g. between 0 and 2 days before the event start).
+"""
 
 from __future__ import annotations
 

@@ -42,9 +42,11 @@ def time_series_base_chart(
                     "belief_horizon:Q",
                     title="%s (%s)"
                     % (
-                        "Forecast horizon"
-                        if intuitive_forecast_horizon
-                        else "Belief horizon",
+                        (
+                            "Forecast horizon"
+                            if intuitive_forecast_horizon
+                            else "Belief horizon"
+                        ),
                         belief_horizon_unit,
                     ),
                 ),
@@ -141,9 +143,11 @@ def value_vs_time_chart(
                 "belief_horizon:Q",
                 title="%s (%s)"
                 % (
-                    "Forecast horizon"
-                    if intuitive_forecast_horizon
-                    else "Belief horizon",
+                    (
+                        "Forecast horizon"
+                        if intuitive_forecast_horizon
+                        else "Belief horizon"
+                    ),
                     belief_horizon_unit,
                 ),
             ),
@@ -202,9 +206,11 @@ def accuracy_vs_horizon_chart(
                 ),
                 title="%s (%s)"
                 % (
-                    "Forecast horizon"
-                    if intuitive_forecast_horizon
-                    else "Belief horizon",
+                    (
+                        "Forecast horizon"
+                        if intuitive_forecast_horizon
+                        else "Belief horizon"
+                    ),
                     belief_horizon_unit,
                 ),
             ),
@@ -225,9 +231,11 @@ def accuracy_vs_horizon_chart(
                     "belief_horizon:Q",
                     title="%s (%s)"
                     % (
-                        "Forecast horizon"
-                        if intuitive_forecast_horizon
-                        else "Belief horizon",
+                        (
+                            "Forecast horizon"
+                            if intuitive_forecast_horizon
+                            else "Belief horizon"
+                        ),
                         belief_horizon_unit,
                     ),
                 ),

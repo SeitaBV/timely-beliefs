@@ -327,9 +327,9 @@ def align_belief_horizons(
 
             # If not already present, create a new row with the most recent belief
             if previous_slice_with_existing_belief_horizon is not None:
-                previous_slice_with_existing_belief_horizon[
-                    "belief_horizon"
-                ] = ubh  # Update belief horizon to reflect propagation of beliefs over time
+                previous_slice_with_existing_belief_horizon["belief_horizon"] = (
+                    ubh  # Update belief horizon to reflect propagation of beliefs over time
+                )
                 data.extend(previous_slice_with_existing_belief_horizon.values.tolist())
         else:
             # If already present, copy the row (may be multiple rows in case of a probabilistic belief)
