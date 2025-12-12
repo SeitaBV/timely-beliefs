@@ -1237,7 +1237,9 @@ def upsample_beliefs_data_frame(
     return df
 
 
-def drop_unchanged_beliefs(bdf: classes.BeliefsDataFrame, session: Session | None = None) -> classes.BeliefsDataFrame:
+def drop_unchanged_beliefs(
+    bdf: classes.BeliefsDataFrame, session: Session | None = None
+) -> classes.BeliefsDataFrame:
     """Drop beliefs that are already in the data(base) with an earlier belief time.
 
     This method assumes the index is sorted.
@@ -1270,14 +1272,20 @@ def drop_unchanged_beliefs(bdf: classes.BeliefsDataFrame, session: Session | Non
     return bdf
 
 
-def _drop_unchanged_beliefs_internally(bdf: classes.BeliefsDataFrame) -> classes.BeliefsDataFrame:
+def _drop_unchanged_beliefs_internally(
+    bdf: classes.BeliefsDataFrame,
+) -> classes.BeliefsDataFrame:
     """Keep first occurrence of unchanged beliefs."""
-    keys_df = pd.DataFrame({
-        "event_start": bdf.index.get_level_values("event_start"),
-        "source": bdf.index.get_level_values("source"),
-        "cumulative_probability": bdf.index.get_level_values("cumulative_probability"),
-        "event_value": bdf["event_value"],
-    })
+    keys_df = pd.DataFrame(
+        {
+            "event_start": bdf.index.get_level_values("event_start"),
+            "source": bdf.index.get_level_values("source"),
+            "cumulative_probability": bdf.index.get_level_values(
+                "cumulative_probability"
+            ),
+            "event_value": bdf["event_value"],
+        }
+    )
     keep_mask = ~keys_df.duplicated(keep="first").to_numpy()
     bdf = bdf.iloc[keep_mask]
     return bdf
@@ -1294,7 +1302,11 @@ def _drop_unchanged_beliefs_compared_to_db(
 
     # Look up only ex-ante beliefs (horizon > 0) or only ex-post beliefs (horizon <= 0)
     is_ex_ante = bdf.belief_horizons[0] > timedelta(0)
-    lookup = dict(horizons_at_least=timedelta(0)) if is_ex_ante else dict(horizons_at_most=timedelta(0))
+    lookup = (
+        dict(horizons_at_least=timedelta(0))
+        if is_ex_ante
+        else dict(horizons_at_most=timedelta(0))
+    )
 
     bdf_db = classes.DBTimedBelief.search_session(
         session=session,
@@ -1325,10 +1337,9 @@ def _drop_unchanged_beliefs_compared_to_db(
         suffixes=("", "_db"),
     )
 
-    diff_mask = (
-            merged[[c + "_db" for c in value_cols]].isna().any(axis=1)
-            | (merged[value_cols].values != merged[[c + "_db" for c in value_cols]].values).any(axis=1)
-    )
+    diff_mask = merged[[c + "_db" for c in value_cols]].isna().any(axis=1) | (
+        merged[value_cols].values != merged[[c + "_db" for c in value_cols]].values
+    ).any(axis=1)
 
     result = merged.loc[diff_mask, bdf_conv_df.columns].set_index(bdf_conv.index.names)
 
