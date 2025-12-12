@@ -392,6 +392,9 @@ def resample_event_start(
         )
     else:
         # slower
+        # Drop unchanged beliefs before resampling (minimize number of unique belief times)
+        df = drop_unchanged_beliefs(df)
+
         # Propagate beliefs so that each event has the same set of unique belief times
         df = align_belief_times(df, unique_belief_times)
 
@@ -407,6 +410,9 @@ def resample_event_start(
     df = join_beliefs(
         df, output_resolution, input_resolution, distribution=distribution
     )
+
+    # Drop unchanged beliefs after resampling
+    df = drop_unchanged_beliefs(df)
 
     return df
 
