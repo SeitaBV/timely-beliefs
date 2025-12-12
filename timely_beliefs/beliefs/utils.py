@@ -1306,6 +1306,8 @@ def _drop_unchanged_beliefs_compared_to_db(
 
     Assumes a BeliefsDataFrame with either all ex-ante beliefs or all ex-post beliefs.
     """
+    if bdf.empty:
+        return bdf
 
     # Look up only ex-ante beliefs (horizon > 0) or only ex-post beliefs (horizon <= 0)
     is_ex_ante = bdf.belief_horizons[0] > timedelta(0)
