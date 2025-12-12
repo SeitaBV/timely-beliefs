@@ -1335,9 +1335,10 @@ def _drop_unchanged_beliefs_compared_to_db(
     bdf_wide = beliefs_long_to_wide(bdf)
     bdf_db_wide = beliefs_long_to_wide(bdf_db_aligned)
 
-    for col in bdf_wide.columns:
-        if col not in bdf_db_wide.columns:
-            bdf_db_wide[col] = np.nan
+    # Ensure that bdf_db_wide contains all the cp values that bdf_wide might have
+    bdf_db_wide = bdf_db_wide.reindex(
+        columns=bdf_wide.columns.union(bdf_db_wide.columns)
+    )
 
     # Convert to “full timestamp” index if needed
     bdf_conv = bdf_wide.convert_index_from_belief_horizon_to_time()
