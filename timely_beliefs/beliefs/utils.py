@@ -1238,7 +1238,9 @@ def upsample_beliefs_data_frame(
 
 
 def drop_unchanged_beliefs(
-    bdf: classes.BeliefsDataFrame, session: Session | None = None
+    bdf: classes.BeliefsDataFrame,
+    timed_belief_class: classes.TimedBeliefDBMixin | None = None,
+    session: Session | None = None,
 ) -> classes.BeliefsDataFrame:
     """Drop beliefs that are already in the data(base) with an earlier belief time.
 
@@ -1255,8 +1257,12 @@ def drop_unchanged_beliefs(
     ex_post_bdf = bdf[bdf.belief_horizons <= timedelta(0)]
     if not ex_ante_bdf.empty and not ex_post_bdf.empty:
         # We treat each part separately to avoid that ex-post knowledge would be lost
-        ex_ante_bdf = drop_unchanged_beliefs(ex_ante_bdf, session=session)
-        ex_post_bdf = drop_unchanged_beliefs(ex_post_bdf, session=session)
+        ex_ante_bdf = drop_unchanged_beliefs(
+            ex_ante_bdf, timed_belief_class=timed_belief_class, session=session
+        )
+        ex_post_bdf = drop_unchanged_beliefs(
+            ex_post_bdf, timed_belief_class=timed_belief_class, session=session
+        )
         bdf = pd.concat([ex_ante_bdf, ex_post_bdf])
         return bdf
 
@@ -1267,7 +1273,9 @@ def drop_unchanged_beliefs(
         return bdf
 
     # 2. Compare to DB (ex-ante or ex-post depending on the first row)
-    bdf = _drop_unchanged_beliefs_compared_to_db(bdf, session)
+    bdf = _drop_unchanged_beliefs_compared_to_db(
+        bdf, timed_belief_class=timed_belief_class, session=session
+    )
 
     return bdf
 
@@ -1293,6 +1301,7 @@ def _drop_unchanged_beliefs_internally(
 
 def _drop_unchanged_beliefs_compared_to_db(
     bdf: classes.BeliefsDataFrame,
+    timed_belief_class: classes.TimedBeliefDBMixin,
     session: Session,
 ) -> classes.BeliefsDataFrame:
     """Drop beliefs that are already stored in the database with an earlier belief time.
@@ -1308,9 +1317,10 @@ def _drop_unchanged_beliefs_compared_to_db(
         else dict(horizons_at_most=timedelta(0))
     )
 
-    bdf_db = classes.DBTimedBelief.search_session(
+    bdf_db = timed_belief_class.search_session(
         session=session,
         sensor=bdf.sensor,
+        sensor_class=type(bdf.sensor),
         event_starts_after=bdf.event_starts[0],
         event_ends_before=bdf.event_ends[-1],
         most_recent_beliefs_only=False,
