@@ -1329,8 +1329,11 @@ def _drop_unchanged_beliefs_compared_to_db(
     if bdf_db.empty:
         return bdf
 
+    bdf_db_aligned = align_belief_times(
+        bdf_db, pd.Index.union(bdf_db.belief_times.unique(), bdf.belief_times.unique())
+    )
     bdf_wide = beliefs_long_to_wide(bdf)
-    bdf_db_wide = beliefs_long_to_wide(bdf_db)
+    bdf_db_wide = beliefs_long_to_wide(bdf_db_aligned)
 
     # Convert to “full timestamp” index if needed
     bdf_conv = bdf_wide.convert_index_from_belief_horizon_to_time()
