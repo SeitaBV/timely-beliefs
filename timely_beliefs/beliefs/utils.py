@@ -1237,11 +1237,9 @@ def upsample_beliefs_data_frame(
 
 
 def drop_unchanged_beliefs(bdf: classes.BeliefsDataFrame) -> classes.BeliefsDataFrame:
-    """Drop beliefs that are already stored in the database with an earlier belief time.
+    """Drop beliefs that are already in the data with an earlier belief time.
 
-    Also drop beliefs that are already in the data with an earlier belief time.
-
-    Quite useful function to prevent cluttering up your database with beliefs that remain unchanged over time.
+    This method assumes the index is sorted.
     """
     if bdf.empty:
         return bdf
@@ -1256,85 +1254,14 @@ def drop_unchanged_beliefs(bdf: classes.BeliefsDataFrame) -> classes.BeliefsData
         bdf = pd.concat([ex_ante_bdf, ex_post_bdf])
         return bdf
 
-    # Remove unchanged beliefs from within the new data itself
-    index_names = bdf.index.names
-    bdf = (
-        bdf.sort_index()
-        .reset_index()
-        .drop_duplicates(
-            ["event_start", "source", "cumulative_probability", "event_value"],
-            keep="first",
-        )
-        .set_index(index_names)
-    )
+    # Keep first occurrence
+    keys_df = pd.DataFrame({
+        "event_start": bdf.index.get_level_values("event_start"),
+        "source": bdf.index.get_level_values("source"),
+        "cumulative_probability": bdf.index.get_level_values("cumulative_probability"),
+        "event_value": bdf["event_value"],
+    })
+    keep_mask = ~keys_df.duplicated(keep="first").to_numpy()
+    bdf = bdf.iloc[keep_mask]
 
-    # Remove unchanged beliefs with respect to what is already stored in the database
-    if bdf.belief_horizons[0] > timedelta(0):
-        # Look up only ex-ante beliefs (horizon > 0)
-        kwargs = dict(horizons_at_least=timedelta(0))
-    else:
-        # Look up only ex-post beliefs (horizon <= 0)
-        kwargs = dict(horizons_at_most=timedelta(0))
-    bdf_db = bdf.sensor.search_beliefs(
-        event_starts_after=bdf.event_starts[0],
-        event_ends_before=bdf.event_ends[-1],
-        most_recent_beliefs_only=False,  # all beliefs
-        **kwargs,
-    )
-    if bdf_db.empty:
-        return bdf
-    return (
-        bdf.convert_index_from_belief_horizon_to_time()
-        .groupby(
-            level=["event_start", "belief_time", "source"],
-            group_keys=False,
-            as_index=False,
-        )
-        .apply(_drop_unchanged_beliefs_compared_to_db, bdf_db=bdf_db)
-    )
-
-
-def _drop_unchanged_beliefs_compared_to_db(
-    bdf: classes.BeliefsDataFrame,
-    bdf_db: classes.BeliefsDataFrame,
-) -> classes.BeliefsDataFrame:
-    """Drop beliefs that are already stored in the database with an earlier belief time.
-
-    Assumes a BeliefsDataFrame with a unique belief time and unique source,
-    and either all ex-ante beliefs or all ex-post beliefs.
-
-    It is preferable to call the public function drop_unchanged_beliefs instead.
-    """
-    source = bdf.lineage.sources[0]  # unique source
-    belief_time = bdf.lineage.belief_times[0]  # unique belief time
-    bdf_db_from_source = bdf_db[bdf_db.sources == source]
-    if bdf_db_from_source.empty:
-        return bdf
-    cutoff_idx = bdf_db_from_source.belief_times.searchsorted(belief_time, side="right")
-    if cutoff_idx == 0:
-        # No earlier belief time in db
-        return bdf
-    most_recent_bt = bdf_db_from_source.belief_times[cutoff_idx - 1]
-    previous_most_recent_beliefs = bdf_db_from_source[
-        bdf_db_from_source.belief_times == most_recent_bt
-    ]
-    if previous_most_recent_beliefs.empty:
-        return bdf
-    compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
-    a = bdf.reset_index().set_index(compare_fields)
-    b = previous_most_recent_beliefs.reset_index().set_index(compare_fields)
-    bdf = a.drop(
-        b.index,
-        errors="ignore",
-        axis=0,
-    )
-
-    # Keep whole probabilistic beliefs, not just the parts that changed
-    c = bdf.reset_index().set_index(["event_start", "source"])
-    d = a.reset_index().set_index(["event_start", "source"])
-    bdf = d[d.index.isin(c.index)]
-
-    bdf = bdf.reset_index().set_index(
-        ["event_start", "belief_time", "source", "cumulative_probability"]
-    )
     return bdf
