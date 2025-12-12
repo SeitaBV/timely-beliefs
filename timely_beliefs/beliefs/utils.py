@@ -1269,13 +1269,11 @@ def drop_unchanged_beliefs(
     # 1. Compare to self
     bdf = _drop_unchanged_beliefs_internally(bdf)
 
-    if not session:
-        return bdf
-
     # 2. Compare to DB (ex-ante or ex-post depending on the first row)
-    bdf = _drop_unchanged_beliefs_compared_to_db(
-        bdf, timed_belief_class=timed_belief_class, session=session
-    )
+    if session:
+        bdf = _drop_unchanged_beliefs_compared_to_db(
+            bdf, timed_belief_class=timed_belief_class, session=session
+        )
 
     return bdf
 
