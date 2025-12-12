@@ -1287,12 +1287,12 @@ def _drop_unchanged_beliefs_compared_to_db(
     bdf: classes.BeliefsDataFrame,
     session: Session,
 ) -> classes.BeliefsDataFrame:
-    """
-    Drop beliefs from `bdf` that are already present in `bdf_db` at an earlier belief time.
-    Assumes bdf has a unique belief_time and unique source (slice semantics).
-    Vectorized: no reset_index()/set_index() round trips.
+    """Drop beliefs that are already stored in the database with an earlier belief time.
+
+    Assumes a BeliefsDataFrame with either all ex-ante beliefs or all ex-post beliefs.
     """
 
+    # Look up only ex-ante beliefs (horizon > 0) or only ex-post beliefs (horizon <= 0)
     is_ex_ante = bdf.belief_horizons[0] > timedelta(0)
     lookup = dict(horizons_at_least=timedelta(0)) if is_ex_ante else dict(horizons_at_most=timedelta(0))
 
