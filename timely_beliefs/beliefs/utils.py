@@ -1258,7 +1258,20 @@ def drop_unchanged_beliefs(bdf: classes.BeliefsDataFrame, session: Session | Non
         bdf = pd.concat([ex_ante_bdf, ex_post_bdf])
         return bdf
 
-    # Keep first occurrence
+    # 1. Compare to self
+    bdf = _drop_unchanged_beliefs_internally(bdf)
+
+    if not session:
+        return bdf
+
+    # 2. Compare to DB (ex-ante or ex-post depending on the first row)
+    bdf = _drop_unchanged_beliefs_compared_to_db(bdf, session)
+
+    return bdf
+
+
+def _drop_unchanged_beliefs_internally(bdf: classes.BeliefsDataFrame) -> classes.BeliefsDataFrame:
+    """Keep first occurrence of unchanged beliefs."""
     keys_df = pd.DataFrame({
         "event_start": bdf.index.get_level_values("event_start"),
         "source": bdf.index.get_level_values("source"),
@@ -1267,11 +1280,19 @@ def drop_unchanged_beliefs(bdf: classes.BeliefsDataFrame, session: Session | Non
     })
     keep_mask = ~keys_df.duplicated(keep="first").to_numpy()
     bdf = bdf.iloc[keep_mask]
+    return bdf
 
-    if not session:
-        return bdf
 
-    # 2. Compare to DB (ex-ante or ex-post depending on the first row)
+def _drop_unchanged_beliefs_compared_to_db(
+    bdf: classes.BeliefsDataFrame,
+    session: Session,
+) -> classes.BeliefsDataFrame:
+    """
+    Drop beliefs from `bdf` that are already present in `bdf_db` at an earlier belief time.
+    Assumes bdf has a unique belief_time and unique source (slice semantics).
+    Vectorized: no reset_index()/set_index() round trips.
+    """
+
     is_ex_ante = bdf.belief_horizons[0] > timedelta(0)
     lookup = dict(horizons_at_least=timedelta(0)) if is_ex_ante else dict(horizons_at_most=timedelta(0))
 
@@ -1311,103 +1332,4 @@ def drop_unchanged_beliefs(bdf: classes.BeliefsDataFrame, session: Session | Non
 
     result = merged.loc[diff_mask, bdf_conv_df.columns].set_index(bdf_conv.index.names)
 
-    return result
-
-
-def _drop_unchanged_beliefs_compared_to_db(
-    bdf: classes.BeliefsDataFrame,
-    bdf_db: classes.BeliefsDataFrame,
-) -> classes.BeliefsDataFrame:
-    """
-    Drop beliefs from `bdf` that are already present in `bdf_db` at an earlier belief time.
-    Assumes bdf has a unique belief_time and unique source (slice semantics).
-    Vectorized: no reset_index()/set_index() round trips.
-    """
-
-    # --- preconditions (same as original) ---
-    source = bdf.lineage.sources[0]
-    belief_time = bdf.lineage.belief_times[0]
-
-    bdf_db_from_source = bdf_db[bdf_db.sources == source]
-    if bdf_db_from_source.empty:
-        return bdf
-
-    cutoff_idx = bdf_db_from_source.belief_times.searchsorted(belief_time, side="right")
-    if cutoff_idx == 0:
-        return bdf
-    most_recent_bt = bdf_db_from_source.belief_times[cutoff_idx - 1]
-    previous_most_recent_beliefs = bdf_db_from_source[
-        bdf_db_from_source.belief_times == most_recent_bt
-        ]
-    if previous_most_recent_beliefs.empty:
-        return bdf
-
-    # ---------------------------------------------------------------------
-    # Build comparison keys for incoming bdf and for the DB 'previous' frame.
-    # Keys: event_start, source, cumulative_probability, event_value
-    # We avoid reset_index by pulling index level values and using the column.
-    # ---------------------------------------------------------------------
-    keys_cols = ["event_start", "source", "cumulative_probability", "event_value"]
-
-    keys_a = pd.DataFrame(
-        {
-            "event_start": bdf.index.get_level_values("event_start"),
-            "source": bdf.index.get_level_values("source"),
-            "cumulative_probability": bdf.index.get_level_values("cumulative_probability"),
-            "event_value": bdf["event_value"].to_numpy(),
-        }
-    )
-
-    keys_b = pd.DataFrame(
-        {
-            "event_start": previous_most_recent_beliefs.index.get_level_values("event_start"),
-            "source": previous_most_recent_beliefs.index.get_level_values("source"),
-            "cumulative_probability": previous_most_recent_beliefs.index.get_level_values(
-                "cumulative_probability"
-            ),
-            "event_value": previous_most_recent_beliefs["event_value"].to_numpy(),
-        }
-    )
-
-    # Remove duplicates in keys_b to make the merge cheaper
-    keys_b = keys_b.drop_duplicates()
-
-    # ---------------------------------------------------------------------
-    # Vectorized anti-join: keep rows in A that are NOT present in B.
-    # We use merge with indicator to get left-only rows.
-    # ---------------------------------------------------------------------
-    merged = keys_a.merge(keys_b, on=keys_cols, how="left", indicator=True)
-    keep_mask = merged["_merge"] == "left_only"  # True for rows that do NOT match DB
-
-    pruned = bdf.iloc[keep_mask.values]  # keep same index & columns as original bdf
-
-    # ---------------------------------------------------------------------
-    # Keep whole probabilistic beliefs: find which (event_start, source)
-    # pairs survived, and keep all rows from bdf that belong to those pairs.
-    # ---------------------------------------------------------------------
-    # Build set/list of surviving (event_start, source) pairs
-    surviving_pairs = pd.MultiIndex.from_arrays(
-        [
-            pruned.index.get_level_values("event_start"),
-            pruned.index.get_level_values("source"),
-        ],
-        names=["event_start", "source"],
-    ).unique()
-
-    # Construct the (event_start, source) pairs for all rows in the original bdf
-    all_pairs = pd.MultiIndex.from_arrays(
-        [
-            bdf.index.get_level_values("event_start"),
-            bdf.index.get_level_values("source"),
-        ],
-        names=["event_start", "source"],
-    )
-
-    # Vectorized membership test: keep rows whose (event_start, source) is in surviving_pairs
-    keep_whole_mask = all_pairs.isin(surviving_pairs)
-
-    result = bdf.iloc[keep_whole_mask]
-
-    # The returned result preserves the original MultiIndex:
-    # (event_start, belief_time, source, cumulative_probability)
     return result
