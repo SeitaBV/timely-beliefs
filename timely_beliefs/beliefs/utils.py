@@ -1329,15 +1329,18 @@ def _drop_unchanged_beliefs_compared_to_db(
     if bdf_db.empty:
         return bdf
 
+    bdf_wide = beliefs_long_to_wide(bdf)
+    bdf_db_wide = beliefs_long_to_wide(bdf_db)
+
     # Convert to “full timestamp” index if needed
-    bdf_conv = bdf.convert_index_from_belief_horizon_to_time()
+    bdf_conv = bdf_wide.convert_index_from_belief_horizon_to_time()
 
     # Merge bdf against DB beliefs
-    keys = ["event_start", "belief_time", "source", "cumulative_probability"]
-    value_cols = ["event_value"]
+    keys = ["event_start", "belief_time", "source"]
+    value_cols = bdf_wide.columns
 
-    bdf_db_df = bdf_db.index.to_frame(index=False)
-    bdf_db_df[value_cols] = bdf_db[value_cols].values
+    bdf_db_df = bdf_db_wide.index.to_frame(index=False)
+    bdf_db_df[value_cols] = bdf_db_wide[value_cols].values
 
     bdf_conv_df = bdf_conv.reset_index()
     merged = bdf_conv_df.merge(
@@ -1351,6 +1354,9 @@ def _drop_unchanged_beliefs_compared_to_db(
         merged[value_cols].values != merged[[c + "_db" for c in value_cols]].values
     ).any(axis=1)
 
-    result = merged.loc[diff_mask, bdf_conv_df.columns].set_index(bdf_conv.index.names)
+    result_wide = merged.loc[diff_mask, bdf_conv_df.columns].set_index(
+        bdf_conv.index.names
+    )
+    result = beliefs_wide_to_long(result_wide)
 
     return result
