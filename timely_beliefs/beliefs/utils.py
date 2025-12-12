@@ -11,6 +11,7 @@ import pytz
 from packaging import version
 from pandas.core.groupby import DataFrameGroupBy
 from pandas.tseries.frequencies import to_offset
+from sqlalchemy.orm import Session
 
 from timely_beliefs import BeliefSource, Sensor
 from timely_beliefs import utils as tb_utils
@@ -1236,10 +1237,13 @@ def upsample_beliefs_data_frame(
     return df
 
 
-def drop_unchanged_beliefs(bdf: classes.BeliefsDataFrame) -> classes.BeliefsDataFrame:
-    """Drop beliefs that are already in the data with an earlier belief time.
+def drop_unchanged_beliefs(bdf: classes.BeliefsDataFrame, session: Session | None = None) -> classes.BeliefsDataFrame:
+    """Drop beliefs that are already in the data(base) with an earlier belief time.
 
     This method assumes the index is sorted.
+
+    :param session: If a session is passed, also drop beliefs that have a prior equivalent belief in the database,
+                    which is quite useful to prevent cluttering up your database with unchanged beliefs.
     """
     if bdf.empty:
         return bdf
@@ -1264,4 +1268,146 @@ def drop_unchanged_beliefs(bdf: classes.BeliefsDataFrame) -> classes.BeliefsData
     keep_mask = ~keys_df.duplicated(keep="first").to_numpy()
     bdf = bdf.iloc[keep_mask]
 
-    return bdf
+    if not session:
+        return bdf
+
+    # 2. Compare to DB (ex-ante or ex-post depending on the first row)
+    is_ex_ante = bdf.belief_horizons[0] > timedelta(0)
+    lookup = dict(horizons_at_least=timedelta(0)) if is_ex_ante else dict(horizons_at_most=timedelta(0))
+
+    bdf_db = classes.DBTimedBelief.search_session(
+        session=session,
+        sensor=bdf.sensor,
+        event_starts_after=bdf.event_starts[0],
+        event_ends_before=bdf.event_ends[-1],
+        most_recent_beliefs_only=False,
+        **lookup,
+    )
+    if bdf_db.empty:
+        return bdf
+
+    # Convert to “full timestamp” index if needed
+    bdf_conv = bdf.convert_index_from_belief_horizon_to_time()
+
+    # Merge bdf against DB beliefs
+    keys = ["event_start", "belief_time", "source", "cumulative_probability"]
+    value_cols = ["event_value"]
+
+    bdf_db_df = bdf_db.index.to_frame(index=False)
+    bdf_db_df[value_cols] = bdf_db[value_cols].values
+
+    bdf_conv_df = bdf_conv.reset_index()
+    merged = bdf_conv_df.merge(
+        bdf_db_df,
+        on=keys,
+        how="left",
+        suffixes=("", "_db"),
+    )
+
+    diff_mask = (
+            merged[[c + "_db" for c in value_cols]].isna().any(axis=1)
+            | (merged[value_cols].values != merged[[c + "_db" for c in value_cols]].values).any(axis=1)
+    )
+
+    result = merged.loc[diff_mask, bdf_conv_df.columns].set_index(bdf_conv.index.names)
+
+    return result
+
+
+def _drop_unchanged_beliefs_compared_to_db(
+    bdf: classes.BeliefsDataFrame,
+    bdf_db: classes.BeliefsDataFrame,
+) -> classes.BeliefsDataFrame:
+    """
+    Drop beliefs from `bdf` that are already present in `bdf_db` at an earlier belief time.
+    Assumes bdf has a unique belief_time and unique source (slice semantics).
+    Vectorized: no reset_index()/set_index() round trips.
+    """
+
+    # --- preconditions (same as original) ---
+    source = bdf.lineage.sources[0]
+    belief_time = bdf.lineage.belief_times[0]
+
+    bdf_db_from_source = bdf_db[bdf_db.sources == source]
+    if bdf_db_from_source.empty:
+        return bdf
+
+    cutoff_idx = bdf_db_from_source.belief_times.searchsorted(belief_time, side="right")
+    if cutoff_idx == 0:
+        return bdf
+    most_recent_bt = bdf_db_from_source.belief_times[cutoff_idx - 1]
+    previous_most_recent_beliefs = bdf_db_from_source[
+        bdf_db_from_source.belief_times == most_recent_bt
+        ]
+    if previous_most_recent_beliefs.empty:
+        return bdf
+
+    # ---------------------------------------------------------------------
+    # Build comparison keys for incoming bdf and for the DB 'previous' frame.
+    # Keys: event_start, source, cumulative_probability, event_value
+    # We avoid reset_index by pulling index level values and using the column.
+    # ---------------------------------------------------------------------
+    keys_cols = ["event_start", "source", "cumulative_probability", "event_value"]
+
+    keys_a = pd.DataFrame(
+        {
+            "event_start": bdf.index.get_level_values("event_start"),
+            "source": bdf.index.get_level_values("source"),
+            "cumulative_probability": bdf.index.get_level_values("cumulative_probability"),
+            "event_value": bdf["event_value"].to_numpy(),
+        }
+    )
+
+    keys_b = pd.DataFrame(
+        {
+            "event_start": previous_most_recent_beliefs.index.get_level_values("event_start"),
+            "source": previous_most_recent_beliefs.index.get_level_values("source"),
+            "cumulative_probability": previous_most_recent_beliefs.index.get_level_values(
+                "cumulative_probability"
+            ),
+            "event_value": previous_most_recent_beliefs["event_value"].to_numpy(),
+        }
+    )
+
+    # Remove duplicates in keys_b to make the merge cheaper
+    keys_b = keys_b.drop_duplicates()
+
+    # ---------------------------------------------------------------------
+    # Vectorized anti-join: keep rows in A that are NOT present in B.
+    # We use merge with indicator to get left-only rows.
+    # ---------------------------------------------------------------------
+    merged = keys_a.merge(keys_b, on=keys_cols, how="left", indicator=True)
+    keep_mask = merged["_merge"] == "left_only"  # True for rows that do NOT match DB
+
+    pruned = bdf.iloc[keep_mask.values]  # keep same index & columns as original bdf
+
+    # ---------------------------------------------------------------------
+    # Keep whole probabilistic beliefs: find which (event_start, source)
+    # pairs survived, and keep all rows from bdf that belong to those pairs.
+    # ---------------------------------------------------------------------
+    # Build set/list of surviving (event_start, source) pairs
+    surviving_pairs = pd.MultiIndex.from_arrays(
+        [
+            pruned.index.get_level_values("event_start"),
+            pruned.index.get_level_values("source"),
+        ],
+        names=["event_start", "source"],
+    ).unique()
+
+    # Construct the (event_start, source) pairs for all rows in the original bdf
+    all_pairs = pd.MultiIndex.from_arrays(
+        [
+            bdf.index.get_level_values("event_start"),
+            bdf.index.get_level_values("source"),
+        ],
+        names=["event_start", "source"],
+    )
+
+    # Vectorized membership test: keep rows whose (event_start, source) is in surviving_pairs
+    keep_whole_mask = all_pairs.isin(surviving_pairs)
+
+    result = bdf.iloc[keep_whole_mask]
+
+    # The returned result preserves the original MultiIndex:
+    # (event_start, belief_time, source, cumulative_probability)
+    return result
