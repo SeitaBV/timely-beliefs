@@ -25,6 +25,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Interval,
+    Table,
     and_,
     func,
     select,
@@ -364,6 +365,8 @@ class TimedBeliefDBMixin(TimedBelief):
         place_events_in_sensor_timezone: bool = True,
         custom_filter_criteria: list[BinaryExpression] | None = None,
         custom_join_targets: list[JoinTarget] | None = None,
+        use_materialized_view: bool = True,
+        most_recent_beliefs_mview: Table | None = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
@@ -571,54 +574,105 @@ class TimedBeliefDBMixin(TimedBelief):
             most_recent_beliefs_only
             and not most_recent_beliefs_only_incompatible_criteria
         ):
-            subq = select(
-                cls.event_start,
-                cls.source_id,
-                func.min(cls.belief_horizon).label("most_recent_belief_horizon"),
-            )
-            # Apply event and belief timing filters to the subquery, too,
-            # before taking the minimum horizon (the former is crucial for speed)
-            subq = apply_event_timing_filters(subq)
-            subq = apply_belief_timing_filters(subq)
-            subq = (
-                subq.filter(cls.sensor_id == sensor.id)
-                .group_by(cls.event_start, cls.source_id)
-                .subquery()
-            )
-            q = q.join(
-                subq,
-                and_(
-                    cls.event_start == subq.c.event_start,
-                    cls.source_id == subq.c.source_id,
-                    cls.belief_horizon == subq.c.most_recent_belief_horizon,
-                ),
-            )
+            # Check if we should use materialized view (for better performance on large datasets)
+
+            def use_original_subquery_for_most_recent_beliefs(q):
+                # Use original subquery approach
+                subq = select(
+                    cls.event_start,
+                    cls.source_id,
+                    func.min(cls.belief_horizon).label("most_recent_belief_horizon"),
+                )
+                # Apply event and belief timing filters to the subquery, too,
+                # before taking the minimum horizon (the former is crucial for speed)
+                subq = apply_event_timing_filters(subq)
+                subq = apply_belief_timing_filters(subq)
+                subq = (
+                    subq.filter(cls.sensor_id == sensor.id)
+                    .group_by(cls.event_start, cls.source_id)
+                    .subquery()
+                )
+                q = q.join(
+                    subq,
+                    and_(
+                        cls.event_start == subq.c.event_start,
+                        cls.source_id == subq.c.source_id,
+                        cls.belief_horizon == subq.c.most_recent_belief_horizon,
+                    ),
+                )
+                return q
+
+            if use_materialized_view and most_recent_beliefs_mview is not None:
+                try:
+                    # Join with the materialized view
+                    q = q.join(
+                        most_recent_beliefs_mview,
+                        and_(
+                            cls.sensor_id == most_recent_beliefs_mview.c.sensor_id,
+                            cls.event_start == most_recent_beliefs_mview.c.event_start,
+                            cls.source_id == most_recent_beliefs_mview.c.source_id,
+                            cls.belief_horizon
+                            == most_recent_beliefs_mview.c.most_recent_belief_horizon,
+                        ),
+                    )
+                except Exception as e:
+                    print(
+                        f"Materialized view join failed: {e}. Falling back to original subquery approach."
+                    )
+                    # Fallback to the original subquery approach
+                    q = use_original_subquery_for_most_recent_beliefs(q)
+            else:
+                q = use_original_subquery_for_most_recent_beliefs(q)
 
         # Apply most recent events filter as subquery
         if most_recent_events_only:
-            subq_most_recent_events = select(
-                cls.source_id,
-                func.max(cls.event_start).label("most_recent_event_start"),
-            )
-            subq_most_recent_events = apply_event_timing_filters(
-                subq_most_recent_events
-            )
-            subq_most_recent_events = apply_belief_timing_filters(
-                subq_most_recent_events
-            )
-            subq_most_recent_events = (
-                subq_most_recent_events.filter(cls.sensor_id == sensor.id)
-                .group_by(cls.source_id)
-                .subquery()
-            )
-            q = q.join(
-                subq_most_recent_events,
-                and_(
-                    cls.source_id == subq_most_recent_events.c.source_id,
-                    cls.event_start
-                    == subq_most_recent_events.c.most_recent_event_start,
-                ),
-            )
+
+            def use_original_subquery_for_most_recent_events(q):
+                subq_most_recent_events = select(
+                    cls.source_id,
+                    func.max(cls.event_start).label("most_recent_event_start"),
+                )
+                subq_most_recent_events = apply_event_timing_filters(
+                    subq_most_recent_events
+                )
+                subq_most_recent_events = apply_belief_timing_filters(
+                    subq_most_recent_events
+                )
+                subq_most_recent_events = (
+                    subq_most_recent_events.filter(cls.sensor_id == sensor.id)
+                    .group_by(cls.source_id)
+                    .subquery()
+                )
+                q = q.join(
+                    subq_most_recent_events,
+                    and_(
+                        cls.source_id == subq_most_recent_events.c.source_id,
+                        cls.event_start
+                        == subq_most_recent_events.c.most_recent_event_start,
+                    ),
+                )
+                return q
+
+            if use_materialized_view and most_recent_beliefs_mview:
+                try:
+                    # Join with the materialized view
+                    q = q.join(
+                        most_recent_beliefs_mview,
+                        and_(
+                            cls.sensor_id == most_recent_beliefs_mview.c.sensor_id,
+                            cls.source_id == most_recent_beliefs_mview.c.source_id,
+                            cls.event_start
+                            == most_recent_beliefs_mview.c.most_recent_event_start,
+                        ),
+                    )
+                except Exception as e:
+                    print(
+                        f"Materialized view join failed: {e}. Falling back to original subquery approach."
+                    )
+                    # Fallback to the original subquery approach
+                    q = use_original_subquery_for_most_recent_events(q)
+            else:
+                q = use_original_subquery_for_most_recent_events(q)
 
         # Apply fast-track most-recent-only approach
         # Note that currently, this only works for a deterministic belief. A probabilistic belief would have multiple rows
@@ -628,7 +682,9 @@ class TimedBeliefDBMixin(TimedBelief):
 
         # Useful debugging code, let's keep it here
         # from sqlalchemy.dialects import postgresql
-        # print(q.compile(dialect=postgresql.dialect()))
+        # print("\nQuery for beliefs:\n")
+        # print(q.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+        # print("\n\n")
 
         # Build our DataFrame of beliefs
         df = pd.DataFrame(session.execute(q))
