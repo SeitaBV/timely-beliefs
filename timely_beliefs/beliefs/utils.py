@@ -1320,7 +1320,6 @@ def _drop_unchanged_beliefs_compared_to_db(
     bdf_db = timed_belief_class.search_session(
         session=session,
         sensor=bdf.sensor,
-        sensor_class=type(bdf.sensor),
         event_starts_after=bdf.event_starts[0],
         event_ends_before=bdf.event_ends[-1],
         most_recent_beliefs_only=False,
