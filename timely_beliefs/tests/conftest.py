@@ -50,30 +50,31 @@ def db():
     # Explicitly close DB connection
     session.close()
 
+    # Defensive cleanup for optional mviews
+    with engine.begin() as conn:
+        conn.execute(text(DROP_MVIEW_SQL))
+
     Base.metadata.drop_all(engine)
 
 
 @pytest.fixture
-def most_recent_beliefs_mview(db_session):
+def most_recent_beliefs_mview(db):
     """
     Create the materialized view used by FlexMeasures belief optimization.
     """
-    conn = db_session.connection()
+    conn = session.connection()
 
     # Defensive cleanup (helps when re-running locally)
     conn.execute(text(DROP_MVIEW_SQL))
+
     conn.execute(text(CREATE_MVIEW_SQL))
     conn.execute(text(CREATE_INDEXES_SQL))
 
-    yield
-
-    conn.execute(text(DROP_MVIEW_SQL))
-
 
 @pytest.fixture
-def refresh_mview(db_session):
+def refresh_mview(db):
     def _refresh():
-        db_session.execute(text(REFRESH_MVIEW_SQL))
+        session.execute(text(REFRESH_MVIEW_SQL))
 
     return _refresh
 
