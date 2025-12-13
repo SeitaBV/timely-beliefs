@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from pytz import utc
+from sqlalchemy import text
 
 from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
 from timely_beliefs.db_base import Base
@@ -13,6 +14,12 @@ from timely_beliefs.sensors.func_store.knowledge_horizons import (
     x_days_ago_at_y_oclock,
 )
 from timely_beliefs.tests import engine, session
+from timely_beliefs.tests.mview import (
+    DROP_MVIEW_SQL,
+    CREATE_INDEXES_SQL,
+    CREATE_MVIEW_SQL,
+    REFRESH_MVIEW_SQL,
+)
 
 collect_ignore_glob = []
 if sys.version_info[0] == 3 and sys.version_info[1] == 6:
@@ -44,6 +51,31 @@ def db():
     session.close()
 
     Base.metadata.drop_all(engine)
+
+
+@pytest.fixture
+def most_recent_beliefs_mview(db_session):
+    """
+    Create the materialized view used by FlexMeasures belief optimization.
+    """
+    conn = db_session.connection()
+
+    # Defensive cleanup (helps when re-running locally)
+    conn.execute(text(DROP_MVIEW_SQL))
+    conn.execute(text(CREATE_MVIEW_SQL))
+    conn.execute(text(CREATE_INDEXES_SQL))
+
+    yield
+
+    conn.execute(text(DROP_MVIEW_SQL))
+
+
+@pytest.fixture
+def refresh_mview(db_session):
+    def _refresh():
+        db_session.execute(text(REFRESH_MVIEW_SQL))
+
+    return _refresh
 
 
 @pytest.fixture(scope="function", autouse=True)
