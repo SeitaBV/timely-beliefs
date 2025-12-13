@@ -3,17 +3,17 @@ CREATE MATERIALIZED VIEW most_recent_beliefs_mview AS
 SELECT *
 FROM (
     SELECT
-        timed_belief.sensor_id,
-        timed_belief.event_start,
-        timed_belief.source_id,
-        MIN(timed_belief.belief_horizon) AS most_recent_belief_horizon
-    FROM timed_belief
-    INNER JOIN data_source
-        ON data_source.id = timed_belief.source_id
+        my_timed_belief.sensor_id,
+        my_timed_belief.event_start,
+        my_timed_belief.source_id,
+        MIN(my_timed_belief.belief_horizon) AS most_recent_belief_horizon
+    FROM my_timed_belief
+    INNER JOIN belief_source
+        ON belief_source.id = my_timed_belief.source_id
     GROUP BY
-        timed_belief.sensor_id,
-        timed_belief.event_start,
-        timed_belief.source_id
+        my_timed_belief.sensor_id,
+        my_timed_belief.event_start,
+        my_timed_belief.source_id
 ) AS belief_mins
 GROUP BY
     sensor_id,
