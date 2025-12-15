@@ -57,7 +57,7 @@ def db():
     Base.metadata.drop_all(engine)
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def most_recent_beliefs_mview(db):
     """
     Create the materialized view used by FlexMeasures belief optimization.
