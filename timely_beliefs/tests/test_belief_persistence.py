@@ -26,11 +26,7 @@ def test_adding_to_session(
 
     # Replace the source
     if replace_source:
-        bdf = bdf.reset_index()
-        bdf["source"] = test_source_without_initial_data
-        bdf = bdf.set_index(
-            ["event_start", "belief_time", "source", "cumulative_probability"]
-        )
+        bdf = bdf._replace_multi_index_level("source", test_source_without_initial_data)
 
     # Overwriting the data should succeed, at least if we expunge everything from the session
     DBTimedBelief.add_to_session(

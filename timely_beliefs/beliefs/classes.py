@@ -1159,21 +1159,24 @@ class BeliefsDataFrame(pd.DataFrame):
         )
         return self.append(BeliefsDataFrame(sensor=self.sensor, beliefs=beliefs))
 
+    def _replace_multi_index_level(self, level: str, by: Any) -> "BeliefsDataFrame":
+        if isinstance(by, (datetime, pd.Timestamp)):
+            by = pd.DatetimeIndex(data=[by] * len(self.index), name=level)
+        elif not isinstance(by, pd.Index):
+            by = pd.Index(data=[by] * len(self.index), name=level)
+        return tb_utils.replace_multi_index_level(self, level, by)
+
     def convert_index_from_belief_time_to_horizon(self) -> "BeliefsDataFrame":
-        return tb_utils.replace_multi_index_level(
-            self, "belief_time", self.belief_horizons
-        )
+        return self._replace_multi_index_level("belief_time", self.belief_horizons)
 
     def convert_index_from_belief_horizon_to_time(self) -> "BeliefsDataFrame":
-        return tb_utils.replace_multi_index_level(
-            self, "belief_horizon", self.belief_times
-        )
+        return self._replace_multi_index_level("belief_horizon", self.belief_times)
 
     def convert_index_from_event_end_to_start(self) -> "BeliefsDataFrame":
-        return tb_utils.replace_multi_index_level(self, "event_end", self.event_starts)
+        return self._replace_multi_index_level("event_end", self.event_starts)
 
     def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
-        return tb_utils.replace_multi_index_level(self, "event_start", self.event_ends)
+        return self._replace_multi_index_level("event_start", self.event_ends)
 
     def convert_timezone_of_belief_timing_index(
         self, timezone: str | pytz.timezone
@@ -1181,8 +1184,7 @@ class BeliefsDataFrame(pd.DataFrame):
         if "belief_horizon" in self.index.names:
             return self  # timedeltas don't have timezones
         elif "belief_time" in self.index.names:
-            return tb_utils.replace_multi_index_level(
-                self,
+            return self._replace_multi_index_level(
                 "belief_time",
                 pd.to_datetime(self.belief_times, utc=True).tz_convert(timezone),
             )
@@ -1195,14 +1197,12 @@ class BeliefsDataFrame(pd.DataFrame):
         self, timezone: str | pytz.timezone
     ) -> "BeliefsDataFrame":
         if "event_end" in self.index.names:
-            return tb_utils.replace_multi_index_level(
-                self,
+            return self._replace_multi_index_level(
                 "event_end",
                 pd.to_datetime(self.event_ends, utc=True).tz_convert(timezone),
             )
         elif "event_start" in self.index.names:
-            return tb_utils.replace_multi_index_level(
-                self,
+            return self._replace_multi_index_level(
                 "event_start",
                 pd.to_datetime(self.event_starts, utc=True).tz_convert(timezone),
             )
@@ -1502,10 +1502,9 @@ class BeliefsDataFrame(pd.DataFrame):
             ]
         df = belief_utils.select_most_recent_belief(df)
         if update_belief_times is True:
-            return tb_utils.replace_multi_index_level(
-                df,
-                "belief_time",
-                pd.DatetimeIndex(data=[belief_time_window[1]] * len(df.index)),
+            return df._replace_multi_index_level(
+                level="belief_time",
+                by=belief_time_window[1],
             )
         else:
             return df
