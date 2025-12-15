@@ -603,6 +603,7 @@ class TimedBeliefDBMixin(TimedBelief):
                 return q
 
             if use_materialized_view and most_recent_beliefs_mview is not None:
+                most_recent_beliefs_mview = tb_utils.get_most_recent_beliefs_mview(session)
                 try:
                     # Join with the materialized view
                     q = q.join(
@@ -654,6 +655,7 @@ class TimedBeliefDBMixin(TimedBelief):
                 return q
 
             if use_materialized_view and most_recent_beliefs_mview:
+                most_recent_beliefs_mview = tb_utils.get_most_recent_beliefs_mview(session)
                 try:
                     # Join with the materialized view
                     q = q.join(
