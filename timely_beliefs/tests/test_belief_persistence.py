@@ -8,9 +8,11 @@ from timely_beliefs.tests import session, Session
 
 @pytest.mark.parametrize("replace_source", [False, True])
 @pytest.mark.parametrize("bulk_save_objects", [False, True])
+@pytest.mark.parametrize("use_mview", [False, True])
 def test_adding_to_session(
     replace_source: bool,
     bulk_save_objects: bool,
+    use_mview: bool,
     time_slot_sensor: DBSensor,
     rolling_day_ahead_beliefs_about_time_slot_events,
     test_source_a,
@@ -24,7 +26,7 @@ def test_adding_to_session(
         sensor=time_slot_sensor,
         source=test_source_b,
         most_recent_beliefs_only=True,
-        use_materialized_view=True,
+        use_materialized_view=True if use_mview else False,
         most_recent_beliefs_mview="bla",
     )
 
@@ -46,7 +48,7 @@ def test_adding_to_session(
         sensor=time_slot_sensor,
         source=test_source_without_initial_data if replace_source else test_source_b,
         most_recent_beliefs_only=True,
-        use_materialized_view=True,
+        use_materialized_view=True if use_mview else False,
         most_recent_beliefs_mview="bla",
     )
     assert len(bdf) == len(new_bdf)
@@ -84,7 +86,7 @@ def test_adding_to_session(
                 test_source_without_initial_data if replace_source else test_source_b
             ),
             most_recent_beliefs_only=True,
-            use_materialized_view=True,
+            use_materialized_view=True if use_mview else False,
             most_recent_beliefs_mview="bla",
         )
         assert newer_bdf.event_value[0] == 1000
