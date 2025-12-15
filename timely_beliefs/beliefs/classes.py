@@ -25,6 +25,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Interval,
+    MetaData,
     Table,
     and_,
     func,
@@ -59,6 +60,16 @@ JoinTarget = Union[
     AliasedClass,
     types.FunctionType,
 ]
+
+# Define the mview Table once
+DEFAULT_MOST_RECENT_BELIEFS_MVIEW = Table(
+    "most_recent_beliefs_mview",
+    MetaData(),
+    Column("sensor_id", Integer),
+    Column("event_start", DateTime),
+    Column("source_id", Integer),
+    Column("most_recent_belief_horizon", Interval),
+)
 
 
 class TimedBelief(object):
@@ -606,9 +617,7 @@ class TimedBeliefDBMixin(TimedBelief):
 
             if use_materialized_view:
                 if most_recent_beliefs_mview is None:
-                    most_recent_beliefs_mview = tb_utils.get_most_recent_beliefs_mview(
-                        session
-                    )
+                    most_recent_beliefs_mview = DEFAULT_MOST_RECENT_BELIEFS_MVIEW
                 try:
                     # Join with the materialized view
                     q = q.join(
@@ -661,9 +670,7 @@ class TimedBeliefDBMixin(TimedBelief):
 
             if use_materialized_view:
                 if most_recent_beliefs_mview is None:
-                    most_recent_beliefs_mview = tb_utils.get_most_recent_beliefs_mview(
-                        session
-                    )
+                    most_recent_beliefs_mview = DEFAULT_MOST_RECENT_BELIEFS_MVIEW
                 try:
                     # Join with the materialized view
                     q = q.join(
