@@ -642,54 +642,29 @@ class TimedBeliefDBMixin(TimedBelief):
         # Apply most recent events filter as subquery
         if most_recent_events_only:
 
-            def use_original_subquery_for_most_recent_events(q):
-                subq_most_recent_events = select(
-                    cls.source_id,
-                    func.max(cls.event_start).label("most_recent_event_start"),
-                )
-                subq_most_recent_events = apply_event_timing_filters(
-                    subq_most_recent_events
-                )
-                subq_most_recent_events = apply_belief_timing_filters(
-                    subq_most_recent_events
-                )
-                subq_most_recent_events = (
-                    subq_most_recent_events.filter(cls.sensor_id == sensor.id)
-                    .group_by(cls.source_id)
-                    .subquery()
-                )
-                q = q.join(
-                    subq_most_recent_events,
-                    and_(
-                        cls.source_id == subq_most_recent_events.c.source_id,
-                        cls.event_start
-                        == subq_most_recent_events.c.most_recent_event_start,
-                    ),
-                )
-                return q
-
-            if use_materialized_view:
-                if most_recent_beliefs_mview is None:
-                    most_recent_beliefs_mview = DEFAULT_MOST_RECENT_BELIEFS_MVIEW
-                try:
-                    # Join with the materialized view
-                    q = q.join(
-                        most_recent_beliefs_mview,
-                        and_(
-                            cls.sensor_id == most_recent_beliefs_mview.c.sensor_id,
-                            cls.source_id == most_recent_beliefs_mview.c.source_id,
-                            cls.event_start
-                            == most_recent_beliefs_mview.c.most_recent_event_start,
-                        ),
-                    )
-                except Exception as e:
-                    print(
-                        f"Materialized view join failed: {e}. Falling back to original subquery approach."
-                    )
-                    # Fallback to the original subquery approach
-                    q = use_original_subquery_for_most_recent_events(q)
-            else:
-                q = use_original_subquery_for_most_recent_events(q)
+            subq_most_recent_events = select(
+                cls.source_id,
+                func.max(cls.event_start).label("most_recent_event_start"),
+            )
+            subq_most_recent_events = apply_event_timing_filters(
+                subq_most_recent_events
+            )
+            subq_most_recent_events = apply_belief_timing_filters(
+                subq_most_recent_events
+            )
+            subq_most_recent_events = (
+                subq_most_recent_events.filter(cls.sensor_id == sensor.id)
+                .group_by(cls.source_id)
+                .subquery()
+            )
+            q = q.join(
+                subq_most_recent_events,
+                and_(
+                    cls.source_id == subq_most_recent_events.c.source_id,
+                    cls.event_start
+                    == subq_most_recent_events.c.most_recent_event_start,
+                ),
+            )
 
         # Apply fast-track most-recent-only approach
         # Note that currently, this only works for a deterministic belief. A probabilistic belief would have multiple rows
