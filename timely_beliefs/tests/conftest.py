@@ -58,10 +58,11 @@ def db():
 
 
 @pytest.fixture(autouse=True)
-def most_recent_beliefs_mview(db):
-    """
-    Create the materialized view used by FlexMeasures belief optimization.
-    """
+def most_recent_beliefs_mview(db, request):
+    """Create a materialized view if the use_mview fixture is used."""
+    if "use_mview" not in request.fixturenames:
+        return
+
     conn = session.connection()
 
     # Defensive cleanup (helps when re-running locally)
