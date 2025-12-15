@@ -51,7 +51,7 @@ def test_query_belief_for_sensor_with_unique_knowledge_time(
         sensor=unique_knowledge_time_sensor,
         beliefs_after=pd.Timestamp("1990-04-01 00:00Z"),
         beliefs_before=pd.Timestamp("1990-06-01 00:00Z"),
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     ).convert_index_from_belief_time_to_horizon()
     assert belief_df.belief_horizons[0] == timedelta(0)
     assert belief_df.belief_horizons[1] == timedelta(0)
@@ -161,7 +161,7 @@ def test_query_belief_with_empty_source_list(
         session=session,
         sensor=ex_ante_economics_sensor,
         source=[],
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     assert belief_df.empty
 
@@ -191,7 +191,7 @@ def test_query_belief_by_belief_time(
         sensor=ex_ante_economics_sensor,
         beliefs_after=beliefs_after,
         beliefs_before=beliefs_before,
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     assert len(bdf) == expected_length
 
@@ -214,7 +214,7 @@ def test_query_belief_history(
     df = DBTimedBelief.search_session(
         session=session,
         sensor=ex_ante_economics_sensor,
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
     df2 = df.belief_history(event_start).sort_index(
@@ -247,7 +247,7 @@ def test_query_rolling_horizon(
         session=session,
         sensor=time_slot_sensor,
         beliefs_before=datetime(2050, 1, 1, 14, tzinfo=utc),
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )  # select beliefs up until 14 o'clock (4 events have 2 beliefs, and 1 event has 1 belief)
     rolling_df = belief_df.rolling_viewpoint(
         belief_horizon=timedelta(hours=49)
@@ -277,7 +277,7 @@ def test_query_fixed_horizon(
         sensor=time_slot_sensor,
         beliefs_before=datetime(2050, 1, 1, 15, tzinfo=utc),
         source=[test_source_a, test_source_b],
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     df2 = df.fixed_viewpoint(belief_time=belief_time)
     assert len(df2) == 2
@@ -300,7 +300,7 @@ def test_downsample(
         session=session,
         sensor=time_slot_sensor,
         beliefs_before=datetime(2100, 1, 1, 13, tzinfo=utc),
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     belief_df = belief_df.resample_events(new_resolution)
     assert belief_df.sensor.event_resolution == timedelta(minutes=15)
@@ -317,7 +317,7 @@ def test_upsample(
         session=session,
         sensor=time_slot_sensor,
         beliefs_before=datetime(2100, 1, 1, 13, tzinfo=utc),
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     belief_df = belief_df.resample_events(new_resolution)
     assert belief_df.sensor.event_resolution == timedelta(minutes=15)
@@ -330,7 +330,7 @@ def _test_empty_frame(time_slot_sensor):
         session=session,
         sensor=time_slot_sensor,
         beliefs_before=datetime(1900, 1, 1, 13, tzinfo=utc),
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     assert bdf.empty  # no data expected
     assert pd.api.types.is_datetime64_dtype(bdf.index.get_level_values("belief_time"))
@@ -353,7 +353,7 @@ def test_search_by_sensor_id(
         session=session,
         sensor=ex_ante_economics_sensor,
         most_recent_beliefs_only=False,
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
 
     # Query all beliefs for this sensor, using sensor id (our test)
@@ -361,7 +361,7 @@ def test_search_by_sensor_id(
         session=session,
         sensor=ex_ante_economics_sensor.id,
         most_recent_beliefs_only=False,
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     assert not df_by_id.empty
     pd.testing.assert_frame_equal(df_by_id, df_by_instance)
@@ -381,7 +381,7 @@ def test_select_most_recent_deterministic_beliefs(
         session=session,
         sensor=ex_ante_economics_sensor,
         most_recent_beliefs_only=False,
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
 
     # Most recent beliefs selected after query (our reference)
@@ -392,7 +392,7 @@ def test_select_most_recent_deterministic_beliefs(
         session=session,
         sensor=ex_ante_economics_sensor,
         most_recent_beliefs_only=True,
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     pd.testing.assert_frame_equal(
         df_recent_beliefs_within_query, df_recent_beliefs_after_query
@@ -408,7 +408,7 @@ def test_select_most_recent_deterministic_beliefs(
         session=session,
         sensor=ex_ante_economics_sensor,
         most_recent_events_only=True,
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     pd.testing.assert_frame_equal(
         df_recent_events_within_query, df_recent_events_after_query
@@ -426,7 +426,7 @@ def test_select_most_recent_deterministic_beliefs(
         sensor=ex_ante_economics_sensor,
         most_recent_beliefs_only=True,
         most_recent_events_only=True,
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     pd.testing.assert_frame_equal(
         df_recent_both_within_query, df_recent_both_after_query
@@ -445,14 +445,14 @@ def test_select_most_recent_probabilistic_beliefs(
         session=session,
         sensor=ex_ante_economics_sensor,
         most_recent_beliefs_only=False,
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     most_recent_df = belief_utils.select_most_recent_belief(df)
     df = DBTimedBelief.search_session(
         session=session,
         sensor=ex_ante_economics_sensor,
         most_recent_beliefs_only=True,
-        most_recent_beliefs_mview="most_recent_beliefs_mview" if use_mview else None,
+        use_materialized_view=use_mview,
     )
     pd.testing.assert_frame_equal(df, most_recent_df)
 

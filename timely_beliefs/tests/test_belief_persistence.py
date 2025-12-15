@@ -26,8 +26,7 @@ def test_adding_to_session(
         sensor=time_slot_sensor,
         source=test_source_b,
         most_recent_beliefs_only=True,
-        use_materialized_view=True if use_mview else False,
-        most_recent_beliefs_mview="bla",
+        use_materialized_view=use_mview,
     )
 
     # Replace the source
@@ -48,8 +47,7 @@ def test_adding_to_session(
         sensor=time_slot_sensor,
         source=test_source_without_initial_data if replace_source else test_source_b,
         most_recent_beliefs_only=True,
-        use_materialized_view=True if use_mview else False,
-        most_recent_beliefs_mview="bla",
+        use_materialized_view=use_mview,
     )
     assert len(bdf) == len(new_bdf)
 
@@ -86,8 +84,7 @@ def test_adding_to_session(
                 test_source_without_initial_data if replace_source else test_source_b
             ),
             most_recent_beliefs_only=True,
-            use_materialized_view=True if use_mview else False,
-            most_recent_beliefs_mview="bla",
+            use_materialized_view=use_mview,
         )
         assert newer_bdf.event_value[0] == 1000
         new_session.close()
