@@ -2,8 +2,8 @@ import pandas as pd
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from timely_beliefs import DBSensor, DBTimedBelief
-from timely_beliefs.tests import session
+from timely_beliefs import DBSensor, DBBeliefSource, DBTimedBelief
+from timely_beliefs.tests import session, Session
 
 
 @pytest.mark.parametrize("replace_source", [False, True])
@@ -53,7 +53,9 @@ def test_adding_to_session(
 
     # A single more recent belief
     if not bdf.empty:
-        more_recent_belief = bdf.head(1)._replace_multi_index_level("belief_time", bdf.head(1).belief_times + pd.Timedelta(minutes=1))
+        more_recent_belief = bdf.head(1)._replace_multi_index_level(
+            "belief_time", bdf.head(1).belief_times + pd.Timedelta(minutes=1)
+        )
         more_recent_belief["event_value"] = 1000
         DBTimedBelief.add_to_session(
             session,
@@ -63,15 +65,30 @@ def test_adding_to_session(
             bulk_save_objects=bulk_save_objects,
             commit_transaction=True,
         )
+
+        time_slot_sensor_id = time_slot_sensor.id
+        test_source_without_initial_data_id = test_source_without_initial_data.id
+        test_source_b_id = test_source_b.id
+        session.close()
+        new_session = Session()
+        time_slot_sensor = new_session.get(DBSensor, time_slot_sensor_id)
+        test_source_without_initial_data = new_session.get(
+            DBBeliefSource, test_source_without_initial_data_id
+        )
+        test_source_b = new_session.get(DBBeliefSource, test_source_b_id)
+
         newer_bdf = DBTimedBelief.search_session(
-            session=session,
+            session=new_session,
             sensor=time_slot_sensor,
-            source=test_source_without_initial_data if replace_source else test_source_b,
+            source=(
+                test_source_without_initial_data if replace_source else test_source_b
+            ),
             most_recent_beliefs_only=True,
             use_materialized_view=True,
             most_recent_beliefs_mview="bla",
         )
         assert newer_bdf.event_value[0] == 1000
+        new_session.close()
 
 
 @pytest.mark.parametrize("bulk_save_objects", [False, True])
