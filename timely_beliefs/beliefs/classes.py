@@ -402,6 +402,8 @@ class TimedBeliefDBMixin(TimedBelief):
         :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
         :param custom_filter_criteria: additional filters, such as ones that rely on subclasses
         :param custom_join_targets: additional join targets, to accommodate filters that rely on other targets (e.g. subclasses)
+        :param use_materialized_view: whether to try searching the materialized view
+        :param most_recent_beliefs_mview: optionally pass the materialized view Table explicitly
         :returns: a multi-index DataFrame with all relevant beliefs
         """
         source_class = cls.source.property.mapper.class_
@@ -602,8 +604,11 @@ class TimedBeliefDBMixin(TimedBelief):
                 )
                 return q
 
-            if use_materialized_view and most_recent_beliefs_mview is not None:
-                most_recent_beliefs_mview = tb_utils.get_most_recent_beliefs_mview(session)
+            if use_materialized_view:
+                if most_recent_beliefs_mview is None:
+                    most_recent_beliefs_mview = tb_utils.get_most_recent_beliefs_mview(
+                        session
+                    )
                 try:
                     # Join with the materialized view
                     q = q.join(
@@ -654,8 +659,11 @@ class TimedBeliefDBMixin(TimedBelief):
                 )
                 return q
 
-            if use_materialized_view and most_recent_beliefs_mview:
-                most_recent_beliefs_mview = tb_utils.get_most_recent_beliefs_mview(session)
+            if use_materialized_view:
+                if most_recent_beliefs_mview is None:
+                    most_recent_beliefs_mview = tb_utils.get_most_recent_beliefs_mview(
+                        session
+                    )
                 try:
                     # Join with the materialized view
                     q = q.join(
