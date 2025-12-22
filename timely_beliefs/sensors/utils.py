@@ -92,6 +92,12 @@ def eval_verified_knowledge_horizon_fnc(
                     **(unjsonify_time_dict(par)),
                     get_bounds=get_bounds,
                 )
+            else:
+                # Knowledge horizons are pure duration mappings
+                return verified_fnc(
+                    **(unjsonify_time_dict(par)),
+                    get_bounds=get_bounds,
+                )
     raise Exception(
         "knowledge_horizon_fnc %s cannot be executed safely. Please register the function in the func_store."
         % requested_fnc_name
