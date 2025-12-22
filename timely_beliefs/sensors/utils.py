@@ -92,8 +92,8 @@ def eval_verified_knowledge_horizon_fnc(
                     **(unjsonify_time_dict(par)),
                     get_bounds=get_bounds,
                 )
-            else:
-                # Knowledge horizons are pure duration mappings
+            elif "ex_ante_horizon" in verified_fnc_specs["args"]:
+                # Knowledge horizons are pure duration mappings defined by ex_ante_horizon
                 return verified_fnc(
                     **(unjsonify_time_dict(par)),
                     get_bounds=get_bounds,
