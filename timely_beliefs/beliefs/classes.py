@@ -804,7 +804,7 @@ class BeliefsSeries(pd.Series):
         try:
             return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
         except ValueError:
-            return pd.Timedelta(f"1{pd.infer_freq(self.index.unique("event_start"))}")
+            return pd.Timedelta(f"1{pd.infer_freq(self.index.unique('event_start'))}")
 
 
 class BeliefsDataFrame(pd.DataFrame):
@@ -1201,7 +1201,7 @@ class BeliefsDataFrame(pd.DataFrame):
         try:
             return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
         except ValueError:
-            return pd.Timedelta(f"1{pd.infer_freq(self.index.unique("event_start"))}")
+            return pd.Timedelta(f"1{pd.infer_freq(self.index.unique('event_start'))}")
 
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:
