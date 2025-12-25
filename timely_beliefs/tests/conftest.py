@@ -9,6 +9,7 @@ from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors.func_store.knowledge_horizons import (
     at_date,
+    ex_ante,
     ex_post,
     x_days_ago_at_y_oclock,
 )
@@ -101,6 +102,27 @@ def create_ex_post_physics_sensor(name: str) -> DBSensor:
         knowledge_horizon=(
             ex_post,
             dict(event_resolution=timedelta(minutes=15), ex_post_horizon=timedelta(0)),
+        ),
+    )
+    session.add(sensor)
+    session.flush()
+    return sensor
+
+
+@pytest.fixture(scope="function", autouse=False)
+def ex_ante_physics_sensor(db):
+    """Define an ex-ante physics sensor."""
+    return create_ex_ante_physics_sensor("ex-ante sensor")
+
+
+def create_ex_ante_physics_sensor(name: str) -> DBSensor:
+    """Define sensor for physical events known before the fact (ex ante)."""
+    sensor = DBSensor(
+        name=name,
+        event_resolution=timedelta(minutes=15),
+        knowledge_horizon=(
+            ex_ante,
+            dict(ex_ante_horizon=timedelta(0)),
         ),
     )
     session.add(sensor)

@@ -19,3 +19,8 @@ def test_time_slot_sensor(time_slot_sensor: DBSensor):
 def test_ex_ante_economics_sensor(ex_ante_economics_sensor: DBSensor):
     event_start = datetime(2018, 1, 1, 15, tzinfo=utc)
     assert ex_ante_economics_sensor.knowledge_time(event_start) < event_start
+
+
+def test_ex_ante_physics_sensor(ex_ante_physics_sensor: DBSensor):
+    event_start = datetime(2026, 1, 1, 15, tzinfo=utc)
+    assert ex_ante_physics_sensor.knowledge_time(event_start) == event_start
