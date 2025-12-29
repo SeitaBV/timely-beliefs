@@ -747,6 +747,9 @@ def read_csv(  # noqa C901
     elif round_event_start:
         df["event_start"] = df["event_start"].dt.round(sensor.event_resolution)
 
+    # Drop exact duplicate rows (same event_start, value, ...)
+    df = df.drop_duplicates()
+
     # Construct BeliefsDataFrame
     bdf = classes.BeliefsDataFrame(df, sensor=sensor)
 
