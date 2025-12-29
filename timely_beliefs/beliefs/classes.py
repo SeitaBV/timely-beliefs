@@ -801,7 +801,13 @@ class BeliefsSeries(pd.Series):
         :returns: a timedelta for regularly spaced observations
                   None for irregularly spaced observations
         """
-        return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
+        try:
+            return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
+        except ValueError as exc:
+            if str(exc) == "unit abbreviation w/o a number":
+                return pd.Timedelta(
+                    f"1{pd.infer_freq(self.index.unique('event_start'))}"
+                )
 
 
 class BeliefsDataFrame(pd.DataFrame):
@@ -1195,7 +1201,13 @@ class BeliefsDataFrame(pd.DataFrame):
         :returns: a timedelta for regularly spaced observations
                   None for irregularly spaced observations
         """
-        return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
+        try:
+            return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
+        except ValueError as exc:
+            if str(exc) == "unit abbreviation w/o a number":
+                return pd.Timedelta(
+                    f"1{pd.infer_freq(self.index.unique('event_start'))}"
+                )
 
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:
