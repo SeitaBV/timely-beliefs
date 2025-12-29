@@ -747,6 +747,33 @@ def read_csv(  # noqa C901
     elif round_event_start:
         df["event_start"] = df["event_start"].dt.round(sensor.event_resolution)
 
+    # Check for irregular event_start intervals
+    event_starts = df["event_start"]
+
+    # Only check if we have at least 3 rows to compare intervals
+    if len(event_starts) > 2:
+        diffs = event_starts.diff().dropna()
+
+        if not diffs.empty:
+            # Most common time step
+            mode_diff = diffs.mode().iloc[0]
+
+            # Deviations from expected step
+            irregular = diffs[diffs != mode_diff]
+
+            if not irregular.empty:
+                # Limit number of timestamps shown to keep error readable
+                max_shown = 10
+                problematic_starts = event_starts.loc[irregular.index][:max_shown]
+
+                raise ValueError(
+                    "Could not infer a regular time frequency from the uploaded data. "
+                    f"Expected step: {mode_diff}. "
+                    f"Found {len(irregular)} irregular intervals. "
+                    "First problematic event_start values: "
+                    f"{problematic_starts.tolist()}"
+                )
+
     # Construct BeliefsDataFrame
     bdf = classes.BeliefsDataFrame(df, sensor=sensor)
 
