@@ -771,9 +771,9 @@ def read_csv(  # noqa C901
 
                 raise ValueError(
                     "Could not infer a regular event frequency from the data. "
-                    f"Expected step: {mode_diff}. "
+                    f"Most common frequency: {mode_diff}. "
                     f"Found {len(irregular)} irregular intervals. "
-                    "First problematic event_start values: "
+                    "First problematic event starts: "
                     f"{problematic_starts.tolist()}"
                 )
 
