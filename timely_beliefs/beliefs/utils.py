@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import warnings
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Literal, Union
 
 import numpy as np
 import pandas as pd
@@ -1140,6 +1140,7 @@ def upsample_beliefs_data_frame(
     event_resolution: timedelta,
     keep_nan_values: bool = False,
     boundary_policy: str = "first",
+    method: Literal["mean", "sum"] = "mean",
 ) -> "classes.BeliefsDataFrame":
     """Because simply doing df.resample().ffill() does not correctly resample the last event in the data frame.
 
@@ -1148,6 +1149,8 @@ def upsample_beliefs_data_frame(
     :param keep_nan_values:     If True, place back resampled NaN values. Drops NaN values by default.
     :param boundary_policy:     When upsampling to instantaneous events,
                                 take the 'max', 'min' or 'first' value at event boundaries.
+    :param method:              If 'mean', we upsample by forward filling.
+                                If 'sum', we upsample by splitting evenly.
     """
     if df.empty:
         df.event_resolution = event_resolution
@@ -1217,9 +1220,17 @@ def upsample_beliefs_data_frame(
         levels_to_reset = [lvl for lvl in index_levels if lvl != "event_start"]
         df = df.reset_index(level=levels_to_reset)
     df = df.reindex(new_index)
-    df = df.ffill(
-        limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
-    )
+    if method == "mean":
+        df = df.ffill(
+            limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
+        )
+    elif method == "sum":
+        df = df.ffill(
+            limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
+        )
+        df["event_value"] /= resample_ratio
+    else:
+        raise ValueError(f"Unsupported resampling method '{method}'.")
     df = df.dropna()
     if isinstance(df, classes.BeliefsDataFrame):
         df = df.set_index(levels_to_reset, append=True)
