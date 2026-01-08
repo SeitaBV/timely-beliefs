@@ -447,6 +447,11 @@ def test_downsample_instantaneous(df_instantaneous_8111):
     # frequency updated
     assert df_resampled_2.event_frequency == downsampled_event_resolution
 
+    # Check that the event frequency is not lost when taking a slice
+    assert df_resampled_2.head(2).event_frequency == downsampled_event_resolution
+    assert df_resampled_2.head(1).event_frequency == downsampled_event_resolution
+    assert df_resampled_2.head(0).event_frequency == downsampled_event_resolution
+
 
 def test_upsample_to_instantaneous(df_4111, test_source_a: BeliefSource):
     """Test upsampling deterministic beliefs about time slot event to instantaneous events."""
