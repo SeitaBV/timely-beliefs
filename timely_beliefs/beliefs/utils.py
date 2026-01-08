@@ -751,11 +751,11 @@ def read_csv(  # noqa C901
     df = df.drop_duplicates()
 
     # Check for irregular event_start intervals
-    event_starts = df["event_start"]
+    event_starts = pd.Series(df["event_start"].unique())
 
     # Only check if we have at least 3 rows to compare intervals
     if len(event_starts) > 2:
-        diffs = event_starts.diff().dropna()
+        diffs = pd.to_datetime(event_starts).diff().dropna()
 
         if not diffs.empty:
             # Most common time step
