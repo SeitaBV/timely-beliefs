@@ -1539,8 +1539,11 @@ class BeliefsDataFrame(pd.DataFrame):
           todo: this distinction was introduced in timely-beliefs==1.15.0 and still needs to be incorporated in code
         - upsampling or downsampling
           note: this function supports both
-        - different resampling methods (e.g. 'mean', 'interpolate' or 'first')
-          note: this function defaults to 'mean' for downsampling and 'pad' for upsampling
+        - different resampling methods, e.g. 'mean' and 'sum' ('interpolate' or 'first' may be implemented later)
+          note: - the names of the resampling methods are relevant to downsampling
+                - corresponding methods are picked for upsampling:
+                  - 'ffill' (upsampling) for 'mean' (downsampling)
+                  - equal split (upsampling) for 'sum' (downsampling)
           todo: allow to derive a default from a sensor attribute
         - different event resolutions (e.g. instantaneous recordings vs. hourly averages)
           note: this function only supports few less complex cases of resampling instantaneous sensors
