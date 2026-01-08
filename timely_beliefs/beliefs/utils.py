@@ -750,11 +750,11 @@ def read_csv(  # noqa C901
     # Drop exact duplicate rows (same event_start, value, ...)
     df = df.drop_duplicates()
 
-    # Check for irregular event_start intervals
+    # Check for irregular event_start intervals for non-instantaneous sensors
     event_starts = pd.Series(df["event_start"].unique())
 
     # Only check if we have at least 3 rows to compare intervals
-    if len(event_starts) > 2:
+    if len(event_starts) > 2 and sensor.event_resolution != timedelta(0):
         diffs = pd.to_datetime(event_starts).diff().dropna()
 
         if not diffs.empty:
