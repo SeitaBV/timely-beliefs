@@ -5,7 +5,7 @@ import operator
 import types
 from datetime import datetime, timedelta
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Literal, Type, Union
 
 from packaging import version
 
@@ -1529,6 +1529,7 @@ class BeliefsDataFrame(pd.DataFrame):
         keep_only_most_recent_belief: bool = False,
         keep_nan_values: bool = False,
         boundary_policy: str = "first",
+        method: Literal["mean", "sum"] = "mean",
     ) -> "BeliefsDataFrame":
         """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample).
 
@@ -1538,9 +1539,12 @@ class BeliefsDataFrame(pd.DataFrame):
           todo: this distinction was introduced in timely-beliefs==1.15.0 and still needs to be incorporated in code
         - upsampling or downsampling
           note: this function supports both
-        - different resampling methods (e.g. 'mean', 'interpolate' or 'first')
-          note: this function defaults to 'mean' for downsampling and 'pad' for upsampling
-          todo: allow to set this explicitly, and derive a default from a sensor attribute
+        - different resampling methods, e.g. 'mean' and 'sum' ('interpolate' or 'first' may be implemented later)
+          note: - the names of the resampling methods are relevant to downsampling
+                - corresponding methods are picked for upsampling:
+                  - 'ffill' (upsampling) for 'mean' (downsampling)
+                  - equal split (upsampling) for 'sum' (downsampling)
+          todo: allow to derive a default from a sensor attribute
         - different event resolutions (e.g. instantaneous recordings vs. hourly averages)
           note: this function only supports few less complex cases of resampling instantaneous sensors
         - daylight savings time (DST) transitions
@@ -1596,6 +1600,8 @@ class BeliefsDataFrame(pd.DataFrame):
         if df.event_resolution == timedelta(0):
             if df.lineage.number_of_events != len(df):
                 raise NotImplementedError("Please file a GitHub ticket.")
+            if method != "mean":
+                raise NotImplementedError("Please file a GitHub ticket.")
             return belief_utils.resample_instantaneous_events(df, event_resolution)
 
         belief_timing_col = (
@@ -1618,7 +1624,7 @@ class BeliefsDataFrame(pd.DataFrame):
             if event_resolution > self.event_resolution:
                 # downsample
                 column_functions = {
-                    "event_value": "mean",
+                    "event_value": method,
                     "source": "first",  # keep the only source
                     belief_timing_col: (
                         "max" if belief_timing_col == "belief_time" else "min"
@@ -1639,6 +1645,7 @@ class BeliefsDataFrame(pd.DataFrame):
                     event_resolution=event_resolution,
                     keep_nan_values=keep_nan_values,
                     boundary_policy=boundary_policy,
+                    method=method,
                 )
                 df = df.set_index(
                     [belief_timing_col, "source", "cumulative_probability"], append=True
@@ -1646,6 +1653,8 @@ class BeliefsDataFrame(pd.DataFrame):
 
         # slow track in case each event has more than 1 belief or probabilistic beliefs
         else:
+            if method != "mean":
+                raise NotImplementedError("Please file a GitHub ticket.")
             if belief_timing_col == "belief_horizon":
                 df = df.convert_index_from_belief_horizon_to_time()
             df = belief_utils.resample_event_start(
