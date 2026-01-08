@@ -801,6 +801,11 @@ class BeliefsSeries(pd.Series):
         :returns: a timedelta for regularly spaced observations
                   None for irregularly spaced observations
         """
+        if len(self) < 2:
+            return self.event_resolution
+        elif len(self) == 2:
+            # Pandas cannot infer an event frequency, but we can (try)
+            return abs(self.event_starts[-1] - self.event_starts[0])
         try:
             return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
         except ValueError as exc:
@@ -1201,6 +1206,11 @@ class BeliefsDataFrame(pd.DataFrame):
         :returns: a timedelta for regularly spaced observations
                   None for irregularly spaced observations
         """
+        if len(self) < 2:
+            return self.event_resolution
+        elif len(self) == 2:
+            # Pandas cannot infer an event frequency, but we can (try)
+            return abs(self.event_starts[-1] - self.event_starts[0])
         try:
             return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
         except ValueError as exc:
