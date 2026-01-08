@@ -765,16 +765,15 @@ def read_csv(  # noqa C901
             irregular = diffs[diffs != mode_diff]
 
             if not irregular.empty:
-                # Limit number of timestamps shown to keep error readable
-                max_shown = 10
-                problematic_starts = event_starts.loc[irregular.index][:max_shown]
+                # Just show the first problematic start to keep error readable
+                first_problematic_start = event_starts.loc[irregular.index[0]]
 
                 raise ValueError(
                     "Could not infer a regular event frequency from the data. "
                     f"Most common frequency: {mode_diff}. "
-                    f"Found {len(irregular)} irregular intervals. "
-                    "First problematic event starts: "
-                    f"{problematic_starts.tolist()}"
+                    f"Number of irregular intervals: {len(irregular)}. "
+                    "First irregular event start: "
+                    f"{first_problematic_start}."
                 )
 
     # Construct BeliefsDataFrame
