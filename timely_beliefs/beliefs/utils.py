@@ -770,7 +770,7 @@ def read_csv(  # noqa C901
                 problematic_starts = event_starts.loc[irregular.index][:max_shown]
 
                 raise ValueError(
-                    "Could not infer a regular time frequency from the uploaded data. "
+                    "Could not infer a regular time frequency from the data. "
                     f"Expected step: {mode_diff}. "
                     f"Found {len(irregular)} irregular intervals. "
                     "First problematic event_start values: "
