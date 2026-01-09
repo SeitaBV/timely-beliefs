@@ -750,6 +750,32 @@ def read_csv(  # noqa C901
     # Drop exact duplicate rows (same event_start, value, ...)
     df = df.drop_duplicates()
 
+    # Check for irregular event_start intervals for non-instantaneous sensors
+    event_starts = pd.Series(df["event_start"].unique())
+
+    # Only check if we have at least 3 rows to compare intervals
+    if len(event_starts) > 2 and sensor.event_resolution != timedelta(0):
+        diffs = pd.to_datetime(event_starts).diff().dropna()
+
+        if not diffs.empty:
+            # Most common time step
+            mode_diff = diffs.mode().iloc[0]
+
+            # Deviations from expected step
+            irregular = diffs[diffs != mode_diff]
+
+            if not irregular.empty:
+                # Just show the first problematic start to keep error readable
+                first_problematic_start = event_starts.loc[irregular.index[0]]
+
+                raise ValueError(
+                    "Could not infer a regular event frequency from the data. "
+                    f"Most common frequency: {mode_diff}. "
+                    f"Number of irregular intervals: {len(irregular)}. "
+                    "First irregular event start: "
+                    f"{first_problematic_start}."
+                )
+
     # Construct BeliefsDataFrame
     bdf = classes.BeliefsDataFrame(df, sensor=sensor)
 
