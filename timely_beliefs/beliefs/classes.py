@@ -1220,6 +1220,28 @@ class BeliefsDataFrame(pd.DataFrame):
                 )
 
     @property
+    def most_common_event_frequency(self) -> timedelta | None:
+        """Most common duration between event starts.
+
+        Unlike event_frequency, this also works when the data contains gaps,
+        as long as the gaps are integer multiples of the base resolution.
+        """
+        # If data is perfectly regular, reuse inferred frequency
+        freq = self.event_frequency
+        if freq is not None:
+            return freq
+
+        event_starts = pd.to_datetime(self.event_starts.unique())
+        if len(event_starts) < 3:
+            return None
+
+        diffs = pd.Series(event_starts).sort_values().diff().dropna()
+        if diffs.empty:
+            return None
+
+        return diffs.mode().iloc[0]
+
+    @property
     def knowledge_times(self) -> pd.DatetimeIndex:
         return self.sensor.knowledge_time(self.event_starts, self.event_resolution)
 
