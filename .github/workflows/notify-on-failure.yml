@@ -1,0 +1,40 @@
+name: Notify Agent on Failure
+on:
+  workflow_run:
+    workflows: ["lint-and-test"]
+    types: [completed]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  create-trigger-issue:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create agent trigger issue
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const run = context.payload.workflow_run;
+            const title = `agent:auto-fix: Tests failed on ${run.head_branch} (${run.name})`;
+            const body = [
+              `Repository: ${context.repo.owner}/${context.repo.repo}`,
+              `Branch: ${run.head_branch}`,
+              `SHA: ${run.head_sha}`,
+              `Workflow: ${run.name}`,
+              `Workflow run: ${run.html_url}`,
+              "",
+              "This issue was created automatically to signal a CI failure. Label this issue `agent:auto-fix` (already added) to allow configured agents to attempt automated fixes.",
+              "",
+              "Agent policy: agents must create draft PRs only, include full logs, and never auto-merge."
+            ].join("\n\n");
+            await github.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ["agent:auto-fix"]
+            });
