@@ -1,7 +1,14 @@
 name: lint-and-test
 
-on: push
+on:
+  push:
+  pull_request:
 
+permissions:
+  contents: read
+  checks: write
+  actions: read
+  issues: write
 
 jobs:
   check:
