@@ -1228,7 +1228,7 @@ class BeliefsDataFrame(pd.DataFrame):
         """
         # If data is perfectly regular, reuse inferred frequency
         freq = self.event_frequency
-        if freq is not None:
+        if freq is not None and not pd.isna(freq):
             return freq
 
         event_starts = pd.to_datetime(self.event_starts.unique())
