@@ -33,3 +33,27 @@ def test_most_common_event_frequency_with_gaps(time_slot_sensor, test_source_a):
 
     # But base resolution is still clear
     assert bdf.most_common_event_frequency == timedelta(minutes=15)
+
+
+def test_most_common_event_frequency_regular_data(time_slot_sensor, test_source_a):
+    """
+    For regular data, most_common_event_frequency should match event_frequency.
+    """
+    start = pytz.timezone("utc").localize(datetime(2000, 1, 3, 9))
+
+    beliefs = [
+        TimedBelief(
+            sensor=time_slot_sensor,
+            source=test_source_a,
+            event_start=start + timedelta(hours=h),
+            belief_time=start,
+            event_value=h,
+        )
+        for h in range(4)
+    ]
+
+    bdf = BeliefsDataFrame(sensor=time_slot_sensor, beliefs=beliefs)
+
+    # For data with no gaps, both should be equal
+    assert bdf.event_frequency == timedelta(hours=1)
+    assert bdf.most_common_event_frequency == timedelta(hours=1)
