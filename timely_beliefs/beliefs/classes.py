@@ -1234,8 +1234,6 @@ class BeliefsDataFrame(pd.DataFrame):
         event_starts = pd.to_datetime(self.event_starts.unique())
 
         diffs = pd.Series(event_starts).sort_values().diff().dropna()
-        if diffs.empty:
-            return None
 
         return diffs.mode().iloc[0]
 
