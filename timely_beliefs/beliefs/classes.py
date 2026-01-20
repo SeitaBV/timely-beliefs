@@ -1206,18 +1206,17 @@ class BeliefsDataFrame(pd.DataFrame):
         :returns: a timedelta for regularly spaced observations
                   None for irregularly spaced observations
         """
-        if len(self) < 2:
+        unique_event_starts = self.index.unique("event_start")
+        if len(unique_event_starts) < 2:
             return self.event_resolution
-        elif len(self) == 2:
+        elif len(unique_event_starts) == 2:
             # Pandas cannot infer an event frequency, but we can (try)
-            return abs(self.event_starts[-1] - self.event_starts[0])
+            return abs(unique_event_starts[-1] - unique_event_starts[0])
         try:
-            return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
+            return pd.Timedelta(pd.infer_freq(unique_event_starts))
         except ValueError as exc:
             if str(exc) == "unit abbreviation w/o a number":
-                return pd.Timedelta(
-                    f"1{pd.infer_freq(self.index.unique('event_start'))}"
-                )
+                return pd.Timedelta(f"1{pd.infer_freq(unique_event_starts)}")
 
     @property
     def most_common_event_frequency(self) -> timedelta:
