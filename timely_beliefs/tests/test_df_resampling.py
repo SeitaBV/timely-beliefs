@@ -371,6 +371,10 @@ def test_resample_with_belief_horizon(df_4323: BeliefsDataFrame):
     df = df.resample_events(timedelta(hours=1))
     assert df.sensor == df_4323.sensor
     assert "belief_horizon" in df.index.names
+    assert df.event_frequency == df_4323.event_frequency
+    assert df.head(2).event_frequency == df_4323.event_frequency
+    assert df.head(1).event_frequency == df_4323.event_frequency
+    assert df.head(0).event_frequency == df_4323.event_frequency
 
 
 def test_groupby_preserves_metadata(df_4323: BeliefsDataFrame):
