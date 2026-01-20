@@ -1232,8 +1232,6 @@ class BeliefsDataFrame(pd.DataFrame):
             return freq
 
         event_starts = pd.to_datetime(self.event_starts.unique())
-        if len(event_starts) < 3:
-            return None
 
         diffs = pd.Series(event_starts).sort_values().diff().dropna()
         if diffs.empty:
