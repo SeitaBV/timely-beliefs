@@ -1220,7 +1220,7 @@ class BeliefsDataFrame(pd.DataFrame):
                 )
 
     @property
-    def most_common_event_frequency(self) -> timedelta | None:
+    def most_common_event_frequency(self) -> timedelta:
         """Most common duration between event starts.
 
         Unlike event_frequency, this also works when the data contains gaps,
