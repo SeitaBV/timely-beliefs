@@ -1206,18 +1206,35 @@ class BeliefsDataFrame(pd.DataFrame):
         :returns: a timedelta for regularly spaced observations
                   None for irregularly spaced observations
         """
-        if len(self) < 2:
+        unique_event_starts = self.index.unique("event_start")
+        if len(unique_event_starts) < 2:
             return self.event_resolution
-        elif len(self) == 2:
+        elif len(unique_event_starts) == 2:
             # Pandas cannot infer an event frequency, but we can (try)
-            return abs(self.event_starts[-1] - self.event_starts[0])
+            return abs(unique_event_starts[-1] - unique_event_starts[0])
         try:
-            return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
+            return pd.Timedelta(pd.infer_freq(unique_event_starts))
         except ValueError as exc:
             if str(exc) == "unit abbreviation w/o a number":
-                return pd.Timedelta(
-                    f"1{pd.infer_freq(self.index.unique('event_start'))}"
-                )
+                return pd.Timedelta(f"1{pd.infer_freq(unique_event_starts)}")
+
+    @property
+    def most_common_event_frequency(self) -> timedelta:
+        """Most common duration between event starts.
+
+        Unlike event_frequency, this also works when the data contains gaps,
+        as long as the gaps are integer multiples of the base resolution.
+        """
+        # If data is perfectly regular, reuse inferred frequency
+        freq = self.event_frequency
+        if not pd.isna(freq):
+            return freq
+
+        event_starts = pd.to_datetime(self.event_starts.unique())
+
+        diffs = pd.Series(event_starts).sort_values().diff().dropna()
+
+        return diffs.mode().iloc[0]
 
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:

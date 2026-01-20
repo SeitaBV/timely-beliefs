@@ -761,8 +761,13 @@ def read_csv(  # noqa C901
             # Most common time step
             mode_diff = diffs.mode().iloc[0]
 
-            # Deviations from expected step
-            irregular = diffs[diffs != mode_diff]
+            # Allow gaps that are integer multiples of the base step
+            multiples = diffs / mode_diff
+
+            # floating precision safety
+            is_integer_multiple = (multiples.round(6) % 1) == 0
+
+            irregular = diffs[~is_integer_multiple]
 
             if not irregular.empty:
                 # Just show the first problematic start to keep error readable
