@@ -11,6 +11,7 @@ import pytz
 from packaging import version
 from pandas.core.groupby import DataFrameGroupBy
 from pandas.tseries.frequencies import to_offset
+from sqlalchemy.orm import Session
 
 from timely_beliefs import BeliefSource, Sensor
 from timely_beliefs import utils as tb_utils
@@ -392,6 +393,9 @@ def resample_event_start(
         )
     else:
         # slower
+        # Drop unchanged beliefs before resampling (minimize number of unique belief times)
+        df = drop_unchanged_beliefs(df)
+
         # Propagate beliefs so that each event has the same set of unique belief times
         df = align_belief_times(df, unique_belief_times)
 
@@ -407,6 +411,9 @@ def resample_event_start(
     df = join_beliefs(
         df, output_resolution, input_resolution, distribution=distribution
     )
+
+    # Drop unchanged beliefs after resampling
+    df = drop_unchanged_beliefs(df)
 
     return df
 
@@ -1273,3 +1280,135 @@ def upsample_beliefs_data_frame(
         df = df.replace(unique_event_value_not_in_df, np.NaN)
     df.event_resolution = event_resolution
     return df
+
+
+def drop_unchanged_beliefs(
+    bdf: classes.BeliefsDataFrame,
+    timed_belief_class: classes.TimedBeliefDBMixin | None = None,
+    session: Session | None = None,
+) -> classes.BeliefsDataFrame:
+    """Drop beliefs that are already in the data(base) with an earlier belief time.
+
+    This method assumes the index is sorted.
+
+    :param session: If a session is passed, also drop beliefs that have a prior equivalent belief in the database,
+                    which is quite useful to prevent cluttering up your database with unchanged beliefs.
+    """
+    if bdf.empty:
+        return bdf
+
+    # Save the oldest ex-post beliefs explicitly, even if they do not deviate from the most recent ex-ante beliefs
+    ex_ante_bdf = bdf[bdf.belief_horizons > timedelta(0)]
+    ex_post_bdf = bdf[bdf.belief_horizons <= timedelta(0)]
+    if not ex_ante_bdf.empty and not ex_post_bdf.empty:
+        # We treat each part separately to avoid that ex-post knowledge would be lost
+        ex_ante_bdf = drop_unchanged_beliefs(
+            ex_ante_bdf, timed_belief_class=timed_belief_class, session=session
+        )
+        ex_post_bdf = drop_unchanged_beliefs(
+            ex_post_bdf, timed_belief_class=timed_belief_class, session=session
+        )
+        bdf = pd.concat([ex_ante_bdf, ex_post_bdf])
+        return bdf
+
+    # 1. Compare to self
+    bdf = _drop_unchanged_beliefs_internally(bdf)
+
+    # 2. Compare to DB (ex-ante or ex-post depending on the first row)
+    if session:
+        bdf = _drop_unchanged_beliefs_compared_to_db(
+            bdf, timed_belief_class=timed_belief_class, session=session
+        )
+
+    return bdf
+
+
+def _drop_unchanged_beliefs_internally(
+    bdf: classes.BeliefsDataFrame,
+) -> classes.BeliefsDataFrame:
+    """Keep first occurrence of unchanged beliefs."""
+    keys_df = pd.DataFrame(
+        {
+            "event_start": bdf.index.get_level_values("event_start"),
+            "source": bdf.index.get_level_values("source"),
+            "cumulative_probability": bdf.index.get_level_values(
+                "cumulative_probability"
+            ),
+            "event_value": bdf["event_value"],
+        }
+    )
+    keep_mask = ~keys_df.duplicated(keep="first").to_numpy()
+    bdf = bdf.iloc[keep_mask]
+    return bdf
+
+
+def _drop_unchanged_beliefs_compared_to_db(
+    bdf: classes.BeliefsDataFrame,
+    timed_belief_class: classes.TimedBeliefDBMixin,
+    session: Session,
+) -> classes.BeliefsDataFrame:
+    """Drop beliefs that are already stored in the database with an earlier belief time.
+
+    Assumes a BeliefsDataFrame with either all ex-ante beliefs or all ex-post beliefs.
+    """
+    if bdf.empty:
+        return bdf
+
+    # Look up only ex-ante beliefs (horizon > 0) or only ex-post beliefs (horizon <= 0)
+    is_ex_ante = bdf.belief_horizons[0] > timedelta(0)
+    lookup = (
+        dict(horizons_at_least=timedelta(0))
+        if is_ex_ante
+        else dict(horizons_at_most=timedelta(0))
+    )
+
+    bdf_db = timed_belief_class.search_session(
+        session=session,
+        sensor=bdf.sensor,
+        event_starts_after=bdf.event_starts[0],
+        event_ends_before=bdf.event_ends[-1],
+        most_recent_beliefs_only=False,
+        **lookup,
+    )
+    if bdf_db.empty:
+        return bdf
+
+    bdf_db_aligned = align_belief_times(
+        bdf_db, pd.Index.union(bdf_db.belief_times.unique(), bdf.belief_times.unique())
+    )
+    bdf_wide = beliefs_long_to_wide(bdf)
+    bdf_db_wide = beliefs_long_to_wide(bdf_db_aligned)
+
+    # Ensure that bdf_db_wide contains all the cp values that bdf_wide might have
+    bdf_db_wide = bdf_db_wide.reindex(
+        columns=bdf_wide.columns.union(bdf_db_wide.columns)
+    )
+
+    # Convert to “full timestamp” index if needed
+    bdf_conv = bdf_wide.convert_index_from_belief_horizon_to_time()
+
+    # Merge bdf against DB beliefs
+    keys = ["event_start", "belief_time", "source"]
+    value_cols = bdf_wide.columns
+
+    bdf_db_df = bdf_db_wide.index.to_frame(index=False)
+    bdf_db_df[value_cols] = bdf_db_wide[value_cols].values
+
+    bdf_conv_df = bdf_conv.reset_index()
+    merged = bdf_conv_df.merge(
+        bdf_db_df,
+        on=keys,
+        how="left",
+        suffixes=("", "_db"),
+    )
+
+    diff_mask = merged[[c + "_db" for c in value_cols]].isna().any(axis=1) | (
+        merged[value_cols].values != merged[[c + "_db" for c in value_cols]].values
+    ).any(axis=1)
+
+    result_wide = merged.loc[diff_mask, bdf_conv_df.columns].set_index(
+        bdf_conv.index.names
+    )
+    result = beliefs_wide_to_long(result_wide)
+
+    return result
