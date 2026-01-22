@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from typing import Sequence
 
 import pandas as pd
+from sqlalchemy import Column, DateTime, Integer, Interval, MetaData, Table, text
+from sqlalchemy.orm import Session
 
 
 def parse_timedelta_like(
@@ -226,3 +228,29 @@ def remove_class_init_kwargs(cls, kwargs: dict) -> dict:
     for param in params:
         kwargs.pop(param, None)
     return kwargs
+
+
+def get_most_recent_beliefs_mview(session: Session) -> Table | None:
+    """Define the structure of the most_recent_beliefs_mview materialized view."""
+
+    most_recent_beliefs_mview = session.execute(
+        text(
+            """
+            SELECT *
+            FROM pg_matviews
+            WHERE matviewname = 'most_recent_beliefs_mview';
+        """
+        )
+    ).fetchone()
+    if most_recent_beliefs_mview:
+        metadata = MetaData()
+        most_recent_beliefs_mview = Table(
+            "most_recent_beliefs_mview",
+            metadata,
+            Column("sensor_id", Integer),
+            Column("event_start", DateTime),
+            Column("source_id", Integer),
+            Column("most_recent_belief_horizon", Interval),
+        )
+
+    return most_recent_beliefs_mview
