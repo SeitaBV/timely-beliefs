@@ -9,6 +9,7 @@ import pytz
 from pytest import approx
 
 from timely_beliefs import BeliefsDataFrame, BeliefSource, Sensor, TimedBelief
+from timely_beliefs.beliefs.classes import downsample_beliefs_data_frame
 from timely_beliefs.beliefs.utils import resample_instantaneous_events
 from timely_beliefs.examples.beliefs_data_frames import sixteen_probabilistic_beliefs
 from timely_beliefs.utils import replace_multi_index_level
@@ -478,3 +479,59 @@ def test_upsample_to_instantaneous(df_4111, test_source_a: BeliefSource):
         pd.DatetimeIndex(expected_event_starts, name="event_start"),
     )
     assert df["event_value"].values.tolist() == expected_values
+
+
+def make_input_df(start_hour: int) -> pd.DataFrame:
+    start = pd.Timestamp("2026-02-04 00:00:00+01:00")
+
+    event_starts = pd.date_range(
+        start=start,
+        periods=24,
+        freq="1H",
+    )
+
+    df = pd.DataFrame(
+        {
+            "event_start": event_starts,
+            "belief_time": pd.Timestamp("2026-02-03 11:19:45.121642+01:00"),
+            "source": "toy-user",
+            "cumulative_probability": 0.5,
+            "event_value": range(len(event_starts)),
+        }
+    )
+    df = df.iloc[start_hour : start_hour + 6]
+
+    return df.set_index(
+        ["event_start", "belief_time", "source", "cumulative_probability"]
+    ).sort_index()
+
+
+@pytest.mark.parametrize("start_hour", [6, 7])
+@pytest.mark.parametrize(
+    ["resolution", "expected_length", "expected_delta"],
+    [
+        (timedelta(hours=1), 6, 1),
+        (timedelta(hours=2), 3, 2),
+        (timedelta(hours=3), 2, 3),
+    ],
+)
+def test_downsample_beliefs_df_alignment(
+    start_hour, resolution, expected_length, expected_delta
+):
+    df = make_input_df(start_hour)
+
+    col_att_dict = {
+        "event_value": "mean",
+        "source": "first",
+        "belief_time": "max",
+        "cumulative_probability": "mean",
+    }
+
+    result = downsample_beliefs_data_frame(
+        df,
+        event_resolution=resolution,
+        col_att_dict=col_att_dict,
+    )
+    assert len(result) == expected_length
+    assert result.index.get_level_values("event_start")[0].hour == start_hour
+    assert (result.diff()[1:] == expected_delta).all().all()
