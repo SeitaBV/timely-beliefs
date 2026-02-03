@@ -482,7 +482,7 @@ def test_upsample_to_instantaneous(df_4111, test_source_a: BeliefSource):
 
 
 def make_input_df(start_hour: int) -> pd.DataFrame:
-    start = pd.Timestamp(f"2026-02-04 00:00:00+01:00")
+    start = pd.Timestamp("2026-02-04 00:00:00+01:00")
 
     event_starts = pd.date_range(
         start=start,
