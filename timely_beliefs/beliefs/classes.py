@@ -1661,7 +1661,6 @@ class BeliefsDataFrame(pd.DataFrame):
                 df = downsample_beliefs_data_frame(
                     df, event_resolution, column_functions
                 )
-                df.event_resolution = event_resolution
             else:
                 # upsample
                 df = df.reset_index(
@@ -2288,7 +2287,7 @@ def downsample_beliefs_data_frame(
     )
     event_timing_col = "event_start" if "event_start" in index_levels else "event_end"
     levels_to_reset = [lvl for lvl in index_levels if lvl != event_timing_col]
-    return pd.concat(
+    df = pd.concat(
         [
             getattr(
                 df.reset_index(level=levels_to_reset)[col]
@@ -2300,3 +2299,5 @@ def downsample_beliefs_data_frame(
         ],
         axis=1,
     ).set_index([belief_timing_col, "source", "cumulative_probability"], append=True)
+    df.event_resolution = event_resolution
+    return df
