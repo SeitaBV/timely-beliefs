@@ -2293,7 +2293,7 @@ def downsample_beliefs_data_frame(
             getattr(
                 df.reset_index(level=levels_to_reset)[col]
                 .to_frame()
-                .resample(event_resolution),
+                .resample(event_resolution, origin="start"),
                 att,
             )()
             for col, att in col_att_dict.items()
