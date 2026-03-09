@@ -584,7 +584,6 @@ def test_upsample_to_instantaneous_keep_only_most_recent_belief():
     # Without keep_only_most_recent_belief, the boundary at 9:30 has two entries
     # (one from each adjacent event, with their respective belief times)
     result_all = bdf.resample_events(timedelta(0))
-    breakpoint()
     boundary_entries = result_all[
         result_all.index.get_level_values("event_start")
         == pd.Timestamp("2000-01-03T09:30+00")
