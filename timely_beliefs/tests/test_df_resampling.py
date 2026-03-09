@@ -584,27 +584,27 @@ def test_upsample_to_instantaneous_keep_only_most_recent_belief():
     # Without keep_only_most_recent_belief, the boundary at 9:30 has two entries
     # (one from each adjacent event, with their respective belief times)
     result_all = bdf.resample_events(timedelta(0))
+    breakpoint()
     boundary_entries = result_all[
         result_all.index.get_level_values("event_start")
         == pd.Timestamp("2000-01-03T09:30+00")
     ]
-    assert len(boundary_entries) == 2, (
-        "Expected 2 entries at the boundary (one per adjacent event belief time)"
-    )
+    assert (
+        len(boundary_entries) == 2
+    ), "Expected 2 entries at the boundary (one per adjacent event belief time)"
 
     # With keep_only_most_recent_belief=True, each event_start should appear exactly once
     result = bdf.resample_events(timedelta(0), keep_only_most_recent_belief=True)
     assert result.event_resolution == timedelta(0)
     event_starts = result.index.get_level_values("event_start")
-    assert event_starts.nunique() == len(result), (
-        "Expected exactly one belief per event_start after keep_only_most_recent_belief=True"
-    )
+    assert event_starts.nunique() == len(
+        result
+    ), "Expected exactly one belief per event_start after keep_only_most_recent_belief=True"
 
     # Verify the value at the boundary (9:30) comes from the most recent belief (belief_time_new)
     boundary_entry = result[event_starts == pd.Timestamp("2000-01-03T09:30+00")]
     assert len(boundary_entry) == 1
     assert boundary_entry["event_value"].iloc[0] == 3.0
-    assert (
-        boundary_entry.index.get_level_values("belief_time")[0]
-        == pd.Timestamp(belief_time_new)
+    assert boundary_entry.index.get_level_values("belief_time")[0] == pd.Timestamp(
+        belief_time_new
     )
