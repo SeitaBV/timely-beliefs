@@ -535,3 +535,76 @@ def test_downsample_beliefs_df_alignment(
     assert len(result) == expected_length
     assert result.index.get_level_values("event_start")[0].hour == start_hour
     assert (result.diff()[1:] == expected_delta).all().all()
+
+
+def test_upsample_to_instantaneous_keep_only_most_recent_belief():
+    """Test that resampling from non-instantaneous to instantaneous with keep_only_most_recent_belief=True
+    produces exactly one belief per event_start (no duplicates at boundaries).
+
+    Bug: at boundaries between events with different belief times, two entries would appear
+    for the same event_start with different belief times, despite keep_only_most_recent_belief=True.
+    """
+    from timely_beliefs import BeliefSource, Sensor
+
+    sensor = Sensor(name="test-sensor", event_resolution=timedelta(minutes=15))
+    source = BeliefSource(name="test-source")
+    start = datetime(2000, 1, 3, 9, tzinfo=pytz.utc)
+    belief_time_old = datetime(2000, 1, 1, tzinfo=pytz.utc)
+    belief_time_new = datetime(2000, 1, 2, tzinfo=pytz.utc)  # more recent
+
+    # Three consecutive 15-minute events; the last event has a newer belief time
+    beliefs = [
+        TimedBelief(
+            source=source,
+            sensor=sensor,
+            event_value=1.0,
+            belief_time=belief_time_old,
+            event_start=start,
+            cumulative_probability=0.5,
+        ),
+        TimedBelief(
+            source=source,
+            sensor=sensor,
+            event_value=2.0,
+            belief_time=belief_time_old,
+            event_start=start + timedelta(minutes=15),
+            cumulative_probability=0.5,
+        ),
+        TimedBelief(
+            source=source,
+            sensor=sensor,
+            event_value=3.0,
+            belief_time=belief_time_new,
+            event_start=start + timedelta(minutes=30),
+            cumulative_probability=0.5,
+        ),
+    ]
+    bdf = BeliefsDataFrame(sensor=sensor, beliefs=beliefs)
+
+    # Without keep_only_most_recent_belief, the boundary at 9:30 has two entries
+    # (one from each adjacent event, with their respective belief times)
+    result_all = bdf.resample_events(timedelta(0))
+    boundary_entries = result_all[
+        result_all.index.get_level_values("event_start")
+        == pd.Timestamp("2000-01-03T09:30+00")
+    ]
+    assert len(boundary_entries) == 2, (
+        "Expected 2 entries at the boundary (one per adjacent event belief time)"
+    )
+
+    # With keep_only_most_recent_belief=True, each event_start should appear exactly once
+    result = bdf.resample_events(timedelta(0), keep_only_most_recent_belief=True)
+    assert result.event_resolution == timedelta(0)
+    event_starts = result.index.get_level_values("event_start")
+    assert event_starts.nunique() == len(result), (
+        "Expected exactly one belief per event_start after keep_only_most_recent_belief=True"
+    )
+
+    # Verify the value at the boundary (9:30) comes from the most recent belief (belief_time_new)
+    boundary_entry = result[event_starts == pd.Timestamp("2000-01-03T09:30+00")]
+    assert len(boundary_entry) == 1
+    assert boundary_entry["event_value"].iloc[0] == 3.0
+    assert (
+        boundary_entry.index.get_level_values("belief_time")[0]
+        == pd.Timestamp(belief_time_new)
+    )
