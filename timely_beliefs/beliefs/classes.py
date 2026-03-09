@@ -1676,8 +1676,8 @@ class BeliefsDataFrame(pd.DataFrame):
                 df = df.set_index(
                     [belief_timing_col, "source", "cumulative_probability"], append=True
                 )
-                # if keep_only_most_recent_belief:
-                #     df = belief_utils.select_most_recent_belief(df)
+                if keep_only_most_recent_belief:
+                    df = belief_utils.select_most_recent_belief(df)
 
         # slow track in case each event has more than 1 belief or probabilistic beliefs
         else:
