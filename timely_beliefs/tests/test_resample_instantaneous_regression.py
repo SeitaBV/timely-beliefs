@@ -12,9 +12,9 @@ The bug occurred when:
 
 The error was: ZeroDivisionError: integer modulo by zero in join_beliefs()
 """
-import pytest
-import pandas as pd
 from datetime import datetime, timedelta
+
+import pandas as pd
 import pytz
 
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
