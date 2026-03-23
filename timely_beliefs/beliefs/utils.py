@@ -81,6 +81,12 @@ def upsample_event_start(
     if df.index.names[0] != "event_start":
         raise KeyError("event_start must be the first index level.")
 
+    # Special case: upsampling to instantaneous events (output_resolution == 0)
+    # In this case, we cannot create multiple time points within an event,
+    # so we just return the data as-is (with the understanding that timedelta(0) represents instantaneous events)
+    if output_resolution == timedelta(0):
+        return df.copy()
+
     # Compute upsampling factor
     factor = int(input_resolution / output_resolution)
     if factor <= 1:
@@ -361,12 +367,17 @@ def join_beliefs(
         # )  # Todo: allow customisation for aggregating event values
     else:
         # Create new BeliefsDataFrame with upsampled event_start
-        if input_resolution % output_resolution != timedelta():
+        if output_resolution == timedelta(0):
+            # Special case: upsampling to instantaneous events
+            # Expand each event into multiple instantaneous moments
+            df = upsample_event_start(df, output_resolution, input_resolution)
+        elif input_resolution % output_resolution != timedelta():
             raise NotImplementedError(
                 "Cannot upsample from resolution %s to %s."
                 % (input_resolution, output_resolution)
             )
-        df = upsample_event_start(df, output_resolution, input_resolution)
+        else:
+            df = upsample_event_start(df, output_resolution, input_resolution)
     return df
 
 
