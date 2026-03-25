@@ -31,7 +31,7 @@ def select_most_recent_belief(
 ) -> "classes.BeliefsDataFrame":
     """Drop all but most recent (non-NaN) belief."""
 
-    if df.empty:
+    if df.empty or df.lineage.unique_beliefs_per_event_per_source:
         return df
 
     # Drop NaN beliefs before selecting the most recent
