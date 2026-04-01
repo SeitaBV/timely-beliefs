@@ -77,6 +77,7 @@ class IntTimedelta(TypeDecorator):
 
 
 METADATA = ["sensor", "event_resolution"]
+ONE_MINUTE_INTERVAL = literal_column("interval '1 minute'")
 DatetimeLike = Union[datetime, str, pd.Timestamp]
 TimedeltaLike = Union[timedelta, str, pd.Timedelta]
 JoinTarget = Union[
@@ -532,7 +533,7 @@ class TimedBeliefDBMixin(TimedBelief):
             ):
                 q = q.filter(
                     cls.event_start
-                    - cls.belief_horizon * literal_column("interval '1 minute'")
+                    - cls.belief_horizon * ONE_MINUTE_INTERVAL
                     >= beliefs_after + knowledge_horizon_min
                 )
             if not pd.isnull(
@@ -542,7 +543,7 @@ class TimedBeliefDBMixin(TimedBelief):
             ):
                 q = q.filter(
                     cls.event_start
-                    - cls.belief_horizon * literal_column("interval '1 minute'")
+                    - cls.belief_horizon * ONE_MINUTE_INTERVAL
                     <= beliefs_before + knowledge_horizon_max
                 )
 
