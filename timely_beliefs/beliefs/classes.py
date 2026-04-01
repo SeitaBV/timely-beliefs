@@ -24,9 +24,10 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
-    Interval,
+    TypeDecorator,
     and_,
     func,
+    literal_column,
     select,
 )
 from sqlalchemy.dialects.postgresql import insert
@@ -48,6 +49,32 @@ from timely_beliefs.sensors.classes import DBSensor, Sensor, SensorDBMixin
 from timely_beliefs.sensors.func_store.knowledge_horizons import ex_ante, ex_post
 from timely_beliefs.sources import utils as source_utils
 from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
+
+
+class IntTimedelta(TypeDecorator):
+    """Store timedelta as integer minutes in the database.
+
+    In Python, the value is a datetime.timedelta.
+    In the database, the value is stored as an integer number of minutes.
+    """
+
+    impl = Integer
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            if isinstance(value, timedelta):
+                return tb_utils.timedelta_to_minutes(value)
+            if isinstance(value, pd.Timedelta):
+                return tb_utils.timedelta_to_minutes(value.to_pytimedelta())
+            return int(value)
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            return tb_utils.minutes_to_timedelta(value)
+        return value
+
 
 METADATA = ["sensor", "event_resolution"]
 DatetimeLike = Union[datetime, str, pd.Timestamp]
@@ -203,7 +230,7 @@ class TimedBeliefDBMixin(TimedBelief):
         )
 
     event_start = Column(DateTime(timezone=True), primary_key=True, index=True)
-    belief_horizon = Column(Interval(), nullable=False, primary_key=True)
+    belief_horizon = Column(IntTimedelta(), nullable=False, primary_key=True)
     cumulative_probability = Column(
         Float, nullable=False, primary_key=True, default=0.5
     )
@@ -504,7 +531,8 @@ class TimedBeliefDBMixin(TimedBelief):
                 knowledge_horizon_min, timedelta.min
             ):
                 q = q.filter(
-                    cls.event_start - cls.belief_horizon
+                    cls.event_start
+                    - cls.belief_horizon * literal_column("interval '1 minute'")
                     >= beliefs_after + knowledge_horizon_min
                 )
             if not pd.isnull(
@@ -513,7 +541,8 @@ class TimedBeliefDBMixin(TimedBelief):
                 knowledge_horizon_max, timedelta.max
             ):
                 q = q.filter(
-                    cls.event_start - cls.belief_horizon
+                    cls.event_start
+                    - cls.belief_horizon * literal_column("interval '1 minute'")
                     <= beliefs_before + knowledge_horizon_max
                 )
 

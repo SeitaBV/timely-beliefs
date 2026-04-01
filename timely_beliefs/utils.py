@@ -7,6 +7,24 @@ from typing import Sequence
 import pandas as pd
 
 
+def timedelta_to_minutes(td: timedelta) -> int:
+    """Convert a timedelta to total minutes (integer).
+
+    :param td: timedelta object
+    :returns: integer number of minutes
+    """
+    return int(td.total_seconds() // 60)
+
+
+def minutes_to_timedelta(minutes: int) -> timedelta:
+    """Convert integer minutes to a timedelta.
+
+    :param minutes: integer number of minutes
+    :returns: timedelta object
+    """
+    return timedelta(minutes=minutes)
+
+
 def parse_timedelta_like(
     td: timedelta | str | pd.Timedelta,
     variable_name: str | None = None,

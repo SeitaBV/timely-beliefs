@@ -12,6 +12,7 @@ from timely_beliefs.beliefs.classes import (
     BeliefsDataFrame,
     BeliefsSeries,
     DBTimedBelief,
+    IntTimedelta,
     TimedBelief,
     TimedBeliefDBMixin,
 )
