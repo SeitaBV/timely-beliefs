@@ -67,7 +67,13 @@ class IntTimedelta(TypeDecorator):
                 return tb_utils.timedelta_to_minutes(value)
             if isinstance(value, pd.Timedelta):
                 return tb_utils.timedelta_to_minutes(value.to_pytimedelta())
-            return int(value)
+            if isinstance(value, (int, np.integer)):
+                # Store integer-like values directly as minutes.
+                return int(value)
+            raise TypeError(
+                f"IntTimedelta only supports datetime.timedelta, pandas.Timedelta, "
+                f"and integer-like minute values; got {type(value)!r}"
+            )
         return value
 
     def process_result_value(self, value, dialect):
