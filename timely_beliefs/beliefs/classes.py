@@ -538,8 +538,7 @@ class TimedBeliefDBMixin(TimedBelief):
                 knowledge_horizon_min, timedelta.min
             ):
                 q = q.filter(
-                    cls.event_start
-                    - cls.belief_horizon * ONE_MINUTE_INTERVAL
+                    cls.event_start - cls.belief_horizon * ONE_MINUTE_INTERVAL
                     >= beliefs_after + knowledge_horizon_min
                 )
             if not pd.isnull(
@@ -548,8 +547,7 @@ class TimedBeliefDBMixin(TimedBelief):
                 knowledge_horizon_max, timedelta.max
             ):
                 q = q.filter(
-                    cls.event_start
-                    - cls.belief_horizon * ONE_MINUTE_INTERVAL
+                    cls.event_start - cls.belief_horizon * ONE_MINUTE_INTERVAL
                     <= beliefs_before + knowledge_horizon_max
                 )
 
