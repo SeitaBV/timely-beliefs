@@ -61,7 +61,9 @@ class IntTimedelta(TypeDecorator):
     impl = Integer
     cache_ok = True
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(
+        self, value: timedelta | pd.Timedelta | int | None, dialect: Any
+    ) -> int | None:
         if value is not None:
             if isinstance(value, timedelta):
                 return tb_utils.timedelta_to_minutes(value)
@@ -76,7 +78,7 @@ class IntTimedelta(TypeDecorator):
             )
         return value
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(self, value: int | None, dialect: Any) -> timedelta | None:
         if value is not None:
             return tb_utils.minutes_to_timedelta(value)
         return value
