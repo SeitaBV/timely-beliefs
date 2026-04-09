@@ -10,8 +10,11 @@ import pandas as pd
 def timedelta_to_minutes(td: timedelta) -> int:
     """Convert a timedelta to total minutes (integer).
 
+    Sub-minute precision is floored (rounded toward negative infinity),
+    e.g. 5m30s becomes 5 minutes, and -5m30s becomes -6 minutes.
+
     :param td: timedelta object
-    :returns: integer number of minutes
+    :return: integer number of minutes
     """
     return int(td.total_seconds() // 60)
 
@@ -20,7 +23,7 @@ def minutes_to_timedelta(minutes: int) -> timedelta:
     """Convert integer minutes to a timedelta.
 
     :param minutes: integer number of minutes
-    :returns: timedelta object
+    :return: timedelta object
     """
     return timedelta(minutes=minutes)
 

@@ -1,10 +1,9 @@
 """Tests for the IntTimedelta type decorator and timedelta/minutes conversion utilities."""
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pandas as pd
 import pytest
-from pytz import utc
 
 from timely_beliefs import DBSensor, DBTimedBelief, utils
 from timely_beliefs.beliefs.classes import IntTimedelta
@@ -92,6 +91,16 @@ class TestIntTimedeltaTypeDecorator:
         t = IntTimedelta()
         result = t.process_bind_param(timedelta(hours=-4), None)
         assert result == -240
+
+    def test_process_bind_param_unsupported_type_raises(self):
+        t = IntTimedelta()
+        with pytest.raises(TypeError, match="IntTimedelta only supports"):
+            t.process_bind_param(3.5, None)
+
+    def test_process_bind_param_string_raises(self):
+        t = IntTimedelta()
+        with pytest.raises(TypeError, match="IntTimedelta only supports"):
+            t.process_bind_param("60", None)
 
     def test_process_result_value_positive(self):
         t = IntTimedelta()
