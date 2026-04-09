@@ -161,7 +161,5 @@ class TestIntTimedeltaDBRoundtrip:
         rolling_day_ahead_beliefs_about_time_slot_events,
     ):
         """Verify that the DB column uses IntTimedelta by checking the column type."""
-        from timely_beliefs.beliefs.classes import IntTimedelta
-
         col = DBTimedBelief.__table__.c.belief_horizon
         assert isinstance(col.type, IntTimedelta)
