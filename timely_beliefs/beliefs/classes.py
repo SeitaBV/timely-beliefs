@@ -1257,8 +1257,8 @@ class BeliefsDataFrame(pd.DataFrame):
             return self.index.get_level_values("belief_horizon")
         else:
             return (
-                self.knowledge_times.tz_convert("UTC")
-                - self.belief_times.tz_convert("UTC")
+                pd.DatetimeIndex(self.knowledge_times).tz_convert("UTC")
+                - pd.DatetimeIndex(self.belief_times).tz_convert("UTC")
             ).rename("belief_horizon")
 
     @property
