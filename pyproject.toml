@@ -36,7 +36,7 @@ dependencies = [
     "importlib_metadata",
     "pytz",
     "isodate",
-    "openturns",
+    "openturns<1.27",
     "properscoring",
 
     # Database support
