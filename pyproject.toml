@@ -36,7 +36,8 @@ dependencies = [
     "importlib_metadata",
     "pytz",
     "isodate",
-    "openturns<1.27",
+    # https://github.com/SeitaBV/timely-beliefs/issues/234
+    "openturns>=1.23",
     "properscoring",
 
     # Database support
