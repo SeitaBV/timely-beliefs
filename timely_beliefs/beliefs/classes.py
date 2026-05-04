@@ -750,7 +750,7 @@ class BeliefsSeries(pd.Series):
         def _constructor(self):
             return partial(BeliefsSeries)
 
-        if version.parse(pd.__version__) >= version.parse("2.2.0"):
+        if version.parse(pd.__version__) >= version.parse("2.0.0"):
 
             def _constructor_from_mgr(self, mgr, axes):
                 s = BeliefsSeries._from_mgr(mgr, axes)
@@ -854,7 +854,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
         return f
 
-    if version.parse(pd.__version__) >= version.parse("2.2.0"):
+    if version.parse(pd.__version__) >= version.parse("2.0.0"):
 
         def _constructor_from_mgr(self, mgr, axes):
             df = BeliefsDataFrame._from_mgr(mgr, axes)
@@ -1257,8 +1257,8 @@ class BeliefsDataFrame(pd.DataFrame):
             return self.index.get_level_values("belief_horizon")
         else:
             return (
-                self.knowledge_times.tz_convert("UTC")
-                - self.belief_times.tz_convert("UTC")
+                pd.DatetimeIndex(self.knowledge_times).tz_convert("UTC")
+                - pd.DatetimeIndex(self.belief_times).tz_convert("UTC")
             ).rename("belief_horizon")
 
     @property

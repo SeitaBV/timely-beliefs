@@ -1281,6 +1281,6 @@ def upsample_beliefs_data_frame(
         df = df.set_index(levels_to_reset, append=True)
     if keep_nan_values:
         # place back original NaN values
-        df = df.replace(unique_event_value_not_in_df, np.NaN)
+        df = df.replace(unique_event_value_not_in_df, np.nan)
     df.event_resolution = event_resolution
     return df
