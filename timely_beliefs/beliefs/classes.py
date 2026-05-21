@@ -564,13 +564,10 @@ class TimedBeliefDBMixin(TimedBelief):
             )
 
         # Apply most recent beliefs filter as subquery
-        most_recent_beliefs_only_incompatible_criteria = (
+        most_recent_only_incompatible_criteria = (
             beliefs_before is not None or beliefs_after is not None
         ) and sensor.knowledge_horizon_fnc not in (ex_ante.__name__, ex_post.__name__)
-        if (
-            most_recent_beliefs_only
-            and not most_recent_beliefs_only_incompatible_criteria
-        ):
+        if most_recent_beliefs_only and not most_recent_only_incompatible_criteria:
             subq = select(
                 cls.event_start,
                 cls.source_id,
@@ -595,7 +592,7 @@ class TimedBeliefDBMixin(TimedBelief):
             )
 
         # Apply most recent events filter as subquery
-        if most_recent_events_only:
+        if most_recent_events_only and not most_recent_only_incompatible_criteria:
             subq_most_recent_events = select(
                 cls.source_id,
                 func.max(cls.event_start).label("most_recent_event_start"),
@@ -663,8 +660,10 @@ class TimedBeliefDBMixin(TimedBelief):
         if beliefs_before is not None:
             df = df[df.index.get_level_values("belief_time") <= beliefs_before]
 
-        # Select most recent beliefs using postprocessing in case of incompatible search criteria
-        if most_recent_beliefs_only and most_recent_beliefs_only_incompatible_criteria:
+        # Select most recent events/beliefs using postprocessing in case of incompatible search criteria
+        if most_recent_events_only and most_recent_only_incompatible_criteria:
+            df = df[df.index.get_level_values("event_start") == df.event_starts.max()]
+        if most_recent_beliefs_only and most_recent_only_incompatible_criteria:
             df = belief_utils.select_most_recent_belief(df)
 
         # Convert timezone of beliefs and events to sensor timezone
