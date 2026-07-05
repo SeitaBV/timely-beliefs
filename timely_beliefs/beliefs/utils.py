@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import warnings
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Literal, Union
 
 import numpy as np
 import pandas as pd
@@ -31,7 +31,7 @@ def select_most_recent_belief(
 ) -> "classes.BeliefsDataFrame":
     """Drop all but most recent (non-NaN) belief."""
 
-    if df.empty:
+    if df.empty or df.lineage.unique_beliefs_per_event_per_source:
         return df
 
     # Drop NaN beliefs before selecting the most recent
@@ -80,6 +80,12 @@ def upsample_event_start(
     # Ensure MultiIndex and event_start is first
     if df.index.names[0] != "event_start":
         raise KeyError("event_start must be the first index level.")
+
+    # Special case: upsampling to instantaneous events (output_resolution == 0)
+    # In this case, we cannot create multiple time points within an event,
+    # so we just return the data as-is (with the understanding that timedelta(0) represents instantaneous events)
+    if output_resolution == timedelta(0):
+        return df.copy()
 
     # Compute upsampling factor
     factor = int(input_resolution / output_resolution)
@@ -361,12 +367,17 @@ def join_beliefs(
         # )  # Todo: allow customisation for aggregating event values
     else:
         # Create new BeliefsDataFrame with upsampled event_start
-        if input_resolution % output_resolution != timedelta():
+        if output_resolution == timedelta(0):
+            # Special case: upsampling to instantaneous events
+            # Expand each event into multiple instantaneous moments
+            df = upsample_event_start(df, output_resolution, input_resolution)
+        elif input_resolution % output_resolution != timedelta():
             raise NotImplementedError(
                 "Cannot upsample from resolution %s to %s."
                 % (input_resolution, output_resolution)
             )
-        df = upsample_event_start(df, output_resolution, input_resolution)
+        else:
+            df = upsample_event_start(df, output_resolution, input_resolution)
     return df
 
 
@@ -746,6 +757,40 @@ def read_csv(  # noqa C901
         df["event_start"] = df["event_start"].dt.floor(sensor.event_resolution)
     elif round_event_start:
         df["event_start"] = df["event_start"].dt.round(sensor.event_resolution)
+
+    # Drop exact duplicate rows (same event_start, value, ...)
+    df = df.drop_duplicates()
+
+    # Check for irregular event_start intervals for non-instantaneous sensors
+    event_starts = pd.Series(df["event_start"].unique())
+
+    # Only check if we have at least 3 rows to compare intervals
+    if len(event_starts) > 2 and sensor.event_resolution != timedelta(0):
+        diffs = pd.to_datetime(event_starts).diff().dropna()
+
+        if not diffs.empty:
+            # Most common time step
+            mode_diff = diffs.mode().iloc[0]
+
+            # Allow gaps that are integer multiples of the base step
+            multiples = diffs / mode_diff
+
+            # floating precision safety
+            is_integer_multiple = (multiples.round(6) % 1) == 0
+
+            irregular = diffs[~is_integer_multiple]
+
+            if not irregular.empty:
+                # Just show the first problematic start to keep error readable
+                first_problematic_start = event_starts.loc[irregular.index[0]]
+
+                raise ValueError(
+                    "Could not infer a regular event frequency from the data. "
+                    f"Most common frequency: {mode_diff}. "
+                    f"Number of irregular intervals: {len(irregular)}. "
+                    "First irregular event start: "
+                    f"{first_problematic_start}."
+                )
 
     # Construct BeliefsDataFrame
     bdf = classes.BeliefsDataFrame(df, sensor=sensor)
@@ -1140,6 +1185,7 @@ def upsample_beliefs_data_frame(
     event_resolution: timedelta,
     keep_nan_values: bool = False,
     boundary_policy: str = "first",
+    method: Literal["mean", "sum"] = "mean",
 ) -> "classes.BeliefsDataFrame":
     """Because simply doing df.resample().ffill() does not correctly resample the last event in the data frame.
 
@@ -1148,6 +1194,8 @@ def upsample_beliefs_data_frame(
     :param keep_nan_values:     If True, place back resampled NaN values. Drops NaN values by default.
     :param boundary_policy:     When upsampling to instantaneous events,
                                 take the 'max', 'min' or 'first' value at event boundaries.
+    :param method:              If 'mean', we upsample by forward filling.
+                                If 'sum', we upsample by splitting evenly.
     """
     if df.empty:
         df.event_resolution = event_resolution
@@ -1217,14 +1265,22 @@ def upsample_beliefs_data_frame(
         levels_to_reset = [lvl for lvl in index_levels if lvl != "event_start"]
         df = df.reset_index(level=levels_to_reset)
     df = df.reindex(new_index)
-    df = df.ffill(
-        limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
-    )
+    if method == "mean":
+        df = df.ffill(
+            limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
+        )
+    elif method == "sum":
+        df = df.ffill(
+            limit=math.ceil(resample_ratio) - 1 if resample_ratio > 1 else None,
+        )
+        df["event_value"] /= resample_ratio
+    else:
+        raise ValueError(f"Unsupported resampling method '{method}'.")
     df = df.dropna()
     if isinstance(df, classes.BeliefsDataFrame):
         df = df.set_index(levels_to_reset, append=True)
     if keep_nan_values:
         # place back original NaN values
-        df = df.replace(unique_event_value_not_in_df, np.NaN)
+        df = df.replace(unique_event_value_not_in_df, np.nan)
     df.event_resolution = event_resolution
     return df

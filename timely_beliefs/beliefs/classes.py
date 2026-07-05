@@ -5,7 +5,7 @@ import operator
 import types
 from datetime import datetime, timedelta
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Literal, Type, Union
 
 from packaging import version
 
@@ -801,7 +801,7 @@ class BeliefsSeries(pd.Series):
         def _constructor(self):
             return partial(BeliefsSeries)
 
-        if version.parse(pd.__version__) >= version.parse("2.2.0"):
+        if version.parse(pd.__version__) >= version.parse("2.0.0"):
 
             def _constructor_from_mgr(self, mgr, axes):
                 s = BeliefsSeries._from_mgr(mgr, axes)
@@ -852,7 +852,18 @@ class BeliefsSeries(pd.Series):
         :returns: a timedelta for regularly spaced observations
                   None for irregularly spaced observations
         """
-        return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
+        if len(self) < 2:
+            return self.event_resolution
+        elif len(self) == 2:
+            # Pandas cannot infer an event frequency, but we can (try)
+            return abs(self.event_starts[-1] - self.event_starts[0])
+        try:
+            return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
+        except ValueError as exc:
+            if str(exc) == "unit abbreviation w/o a number":
+                return pd.Timedelta(
+                    f"1{pd.infer_freq(self.index.unique('event_start'))}"
+                )
 
 
 class BeliefsDataFrame(pd.DataFrame):
@@ -894,7 +905,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
         return f
 
-    if version.parse(pd.__version__) >= version.parse("2.2.0"):
+    if version.parse(pd.__version__) >= version.parse("2.0.0"):
 
         def _constructor_from_mgr(self, mgr, axes):
             df = BeliefsDataFrame._from_mgr(mgr, axes)
@@ -1246,7 +1257,35 @@ class BeliefsDataFrame(pd.DataFrame):
         :returns: a timedelta for regularly spaced observations
                   None for irregularly spaced observations
         """
-        return pd.Timedelta(pd.infer_freq(self.index.unique("event_start")))
+        unique_event_starts = self.index.unique("event_start")
+        if len(unique_event_starts) < 2:
+            return self.event_resolution
+        elif len(unique_event_starts) == 2:
+            # Pandas cannot infer an event frequency, but we can (try)
+            return abs(unique_event_starts[-1] - unique_event_starts[0])
+        try:
+            return pd.Timedelta(pd.infer_freq(unique_event_starts))
+        except ValueError as exc:
+            if str(exc) == "unit abbreviation w/o a number":
+                return pd.Timedelta(f"1{pd.infer_freq(unique_event_starts)}")
+
+    @property
+    def most_common_event_frequency(self) -> timedelta:
+        """Most common duration between event starts.
+
+        Unlike event_frequency, this also works when the data contains gaps,
+        as long as the gaps are integer multiples of the base resolution.
+        """
+        # If data is perfectly regular, reuse inferred frequency
+        freq = self.event_frequency
+        if not pd.isna(freq):
+            return freq
+
+        event_starts = pd.to_datetime(self.event_starts.unique())
+
+        diffs = pd.Series(event_starts).sort_values().diff().dropna()
+
+        return diffs.mode().iloc[0]
 
     @property
     def knowledge_times(self) -> pd.DatetimeIndex:
@@ -1269,8 +1308,8 @@ class BeliefsDataFrame(pd.DataFrame):
             return self.index.get_level_values("belief_horizon")
         else:
             return (
-                self.knowledge_times.tz_convert("UTC")
-                - self.belief_times.tz_convert("UTC")
+                pd.DatetimeIndex(self.knowledge_times).tz_convert("UTC")
+                - pd.DatetimeIndex(self.belief_times).tz_convert("UTC")
             ).rename("belief_horizon")
 
     @property
@@ -1567,6 +1606,7 @@ class BeliefsDataFrame(pd.DataFrame):
         keep_only_most_recent_belief: bool = False,
         keep_nan_values: bool = False,
         boundary_policy: str = "first",
+        method: Literal["mean", "sum"] = "mean",
     ) -> "BeliefsDataFrame":
         """Aggregate over multiple events (downsample) or split events into multiple sub-events (upsample).
 
@@ -1576,9 +1616,12 @@ class BeliefsDataFrame(pd.DataFrame):
           todo: this distinction was introduced in timely-beliefs==1.15.0 and still needs to be incorporated in code
         - upsampling or downsampling
           note: this function supports both
-        - different resampling methods (e.g. 'mean', 'interpolate' or 'first')
-          note: this function defaults to 'mean' for downsampling and 'pad' for upsampling
-          todo: allow to set this explicitly, and derive a default from a sensor attribute
+        - different resampling methods, e.g. 'mean' and 'sum' ('interpolate' or 'first' may be implemented later)
+          note: - the names of the resampling methods are relevant to downsampling
+                - corresponding methods are picked for upsampling:
+                  - 'ffill' (upsampling) for 'mean' (downsampling)
+                  - equal split (upsampling) for 'sum' (downsampling)
+          todo: allow to derive a default from a sensor attribute
         - different event resolutions (e.g. instantaneous recordings vs. hourly averages)
           note: this function only supports few less complex cases of resampling instantaneous sensors
         - daylight savings time (DST) transitions
@@ -1634,6 +1677,8 @@ class BeliefsDataFrame(pd.DataFrame):
         if df.event_resolution == timedelta(0):
             if df.lineage.number_of_events != len(df):
                 raise NotImplementedError("Please file a GitHub ticket.")
+            if method != "mean":
+                raise NotImplementedError("Please file a GitHub ticket.")
             return belief_utils.resample_instantaneous_events(df, event_resolution)
 
         belief_timing_col = (
@@ -1656,7 +1701,7 @@ class BeliefsDataFrame(pd.DataFrame):
             if event_resolution > self.event_resolution:
                 # downsample
                 column_functions = {
-                    "event_value": "mean",
+                    "event_value": method,
                     "source": "first",  # keep the only source
                     belief_timing_col: (
                         "max" if belief_timing_col == "belief_time" else "min"
@@ -1666,7 +1711,6 @@ class BeliefsDataFrame(pd.DataFrame):
                 df = downsample_beliefs_data_frame(
                     df, event_resolution, column_functions
                 )
-                df.event_resolution = event_resolution
             else:
                 # upsample
                 df = df.reset_index(
@@ -1677,13 +1721,18 @@ class BeliefsDataFrame(pd.DataFrame):
                     event_resolution=event_resolution,
                     keep_nan_values=keep_nan_values,
                     boundary_policy=boundary_policy,
+                    method=method,
                 )
                 df = df.set_index(
                     [belief_timing_col, "source", "cumulative_probability"], append=True
                 )
+                if keep_only_most_recent_belief:
+                    df = belief_utils.select_most_recent_belief(df)
 
         # slow track in case each event has more than 1 belief or probabilistic beliefs
         else:
+            if method != "mean":
+                raise NotImplementedError("Please file a GitHub ticket.")
             if belief_timing_col == "belief_horizon":
                 df = df.convert_index_from_belief_horizon_to_time()
             df = belief_utils.resample_event_start(
@@ -2290,15 +2339,17 @@ def downsample_beliefs_data_frame(
     )
     event_timing_col = "event_start" if "event_start" in index_levels else "event_end"
     levels_to_reset = [lvl for lvl in index_levels if lvl != event_timing_col]
-    return pd.concat(
+    df = pd.concat(
         [
             getattr(
                 df.reset_index(level=levels_to_reset)[col]
                 .to_frame()
-                .resample(event_resolution),
+                .resample(event_resolution, origin="start"),
                 att,
             )()
             for col, att in col_att_dict.items()
         ],
         axis=1,
     ).set_index([belief_timing_col, "source", "cumulative_probability"], append=True)
+    df.event_resolution = event_resolution
+    return df

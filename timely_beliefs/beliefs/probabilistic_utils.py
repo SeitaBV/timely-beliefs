@@ -229,7 +229,7 @@ def multivariate_marginal_to_univariate_joint_cdf(  # noqa: C901
     if dim <= 3 and n_outcomes <= 10 and empirical is False:
 
         # Determine joint distribution (too slow for high dimensions)
-        d = ot.ComposedDistribution(marginals, copula)
+        d = ot.JointDistribution(marginals, copula)
 
         # Compute acceptable margin to prevent floating point errors (we'll evaluate a little on the right side of each marginal point)
         if shared_bins is True:
