@@ -2,8 +2,8 @@ import pandas as pd
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from timely_beliefs import DBSensor, DBBeliefSource, DBTimedBelief
-from timely_beliefs.tests import session, Session
+from timely_beliefs import DBBeliefSource, DBSensor, DBTimedBelief
+from timely_beliefs.tests import Session, session
 
 
 @pytest.mark.parametrize("replace_source", [False, True])

@@ -324,7 +324,7 @@ def test_upsample(
     assert belief_df.event_resolution == new_resolution
 
 
-def _test_empty_frame(time_slot_sensor):
+def _test_empty_frame(time_slot_sensor, use_mview: bool = False):
     """pandas GH30517"""
     bdf = DBTimedBelief.search_session(
         session=session,
@@ -373,8 +373,10 @@ def test_select_most_recent_deterministic_beliefs(
     multiple_day_ahead_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
     multiple_day_after_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
     use_mview: bool,
+    refresh_mview,
 ):
     """Check db query filters for most recent beliefs, most recent events, and both at once."""
+    refresh_mview()
 
     # Query all beliefs for this sensor
     df = DBTimedBelief.search_session(
@@ -440,7 +442,9 @@ def test_select_most_recent_probabilistic_beliefs(
         DBTimedBelief
     ],
     use_mview: bool,
+    refresh_mview,
 ):
+    refresh_mview()
     df = DBTimedBelief.search_session(
         session=session,
         sensor=ex_ante_economics_sensor,
@@ -507,3 +511,132 @@ def test_query_unchanged_beliefs(
     )
     unchanged_beliefs = BeliefsDataFrame(session.scalars(q).all())
     pd.testing.assert_frame_equal(unchanged_beliefs, expected_unchanged_beliefs)
+
+
+@pytest.mark.parametrize("use_mview", [False, True])
+def test_most_recent_beliefs_with_horizon_filters_bypass_mview(
+    ex_ante_economics_sensor: DBSensor,
+    multiple_day_ahead_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
+    use_mview: bool,
+):
+    """Belief timing filters cannot be applied to the materialized view.
+
+    The view caches the global minimum belief horizon, so the search should bypass the view
+    (here: deliberately left unrefreshed, i.e. empty) and use the beliefs table instead.
+    """
+    reference_df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        horizons_at_least=timedelta(hours=5),
+        use_materialized_view=False,
+    )
+    assert not reference_df.empty
+    df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        horizons_at_least=timedelta(hours=5),
+        use_materialized_view=use_mview,
+    )
+    pd.testing.assert_frame_equal(df, reference_df)
+
+
+@pytest.mark.parametrize("use_mview", [True])
+def test_mview_live_tail_includes_events_recorded_after_refresh(
+    ex_ante_economics_sensor: DBSensor,
+    test_source_a: DBBeliefSource,
+    multiple_day_ahead_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
+    use_mview: bool,
+    refresh_mview,
+):
+    """Events recorded after the last view refresh should still show up when passing a cutoff."""
+    refresh_mview()
+
+    # Record a belief about a new event, without refreshing the view
+    mview_cutoff = datetime(2025, 1, 3, 0, 0, tzinfo=utc)
+    new_event_start = datetime(2025, 1, 3, 22, 45, tzinfo=utc)
+    session.add(
+        DBTimedBelief(
+            source=test_source_a,
+            sensor=ex_ante_economics_sensor,
+            event_value=100,
+            belief_time=ex_ante_economics_sensor.knowledge_time(new_event_start)
+            - timedelta(hours=1),
+            event_start=new_event_start,
+        )
+    )
+
+    # Without a cutoff, the view is trusted for all events, so the new event is missed
+    df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        use_materialized_view=True,
+    )
+    assert new_event_start not in df.index.get_level_values("event_start")
+
+    # With a cutoff, the new event is looked up in the beliefs table, and results are complete
+    df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        use_materialized_view=True,
+        mview_cutoff=mview_cutoff,
+    )
+    reference_df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        use_materialized_view=False,
+    )
+    assert new_event_start in df.index.get_level_values("event_start")
+    pd.testing.assert_frame_equal(df, reference_df)
+
+
+@pytest.mark.parametrize("use_mview", [True])
+def test_mview_returns_stale_most_recent_beliefs_until_refreshed(
+    ex_ante_economics_sensor: DBSensor,
+    test_source_a: DBBeliefSource,
+    multiple_day_ahead_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
+    use_mview: bool,
+    refresh_mview,
+):
+    """Belief revisions recorded after the last view refresh only show up after the next refresh.
+
+    This documents the staleness semantics of using the materialized view:
+    for events starting before the cutoff, the view determines which belief is the most recent one.
+    """
+    refresh_mview()
+
+    # Record a more recent belief about the existing event, without refreshing the view
+    event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
+    session.add(
+        DBTimedBelief(
+            source=test_source_a,
+            sensor=ex_ante_economics_sensor,
+            event_value=999,
+            belief_time=ex_ante_economics_sensor.knowledge_time(event_start)
+            - timedelta(minutes=30),
+            event_start=event_start,
+        )
+    )
+
+    def search(use_materialized_view: bool) -> BeliefsDataFrame:
+        return DBTimedBelief.search_session(
+            session=session,
+            sensor=ex_ante_economics_sensor,
+            most_recent_beliefs_only=True,
+            use_materialized_view=use_materialized_view,
+            mview_cutoff=datetime(2025, 1, 3, 0, 0, tzinfo=utc),
+        )
+
+    # The view still reports the previously most recent belief (stale, but present)
+    assert search(use_materialized_view=True)["event_value"].tolist() == [10]
+
+    # The beliefs table knows better
+    assert search(use_materialized_view=False)["event_value"].tolist() == [999]
+
+    # After a refresh, the view catches up
+    refresh_mview()
+    assert search(use_materialized_view=True)["event_value"].tolist() == [999]

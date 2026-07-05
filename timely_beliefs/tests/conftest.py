@@ -15,9 +15,9 @@ from timely_beliefs.sensors.func_store.knowledge_horizons import (
 )
 from timely_beliefs.tests import engine, session
 from timely_beliefs.tests.mview import (
-    DROP_MVIEW_SQL,
     CREATE_INDEXES_SQL,
     CREATE_MVIEW_SQL,
+    DROP_MVIEW_SQL,
     REFRESH_MVIEW_SQL,
 )
 
@@ -75,6 +75,8 @@ def most_recent_beliefs_mview(db, request):
 @pytest.fixture
 def refresh_mview(db):
     def _refresh():
+        # Make sure pending beliefs are inserted before the view scans the beliefs table
+        session.flush()
         session.execute(text(REFRESH_MVIEW_SQL))
 
     return _refresh

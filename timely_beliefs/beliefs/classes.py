@@ -25,11 +25,11 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Interval,
-    MetaData,
     Table,
     and_,
     func,
     select,
+    union_all,
 )
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.declarative import declared_attr
@@ -43,6 +43,7 @@ from sqlalchemy.sql.expression import Selectable
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
 from timely_beliefs.beliefs import utils as belief_utils
+from timely_beliefs.beliefs.materialized_views import get_most_recent_beliefs_mview
 from timely_beliefs.beliefs.utils import is_pandas_structure, is_tb_structure, meta_repr
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors import utils as sensor_utils
@@ -60,16 +61,6 @@ JoinTarget = Union[
     AliasedClass,
     types.FunctionType,
 ]
-
-# Define the mview Table once
-DEFAULT_MOST_RECENT_BELIEFS_MVIEW = Table(
-    "most_recent_beliefs_mview",
-    MetaData(),
-    Column("sensor_id", Integer),
-    Column("event_start", DateTime),
-    Column("source_id", Integer),
-    Column("most_recent_belief_horizon", Interval),
-)
 
 
 class TimedBelief(object):
@@ -378,6 +369,7 @@ class TimedBeliefDBMixin(TimedBelief):
         custom_join_targets: list[JoinTarget] | None = None,
         use_materialized_view: bool = True,
         most_recent_beliefs_mview: Table | None = None,
+        mview_cutoff: datetime | None = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
@@ -413,8 +405,13 @@ class TimedBeliefDBMixin(TimedBelief):
         :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
         :param custom_filter_criteria: additional filters, such as ones that rely on subclasses
         :param custom_join_targets: additional join targets, to accommodate filters that rely on other targets (e.g. subclasses)
-        :param use_materialized_view: whether to try searching the materialized view
-        :param most_recent_beliefs_mview: optionally pass the materialized view Table explicitly
+        :param use_materialized_view: whether to try searching the materialized view (see the timely_beliefs.beliefs.materialized_views module);
+                                      only relevant when selecting the most recent beliefs, and ignored when belief timing filters are set
+                                      (the view caches the global minimum belief horizon, so belief timing filters cannot be applied to it)
+        :param most_recent_beliefs_mview: optionally pass the materialized view Table explicitly (skips looking it up in the database)
+        :param mview_cutoff: only trust the materialized view for events starting before this datetime
+                             (typically the time of its last refresh); later events are looked up in the beliefs table instead,
+                             so they are not missed even if they were recorded after the last refresh
         :returns: a multi-index DataFrame with all relevant beliefs
         """
         source_class = cls.source.property.mapper.class_
@@ -587,10 +584,9 @@ class TimedBeliefDBMixin(TimedBelief):
             most_recent_beliefs_only
             and not most_recent_beliefs_only_incompatible_criteria
         ):
-            # Check if we should use materialized view (for better performance on large datasets)
 
-            def use_original_subquery_for_most_recent_beliefs(q):
-                # Use original subquery approach
+            def most_recent_beliefs_subquery():
+                """Select the minimum belief horizon per event per source, from the beliefs table."""
                 subq = select(
                     cls.event_start,
                     cls.source_id,
@@ -600,44 +596,51 @@ class TimedBeliefDBMixin(TimedBelief):
                 # before taking the minimum horizon (the former is crucial for speed)
                 subq = apply_event_timing_filters(subq)
                 subq = apply_belief_timing_filters(subq)
-                subq = (
-                    subq.filter(cls.sensor_id == sensor.id)
-                    .group_by(cls.event_start, cls.source_id)
-                    .subquery()
+                return subq.filter(cls.sensor_id == sensor.id).group_by(
+                    cls.event_start, cls.source_id
                 )
-                q = q.join(
-                    subq,
-                    and_(
-                        cls.event_start == subq.c.event_start,
-                        cls.source_id == subq.c.source_id,
-                        cls.belief_horizon == subq.c.most_recent_belief_horizon,
-                    ),
-                )
-                return q
 
-            if use_materialized_view:
-                if most_recent_beliefs_mview is None:
-                    most_recent_beliefs_mview = DEFAULT_MOST_RECENT_BELIEFS_MVIEW
-                try:
-                    # Join with the materialized view
-                    q = q.join(
-                        most_recent_beliefs_mview,
-                        and_(
-                            cls.sensor_id == most_recent_beliefs_mview.c.sensor_id,
-                            cls.event_start == most_recent_beliefs_mview.c.event_start,
-                            cls.source_id == most_recent_beliefs_mview.c.source_id,
-                            cls.belief_horizon
-                            == most_recent_beliefs_mview.c.most_recent_belief_horizon,
+            # The materialized view caches the global minimum belief horizon,
+            # so it cannot be used when belief timing filters are set.
+            mview = None
+            if (
+                use_materialized_view
+                and pd.isnull(horizons_at_least)
+                and pd.isnull(horizons_at_most)
+            ):
+                mview = (
+                    most_recent_beliefs_mview
+                    if most_recent_beliefs_mview is not None
+                    else get_most_recent_beliefs_mview(session)
+                )
+            if mview is not None:
+                mview_select = select(
+                    mview.c.event_start,
+                    mview.c.source_id,
+                    mview.c.most_recent_belief_horizon,
+                ).filter(mview.c.sensor_id == sensor.id)
+                if mview_cutoff is not None:
+                    # Only trust the view for events starting before the cutoff;
+                    # look up later events in the beliefs table instead, so events
+                    # recorded after the view's last refresh are not missed.
+                    subq = union_all(
+                        mview_select.filter(mview.c.event_start < mview_cutoff),
+                        most_recent_beliefs_subquery().filter(
+                            cls.event_start >= mview_cutoff
                         ),
-                    )
-                except Exception as e:
-                    print(
-                        f"Materialized view join failed: {e}. Falling back to original subquery approach."
-                    )
-                    # Fallback to the original subquery approach
-                    q = use_original_subquery_for_most_recent_beliefs(q)
+                    ).subquery()
+                else:
+                    subq = mview_select.subquery()
             else:
-                q = use_original_subquery_for_most_recent_beliefs(q)
+                subq = most_recent_beliefs_subquery().subquery()
+            q = q.join(
+                subq,
+                and_(
+                    cls.event_start == subq.c.event_start,
+                    cls.source_id == subq.c.source_id,
+                    cls.belief_horizon == subq.c.most_recent_belief_horizon,
+                ),
+            )
 
         # Apply most recent events filter as subquery
         if most_recent_events_only:
