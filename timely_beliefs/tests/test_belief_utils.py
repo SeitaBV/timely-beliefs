@@ -254,7 +254,7 @@ def test_resample_instantaneous_events(
 ):
     """Enumerate the events and check whether downsampling returns the expected events."""
     index = pd.date_range(
-        start, periods=periods, freq="1H", name="event_start"
+        start, periods=periods, freq="1h", name="event_start"
     ).tz_convert("Europe/Amsterdam")
     df = pd.DataFrame(list(range(1, periods + 1)), index=index, columns=["event_value"])
     print(df)

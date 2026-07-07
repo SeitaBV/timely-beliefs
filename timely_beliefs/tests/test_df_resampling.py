@@ -487,7 +487,7 @@ def make_input_df(start_hour: int) -> pd.DataFrame:
     event_starts = pd.date_range(
         start=start,
         periods=24,
-        freq="1H",
+        freq="1h",
     )
 
     df = pd.DataFrame(

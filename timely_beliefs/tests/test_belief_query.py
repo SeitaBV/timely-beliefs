@@ -39,9 +39,11 @@ def beliefs_recorded_at_unique_knowledge_time(
     return beliefs
 
 
+@pytest.mark.parametrize("use_mview", [False, True])
 def test_query_belief_for_sensor_with_unique_knowledge_time(
     unique_knowledge_time_sensor: DBSensor,
     beliefs_recorded_at_unique_knowledge_time: list[DBTimedBelief],
+    use_mview: bool,
 ):
     """Test query of sensor with a unique knowledge time, in combination with a belief time window."""
     belief_df = DBTimedBelief.search_session(
@@ -49,6 +51,7 @@ def test_query_belief_for_sensor_with_unique_knowledge_time(
         sensor=unique_knowledge_time_sensor,
         beliefs_after=pd.Timestamp("1990-04-01 00:00Z"),
         beliefs_before=pd.Timestamp("1990-06-01 00:00Z"),
+        use_materialized_view=use_mview,
     ).convert_index_from_belief_time_to_horizon()
     assert belief_df.belief_horizons[0] == timedelta(0)
     assert belief_df.belief_horizons[1] == timedelta(0)
@@ -148,14 +151,17 @@ def multiple_day_after_beliefs_about_ex_ante_economical_event(
     return beliefs
 
 
+@pytest.mark.parametrize("use_mview", [False, True])
 def test_query_belief_with_empty_source_list(
     ex_ante_economics_sensor: DBSensor,
     day_ahead_belief_about_ex_ante_economical_event: DBTimedBelief,
+    use_mview: bool,
 ):
     belief_df = DBTimedBelief.search_session(
         session=session,
         sensor=ex_ante_economics_sensor,
         source=[],
+        use_materialized_view=use_mview,
     )
     assert belief_df.empty
 
@@ -171,18 +177,21 @@ def test_query_belief_with_empty_source_list(
         (datetime(2018, 1, 1, 13, tzinfo=utc), None, 0),  # No beliefs after 1pm UTC
     ],
 )
+@pytest.mark.parametrize("use_mview", [False, True])
 def test_query_belief_by_belief_time(
     ex_ante_economics_sensor: DBSensor,
     day_ahead_belief_about_ex_ante_economical_event: DBTimedBelief,
     beliefs_after,
     beliefs_before,
     expected_length,
+    use_mview: bool,
 ):
     bdf = DBTimedBelief.search_session(
         session=session,
         sensor=ex_ante_economics_sensor,
         beliefs_after=beliefs_after,
         beliefs_before=beliefs_before,
+        use_materialized_view=use_mview,
     )
     assert len(bdf) == expected_length
 
@@ -196,11 +205,17 @@ def test_query_belief_by_belief_time(
         )
 
 
+@pytest.mark.parametrize("use_mview", [False, True])
 def test_query_belief_history(
     ex_ante_economics_sensor: DBSensor,
     multiple_day_ahead_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
+    use_mview: bool,
 ):
-    df = DBTimedBelief.search_session(session=session, sensor=ex_ante_economics_sensor)
+    df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        use_materialized_view=use_mview,
+    )
     event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
     df2 = df.belief_history(event_start).sort_index(
         level="belief_time", ascending=False
@@ -221,14 +236,18 @@ def test_query_belief_history(
     assert len(df4) == 2
 
 
+@pytest.mark.parametrize("use_mview", [False, True])
 def test_query_rolling_horizon(
-    time_slot_sensor: DBSensor, rolling_day_ahead_beliefs_about_time_slot_events
+    time_slot_sensor: DBSensor,
+    rolling_day_ahead_beliefs_about_time_slot_events,
+    use_mview: bool,
 ):
     """Make sure that a rolling viewpoint includes the most recent beliefs."""
     belief_df = DBTimedBelief.search_session(
         session=session,
         sensor=time_slot_sensor,
         beliefs_before=datetime(2050, 1, 1, 14, tzinfo=utc),
+        use_materialized_view=use_mview,
     )  # select beliefs up until 14 o'clock (4 events have 2 beliefs, and 1 event has 1 belief)
     rolling_df = belief_df.rolling_viewpoint(
         belief_horizon=timedelta(hours=49)
@@ -244,11 +263,13 @@ def test_query_rolling_horizon(
     assert (rolling_df["event_value"].values == [11, 12, 13, 14, 105]).all()
 
 
+@pytest.mark.parametrize("use_mview", [False, True])
 def test_query_fixed_horizon(
     time_slot_sensor: DBSensor,
     rolling_day_ahead_beliefs_about_time_slot_events,
     test_source_a,
     test_source_b,
+    use_mview: bool,
 ):
     belief_time = datetime(2050, 1, 1, 11, tzinfo=utc)
     df = DBTimedBelief.search_session(
@@ -256,6 +277,7 @@ def test_query_fixed_horizon(
         sensor=time_slot_sensor,
         beliefs_before=datetime(2050, 1, 1, 15, tzinfo=utc),
         source=[test_source_a, test_source_b],
+        use_materialized_view=use_mview,
     )
     df2 = df.fixed_viewpoint(belief_time=belief_time)
     assert len(df2) == 2
@@ -268,38 +290,47 @@ def test_query_fixed_horizon(
     assert (df3["event_value"].values == np.array([11, 102])).all()
 
 
-def test_downsample(time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_events):
+@pytest.mark.parametrize("use_mview", [False, True])
+def test_downsample(
+    time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_events, use_mview: bool
+):
     """Downsample from 15 minutes to 2 hours."""
     new_resolution = timedelta(hours=2)
     belief_df = DBTimedBelief.search_session(
         session=session,
         sensor=time_slot_sensor,
         beliefs_before=datetime(2100, 1, 1, 13, tzinfo=utc),
+        use_materialized_view=use_mview,
     )
     belief_df = belief_df.resample_events(new_resolution)
     assert belief_df.sensor.event_resolution == timedelta(minutes=15)
     assert belief_df.event_resolution == new_resolution
 
 
-def test_upsample(time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_events):
+@pytest.mark.parametrize("use_mview", [False, True])
+def test_upsample(
+    time_slot_sensor, rolling_day_ahead_beliefs_about_time_slot_events, use_mview: bool
+):
     """Upsample from 15 minutes to 5 minutes."""
     new_resolution = timedelta(minutes=5)
     belief_df = DBTimedBelief.search_session(
         session=session,
         sensor=time_slot_sensor,
         beliefs_before=datetime(2100, 1, 1, 13, tzinfo=utc),
+        use_materialized_view=use_mview,
     )
     belief_df = belief_df.resample_events(new_resolution)
     assert belief_df.sensor.event_resolution == timedelta(minutes=15)
     assert belief_df.event_resolution == new_resolution
 
 
-def _test_empty_frame(time_slot_sensor):
+def _test_empty_frame(time_slot_sensor, use_mview: bool = False):
     """pandas GH30517"""
     bdf = DBTimedBelief.search_session(
         session=session,
         sensor=time_slot_sensor,
         beliefs_before=datetime(1900, 1, 1, 13, tzinfo=utc),
+        use_materialized_view=use_mview,
     )
     assert bdf.empty  # no data expected
     assert pd.api.types.is_datetime64_dtype(bdf.index.get_level_values("belief_time"))
@@ -309,15 +340,20 @@ def _test_empty_frame(time_slot_sensor):
     )  # dtype of belief_horizon is timedelta64[ns], so the minimum horizon on an empty BeliefsDataFrame is NaT instead of NaN
 
 
+@pytest.mark.parametrize("use_mview", [False, True])
 def test_search_by_sensor_id(
     ex_ante_economics_sensor: DBSensor,
     multiple_day_ahead_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
+    use_mview: bool,
 ):
     """Check db query by sensor id, against query by sensor instance, for a non-empty dataset."""
 
     # Query all beliefs for this sensor, using sensor instance (our reference)
     df_by_instance = DBTimedBelief.search_session(
-        session=session, sensor=ex_ante_economics_sensor, most_recent_beliefs_only=False
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=False,
+        use_materialized_view=use_mview,
     )
 
     # Query all beliefs for this sensor, using sensor id (our test)
@@ -325,21 +361,29 @@ def test_search_by_sensor_id(
         session=session,
         sensor=ex_ante_economics_sensor.id,
         most_recent_beliefs_only=False,
+        use_materialized_view=use_mview,
     )
     assert not df_by_id.empty
     pd.testing.assert_frame_equal(df_by_id, df_by_instance)
 
 
+@pytest.mark.parametrize("use_mview", [False, True])
 def test_select_most_recent_deterministic_beliefs(
     ex_ante_economics_sensor: DBSensor,
     multiple_day_ahead_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
     multiple_day_after_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
+    use_mview: bool,
+    refresh_mview,
 ):
     """Check db query filters for most recent beliefs, most recent events, and both at once."""
+    refresh_mview()
 
     # Query all beliefs for this sensor
     df = DBTimedBelief.search_session(
-        session=session, sensor=ex_ante_economics_sensor, most_recent_beliefs_only=False
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=False,
+        use_materialized_view=use_mview,
     )
 
     # Most recent beliefs selected after query (our reference)
@@ -347,7 +391,10 @@ def test_select_most_recent_deterministic_beliefs(
 
     # Most recent beliefs selected within query (our test)
     df_recent_beliefs_within_query = DBTimedBelief.search_session(
-        session=session, sensor=ex_ante_economics_sensor, most_recent_beliefs_only=True
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        use_materialized_view=use_mview,
     )
     pd.testing.assert_frame_equal(
         df_recent_beliefs_within_query, df_recent_beliefs_after_query
@@ -360,7 +407,10 @@ def test_select_most_recent_deterministic_beliefs(
 
     # Most recent events selected within query (our test)
     df_recent_events_within_query = DBTimedBelief.search_session(
-        session=session, sensor=ex_ante_economics_sensor, most_recent_events_only=True
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_events_only=True,
+        use_materialized_view=use_mview,
     )
     pd.testing.assert_frame_equal(
         df_recent_events_within_query, df_recent_events_after_query
@@ -378,24 +428,35 @@ def test_select_most_recent_deterministic_beliefs(
         sensor=ex_ante_economics_sensor,
         most_recent_beliefs_only=True,
         most_recent_events_only=True,
+        use_materialized_view=use_mview,
     )
     pd.testing.assert_frame_equal(
         df_recent_both_within_query, df_recent_both_after_query
     )
 
 
+@pytest.mark.parametrize("use_mview", [False, True])
 def test_select_most_recent_probabilistic_beliefs(
     ex_ante_economics_sensor: DBSensor,
     multiple_probabilistic_day_ahead_beliefs_about_ex_ante_economical_event: list[
         DBTimedBelief
     ],
+    use_mview: bool,
+    refresh_mview,
 ):
+    refresh_mview()
     df = DBTimedBelief.search_session(
-        session=session, sensor=ex_ante_economics_sensor, most_recent_beliefs_only=False
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=False,
+        use_materialized_view=use_mview,
     )
     most_recent_df = belief_utils.select_most_recent_belief(df)
     df = DBTimedBelief.search_session(
-        session=session, sensor=ex_ante_economics_sensor, most_recent_beliefs_only=True
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        use_materialized_view=use_mview,
     )
     pd.testing.assert_frame_equal(df, most_recent_df)
 
@@ -409,7 +470,10 @@ def test_select_most_recent_probabilistic_beliefs(
         ([10, 10, 9, 10, 10], [None, 10, None, None, 10]),
     ],
 )
-def test_query_unchanged_beliefs(event_values, expected_unchanged_event_values):
+@pytest.mark.parametrize("use_mview", [False, True])
+def test_query_unchanged_beliefs(
+    event_values, expected_unchanged_event_values, use_mview: bool
+):
     sensor = session.execute(select(DBSensor).limit(1)).scalar()
     source = session.execute(select(DBBeliefSource).limit(1)).scalar()
     beliefs = [
@@ -447,3 +511,132 @@ def test_query_unchanged_beliefs(event_values, expected_unchanged_event_values):
     )
     unchanged_beliefs = BeliefsDataFrame(session.scalars(q).all())
     pd.testing.assert_frame_equal(unchanged_beliefs, expected_unchanged_beliefs)
+
+
+@pytest.mark.parametrize("use_mview", [False, True])
+def test_most_recent_beliefs_with_horizon_filters_bypass_mview(
+    ex_ante_economics_sensor: DBSensor,
+    multiple_day_ahead_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
+    use_mview: bool,
+):
+    """Belief timing filters cannot be applied to the materialized view.
+
+    The view caches the global minimum belief horizon, so the search should bypass the view
+    (here: deliberately left unrefreshed, i.e. empty) and use the beliefs table instead.
+    """
+    reference_df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        horizons_at_least=timedelta(hours=5),
+        use_materialized_view=False,
+    )
+    assert not reference_df.empty
+    df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        horizons_at_least=timedelta(hours=5),
+        use_materialized_view=use_mview,
+    )
+    pd.testing.assert_frame_equal(df, reference_df)
+
+
+@pytest.mark.parametrize("use_mview", [True])
+def test_mview_live_tail_includes_events_recorded_after_refresh(
+    ex_ante_economics_sensor: DBSensor,
+    test_source_a: DBBeliefSource,
+    multiple_day_ahead_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
+    use_mview: bool,
+    refresh_mview,
+):
+    """Events recorded after the last view refresh should still show up when passing a cutoff."""
+    refresh_mview()
+
+    # Record a belief about a new event, without refreshing the view
+    mview_cutoff = datetime(2025, 1, 3, 0, 0, tzinfo=utc)
+    new_event_start = datetime(2025, 1, 3, 22, 45, tzinfo=utc)
+    session.add(
+        DBTimedBelief(
+            source=test_source_a,
+            sensor=ex_ante_economics_sensor,
+            event_value=100,
+            belief_time=ex_ante_economics_sensor.knowledge_time(new_event_start)
+            - timedelta(hours=1),
+            event_start=new_event_start,
+        )
+    )
+
+    # Without a cutoff, the view is trusted for all events, so the new event is missed
+    df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        use_materialized_view=True,
+    )
+    assert new_event_start not in df.index.get_level_values("event_start")
+
+    # With a cutoff, the new event is looked up in the beliefs table, and results are complete
+    df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        use_materialized_view=True,
+        mview_cutoff=mview_cutoff,
+    )
+    reference_df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        use_materialized_view=False,
+    )
+    assert new_event_start in df.index.get_level_values("event_start")
+    pd.testing.assert_frame_equal(df, reference_df)
+
+
+@pytest.mark.parametrize("use_mview", [True])
+def test_mview_returns_stale_most_recent_beliefs_until_refreshed(
+    ex_ante_economics_sensor: DBSensor,
+    test_source_a: DBBeliefSource,
+    multiple_day_ahead_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
+    use_mview: bool,
+    refresh_mview,
+):
+    """Belief revisions recorded after the last view refresh only show up after the next refresh.
+
+    This documents the staleness semantics of using the materialized view:
+    for events starting before the cutoff, the view determines which belief is the most recent one.
+    """
+    refresh_mview()
+
+    # Record a more recent belief about the existing event, without refreshing the view
+    event_start = datetime(2025, 1, 2, 22, 45, tzinfo=utc)
+    session.add(
+        DBTimedBelief(
+            source=test_source_a,
+            sensor=ex_ante_economics_sensor,
+            event_value=999,
+            belief_time=ex_ante_economics_sensor.knowledge_time(event_start)
+            - timedelta(minutes=30),
+            event_start=event_start,
+        )
+    )
+
+    def search(use_materialized_view: bool) -> BeliefsDataFrame:
+        return DBTimedBelief.search_session(
+            session=session,
+            sensor=ex_ante_economics_sensor,
+            most_recent_beliefs_only=True,
+            use_materialized_view=use_materialized_view,
+            mview_cutoff=datetime(2025, 1, 3, 0, 0, tzinfo=utc),
+        )
+
+    # The view still reports the previously most recent belief (stale, but present)
+    assert search(use_materialized_view=True)["event_value"].tolist() == [10]
+
+    # The beliefs table knows better
+    assert search(use_materialized_view=False)["event_value"].tolist() == [999]
+
+    # After a refresh, the view catches up
+    refresh_mview()
+    assert search(use_materialized_view=True)["event_value"].tolist() == [999]

@@ -25,10 +25,13 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     TypeDecorator,
+    Interval,
+    Table,
     and_,
     func,
     literal_column,
     select,
+    union_all,
 )
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.declarative import declared_attr
@@ -42,6 +45,7 @@ from sqlalchemy.sql.expression import Selectable
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
 from timely_beliefs.beliefs import utils as belief_utils
+from timely_beliefs.beliefs.materialized_views import get_most_recent_beliefs_mview
 from timely_beliefs.beliefs.utils import is_pandas_structure, is_tb_structure, meta_repr
 from timely_beliefs.db_base import Base
 from timely_beliefs.sensors import utils as sensor_utils
@@ -400,6 +404,9 @@ class TimedBeliefDBMixin(TimedBelief):
         place_events_in_sensor_timezone: bool = True,
         custom_filter_criteria: list[BinaryExpression] | None = None,
         custom_join_targets: list[JoinTarget] | None = None,
+        use_materialized_view: bool = True,
+        most_recent_beliefs_mview: Table | None = None,
+        mview_cutoff: datetime | None = None,
     ) -> "BeliefsDataFrame":
         """Search a database session for beliefs about sensor events.
 
@@ -435,6 +442,13 @@ class TimedBeliefDBMixin(TimedBelief):
         :param place_events_in_sensor_timezone: if True (the default), event starts are converted to the timezone of the sensor
         :param custom_filter_criteria: additional filters, such as ones that rely on subclasses
         :param custom_join_targets: additional join targets, to accommodate filters that rely on other targets (e.g. subclasses)
+        :param use_materialized_view: whether to try searching the materialized view (see the timely_beliefs.beliefs.materialized_views module);
+                                      only relevant when selecting the most recent beliefs, and ignored when belief timing filters are set
+                                      (the view caches the global minimum belief horizon, so belief timing filters cannot be applied to it)
+        :param most_recent_beliefs_mview: optionally pass the materialized view Table explicitly (skips looking it up in the database)
+        :param mview_cutoff: only trust the materialized view for events starting before this datetime
+                             (typically the time of its last refresh); later events are looked up in the beliefs table instead,
+                             so they are not missed even if they were recorded after the last refresh
         :returns: a multi-index DataFrame with all relevant beliefs
         """
         source_class = cls.source.property.mapper.class_
@@ -607,20 +621,55 @@ class TimedBeliefDBMixin(TimedBelief):
             most_recent_beliefs_only
             and not most_recent_beliefs_only_incompatible_criteria
         ):
-            subq = select(
-                cls.event_start,
-                cls.source_id,
-                func.min(cls.belief_horizon).label("most_recent_belief_horizon"),
-            )
-            # Apply event and belief timing filters to the subquery, too,
-            # before taking the minimum horizon (the former is crucial for speed)
-            subq = apply_event_timing_filters(subq)
-            subq = apply_belief_timing_filters(subq)
-            subq = (
-                subq.filter(cls.sensor_id == sensor.id)
-                .group_by(cls.event_start, cls.source_id)
-                .subquery()
-            )
+
+            def most_recent_beliefs_subquery():
+                """Select the minimum belief horizon per event per source, from the beliefs table."""
+                subq = select(
+                    cls.event_start,
+                    cls.source_id,
+                    func.min(cls.belief_horizon).label("most_recent_belief_horizon"),
+                )
+                # Apply event and belief timing filters to the subquery, too,
+                # before taking the minimum horizon (the former is crucial for speed)
+                subq = apply_event_timing_filters(subq)
+                subq = apply_belief_timing_filters(subq)
+                return subq.filter(cls.sensor_id == sensor.id).group_by(
+                    cls.event_start, cls.source_id
+                )
+
+            # The materialized view caches the global minimum belief horizon,
+            # so it cannot be used when belief timing filters are set.
+            mview = None
+            if (
+                use_materialized_view
+                and pd.isnull(horizons_at_least)
+                and pd.isnull(horizons_at_most)
+            ):
+                mview = (
+                    most_recent_beliefs_mview
+                    if most_recent_beliefs_mview is not None
+                    else get_most_recent_beliefs_mview(session)
+                )
+            if mview is not None:
+                mview_select = select(
+                    mview.c.event_start,
+                    mview.c.source_id,
+                    mview.c.most_recent_belief_horizon,
+                ).filter(mview.c.sensor_id == sensor.id)
+                if mview_cutoff is not None:
+                    # Only trust the view for events starting before the cutoff;
+                    # look up later events in the beliefs table instead, so events
+                    # recorded after the view's last refresh are not missed.
+                    subq = union_all(
+                        mview_select.filter(mview.c.event_start < mview_cutoff),
+                        most_recent_beliefs_subquery().filter(
+                            cls.event_start >= mview_cutoff
+                        ),
+                    ).subquery()
+                else:
+                    subq = mview_select.subquery()
+            else:
+                subq = most_recent_beliefs_subquery().subquery()
             q = q.join(
                 subq,
                 and_(
@@ -632,6 +681,7 @@ class TimedBeliefDBMixin(TimedBelief):
 
         # Apply most recent events filter as subquery
         if most_recent_events_only:
+
             subq_most_recent_events = select(
                 cls.source_id,
                 func.max(cls.event_start).label("most_recent_event_start"),
@@ -664,7 +714,9 @@ class TimedBeliefDBMixin(TimedBelief):
 
         # Useful debugging code, let's keep it here
         # from sqlalchemy.dialects import postgresql
-        # print(q.compile(dialect=postgresql.dialect()))
+        # print("\nQuery for beliefs:\n")
+        # print(q.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+        # print("\n\n")
 
         # Build our DataFrame of beliefs
         df = pd.DataFrame(session.execute(q))
@@ -786,7 +838,7 @@ class BeliefsSeries(pd.Series):
         def _constructor(self):
             return partial(BeliefsSeries)
 
-        if version.parse(pd.__version__) >= version.parse("2.2.0"):
+        if version.parse(pd.__version__) >= version.parse("2.0.0"):
 
             def _constructor_from_mgr(self, mgr, axes):
                 s = BeliefsSeries._from_mgr(mgr, axes)
@@ -890,7 +942,7 @@ class BeliefsDataFrame(pd.DataFrame):
 
         return f
 
-    if version.parse(pd.__version__) >= version.parse("2.2.0"):
+    if version.parse(pd.__version__) >= version.parse("2.0.0"):
 
         def _constructor_from_mgr(self, mgr, axes):
             df = BeliefsDataFrame._from_mgr(mgr, axes)
@@ -1150,21 +1202,24 @@ class BeliefsDataFrame(pd.DataFrame):
         )
         return self.append(BeliefsDataFrame(sensor=self.sensor, beliefs=beliefs))
 
+    def _replace_multi_index_level(self, level: str, by: Any) -> "BeliefsDataFrame":
+        if isinstance(by, (datetime, pd.Timestamp)):
+            by = pd.DatetimeIndex(data=[by] * len(self.index), name=level)
+        elif not isinstance(by, pd.Index):
+            by = pd.Index(data=[by] * len(self.index), name=level)
+        return tb_utils.replace_multi_index_level(self, level, by)
+
     def convert_index_from_belief_time_to_horizon(self) -> "BeliefsDataFrame":
-        return tb_utils.replace_multi_index_level(
-            self, "belief_time", self.belief_horizons
-        )
+        return self._replace_multi_index_level("belief_time", self.belief_horizons)
 
     def convert_index_from_belief_horizon_to_time(self) -> "BeliefsDataFrame":
-        return tb_utils.replace_multi_index_level(
-            self, "belief_horizon", self.belief_times
-        )
+        return self._replace_multi_index_level("belief_horizon", self.belief_times)
 
     def convert_index_from_event_end_to_start(self) -> "BeliefsDataFrame":
-        return tb_utils.replace_multi_index_level(self, "event_end", self.event_starts)
+        return self._replace_multi_index_level("event_end", self.event_starts)
 
     def convert_index_from_event_start_to_end(self) -> "BeliefsDataFrame":
-        return tb_utils.replace_multi_index_level(self, "event_start", self.event_ends)
+        return self._replace_multi_index_level("event_start", self.event_ends)
 
     def convert_timezone_of_belief_timing_index(
         self, timezone: str | pytz.timezone
@@ -1172,8 +1227,7 @@ class BeliefsDataFrame(pd.DataFrame):
         if "belief_horizon" in self.index.names:
             return self  # timedeltas don't have timezones
         elif "belief_time" in self.index.names:
-            return tb_utils.replace_multi_index_level(
-                self,
+            return self._replace_multi_index_level(
                 "belief_time",
                 pd.to_datetime(self.belief_times, utc=True).tz_convert(timezone),
             )
@@ -1186,14 +1240,12 @@ class BeliefsDataFrame(pd.DataFrame):
         self, timezone: str | pytz.timezone
     ) -> "BeliefsDataFrame":
         if "event_end" in self.index.names:
-            return tb_utils.replace_multi_index_level(
-                self,
+            return self._replace_multi_index_level(
                 "event_end",
                 pd.to_datetime(self.event_ends, utc=True).tz_convert(timezone),
             )
         elif "event_start" in self.index.names:
-            return tb_utils.replace_multi_index_level(
-                self,
+            return self._replace_multi_index_level(
                 "event_start",
                 pd.to_datetime(self.event_starts, utc=True).tz_convert(timezone),
             )
@@ -1293,8 +1345,8 @@ class BeliefsDataFrame(pd.DataFrame):
             return self.index.get_level_values("belief_horizon")
         else:
             return (
-                self.knowledge_times.tz_convert("UTC")
-                - self.belief_times.tz_convert("UTC")
+                pd.DatetimeIndex(self.knowledge_times).tz_convert("UTC")
+                - pd.DatetimeIndex(self.belief_times).tz_convert("UTC")
             ).rename("belief_horizon")
 
     @property
@@ -1521,10 +1573,9 @@ class BeliefsDataFrame(pd.DataFrame):
             ]
         df = belief_utils.select_most_recent_belief(df)
         if update_belief_times is True:
-            return tb_utils.replace_multi_index_level(
-                df,
-                "belief_time",
-                pd.DatetimeIndex(data=[belief_time_window[1]] * len(df.index)),
+            return df._replace_multi_index_level(
+                level="belief_time",
+                by=belief_time_window[1],
             )
         else:
             return df
