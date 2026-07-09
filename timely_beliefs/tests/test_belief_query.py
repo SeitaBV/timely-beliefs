@@ -436,6 +436,54 @@ def test_select_most_recent_deterministic_beliefs(
 
 
 @pytest.mark.parametrize("use_mview", [False, True])
+def test_select_most_recent_beliefs_with_event_window(
+    time_slot_sensor: DBSensor,
+    rolling_day_ahead_beliefs_about_time_slot_events: list[DBTimedBelief],
+    use_mview: bool,
+    refresh_mview,
+):
+    """Check that event window filters (event_starts_after/event_ends_before) are
+    respected when selecting most recent beliefs through the materialized view.
+
+    The mview subquery only carries a sensor_id filter (plus, for the live-tail
+    variant, an event_start < cutoff filter). Without pushing the caller's event
+    window down into that subquery too, the join would still return the right rows
+    (the outer query's own event_start filter would exclude the rest), but at the
+    cost of scanning the entire view. This test protects correctness of the
+    pushed-down filter, i.e. that results are unaffected by the optimization.
+    """
+    refresh_mview()
+
+    event_starts_after = datetime(2050, 1, 3, 15, tzinfo=utc)
+    event_ends_before = datetime(2050, 1, 3, 19, tzinfo=utc)
+
+    # Reference: compute over the full result set, without database-side filtering
+    full_df = DBTimedBelief.search_session(
+        session=session,
+        sensor=time_slot_sensor,
+        most_recent_beliefs_only=False,
+        use_materialized_view=use_mview,
+    )
+    reference_df = belief_utils.select_most_recent_belief(full_df)
+    reference_df = reference_df[
+        (reference_df.event_starts >= event_starts_after)
+        & (reference_df.event_ends <= event_ends_before)
+    ]
+    assert not reference_df.empty
+
+    # Test: apply the event window filters within the query itself
+    df = DBTimedBelief.search_session(
+        session=session,
+        sensor=time_slot_sensor,
+        most_recent_beliefs_only=True,
+        event_starts_after=event_starts_after,
+        event_ends_before=event_ends_before,
+        use_materialized_view=use_mview,
+    )
+    pd.testing.assert_frame_equal(df, reference_df)
+
+
+@pytest.mark.parametrize("use_mview", [False, True])
 def test_select_most_recent_probabilistic_beliefs(
     ex_ante_economics_sensor: DBSensor,
     multiple_probabilistic_day_ahead_beliefs_about_ex_ante_economical_event: list[

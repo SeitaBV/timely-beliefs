@@ -474,32 +474,41 @@ class TimedBeliefDBMixin(TimedBelief):
             get_bounds=True,
         )
 
-        def apply_event_timing_filters(q):
+        def apply_event_timing_filters(q, event_start_col=None):
             """Apply filters that concern the event time.
 
-            This includes any custom filters
+            This includes any custom filters.
+
+            By default, filters are applied to the beliefs table's event_start column.
+            Pass event_start_col to apply the same (event_start-only) bounds to another
+            selectable that has an event_start column of its own, such as the
+            materialized view backing most_recent_beliefs_only queries. This lets those
+            bounds be pushed down into the materialized view subquery, so Postgres can
+            use its indexes instead of scanning (and hash-joining) the entire view.
             """
+            if event_start_col is None:
+                event_start_col = cls.event_start
             if not pd.isnull(event_starts_after):
-                q = q.filter(cls.event_start >= event_starts_after)
+                q = q.filter(event_start_col >= event_starts_after)
             if not pd.isnull(event_ends_after):
                 if sensor.event_resolution == timedelta(0):
                     # inclusive
-                    q = q.filter(cls.event_start >= event_ends_after)
+                    q = q.filter(event_start_col >= event_ends_after)
                 else:
                     # exclusive
                     q = q.filter(
-                        cls.event_start > event_ends_after - sensor.event_resolution
+                        event_start_col > event_ends_after - sensor.event_resolution
                     )
             if not pd.isnull(event_starts_before):
                 if sensor.event_resolution == timedelta(0):
                     # inclusive
-                    q = q.filter(cls.event_start <= event_starts_before)
+                    q = q.filter(event_start_col <= event_starts_before)
                 else:
                     # exclusive
-                    q = q.filter(cls.event_start < event_starts_before)
+                    q = q.filter(event_start_col < event_starts_before)
             if not pd.isnull(event_ends_before):
                 q = q.filter(
-                    cls.event_start <= event_ends_before - sensor.event_resolution
+                    event_start_col <= event_ends_before - sensor.event_resolution
                 )
 
             return q
@@ -619,6 +628,12 @@ class TimedBeliefDBMixin(TimedBelief):
                     mview.c.source_id,
                     mview.c.most_recent_belief_horizon,
                 ).filter(mview.c.sensor_id == sensor.id)
+                # Push the same event_start bounds down into the mview select, so
+                # Postgres can use the mview's indexes instead of scanning (and
+                # hash-joining) the entire view.
+                mview_select = apply_event_timing_filters(
+                    mview_select, mview.c.event_start
+                )
                 if mview_cutoff is not None:
                     # Only trust the view for events starting before the cutoff;
                     # look up later events in the beliefs table instead, so events
