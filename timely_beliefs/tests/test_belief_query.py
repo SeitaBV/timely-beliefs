@@ -723,9 +723,7 @@ def test_most_recent_beliefs_with_belief_time_filter_bypasses_mview(
         most_recent_beliefs_only=False,
         use_materialized_view=use_mview,
     )
-    full_df = full_df[
-        full_df.index.get_level_values("belief_time") <= beliefs_before
-    ]
+    full_df = full_df[full_df.index.get_level_values("belief_time") <= beliefs_before]
     reference_df = belief_utils.select_most_recent_belief(full_df)
     assert not reference_df.empty
 
