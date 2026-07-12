@@ -55,10 +55,10 @@ from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 
 
 class IntTimedelta(TypeDecorator):
-    """Store timedelta as integer minutes in the database.
+    """Store timedelta as integer seconds in the database.
 
     In Python, the value is a datetime.timedelta.
-    In the database, the value is stored as an integer number of minutes.
+    In the database, the value is stored as an integer number of seconds.
     """
 
     impl = Integer
@@ -69,26 +69,36 @@ class IntTimedelta(TypeDecorator):
     ) -> int | None:
         if value is not None:
             if isinstance(value, timedelta):
-                return tb_utils.timedelta_to_minutes(value)
+                return tb_utils.timedelta_to_seconds(value)
             if isinstance(value, pd.Timedelta):
-                return tb_utils.timedelta_to_minutes(value.to_pytimedelta())
+                return tb_utils.timedelta_to_seconds(value.to_pytimedelta())
             if isinstance(value, (int, np.integer)):
-                # Store integer-like values directly as minutes.
-                return int(value)
+                # Store integer-like values directly as seconds.
+                seconds = int(value)
+                if (
+                    seconds < tb_utils.INTEGER_SECONDS_MIN
+                    or seconds > tb_utils.INTEGER_SECONDS_MAX
+                ):
+                    raise OverflowError(
+                        "Integer value is outside the supported integer-second "
+                        f"range ({tb_utils.INTEGER_SECONDS_MIN} to "
+                        f"{tb_utils.INTEGER_SECONDS_MAX} seconds)."
+                    )
+                return seconds
             raise TypeError(
                 f"IntTimedelta only supports datetime.timedelta, pandas.Timedelta, "
-                f"and integer-like minute values; got {type(value)!r}"
+                f"and integer-like second values; got {type(value)!r}"
             )
         return value
 
     def process_result_value(self, value: int | None, dialect: Any) -> timedelta | None:
         if value is not None:
-            return tb_utils.minutes_to_timedelta(value)
+            return tb_utils.seconds_to_timedelta(value)
         return value
 
 
 METADATA = ["sensor", "event_resolution"]
-ONE_MINUTE_INTERVAL = literal_column("interval '1 minute'")
+ONE_SECOND_INTERVAL = literal_column("interval '1 second'")
 DatetimeLike = Union[datetime, str, pd.Timestamp]
 TimedeltaLike = Union[timedelta, str, pd.Timedelta]
 JoinTarget = Union[
@@ -553,7 +563,7 @@ class TimedBeliefDBMixin(TimedBelief):
                 knowledge_horizon_min, timedelta.min
             ):
                 q = q.filter(
-                    cls.event_start - cls.belief_horizon * ONE_MINUTE_INTERVAL
+                    cls.event_start - cls.belief_horizon * ONE_SECOND_INTERVAL
                     >= beliefs_after + knowledge_horizon_min
                 )
             if not pd.isnull(
@@ -562,7 +572,7 @@ class TimedBeliefDBMixin(TimedBelief):
                 knowledge_horizon_max, timedelta.max
             ):
                 q = q.filter(
-                    cls.event_start - cls.belief_horizon * ONE_MINUTE_INTERVAL
+                    cls.event_start - cls.belief_horizon * ONE_SECOND_INTERVAL
                     <= beliefs_before + knowledge_horizon_max
                 )
 

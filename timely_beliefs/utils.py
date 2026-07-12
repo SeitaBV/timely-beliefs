@@ -6,26 +6,35 @@ from typing import Sequence
 
 import pandas as pd
 
+INTEGER_SECONDS_MIN = -(2**31)
+INTEGER_SECONDS_MAX = 2**31 - 1
 
-def timedelta_to_minutes(td: timedelta) -> int:
-    """Convert a timedelta to total minutes (integer).
 
-    Sub-minute precision is floored (rounded toward negative infinity),
-    e.g. 5m30s becomes 5 minutes, and -5m30s becomes -6 minutes.
+def timedelta_to_seconds(td: timedelta) -> int:
+    """Convert a timedelta to total seconds (integer).
+
+    Sub-second precision is floored (rounded toward negative infinity),
+    e.g. 5.5 seconds becomes 5 seconds, and -5.5 seconds becomes -6 seconds.
 
     :param td: timedelta object
-    :return: integer number of minutes
+    :return: integer number of seconds
     """
-    return int(td.total_seconds() // 60)
+    seconds = int(td.total_seconds() // 1)
+    if seconds < INTEGER_SECONDS_MIN or seconds > INTEGER_SECONDS_MAX:
+        raise OverflowError(
+            "Timedelta is outside the supported integer-second range "
+            f"({INTEGER_SECONDS_MIN} to {INTEGER_SECONDS_MAX} seconds)."
+        )
+    return seconds
 
 
-def minutes_to_timedelta(minutes: int) -> timedelta:
-    """Convert integer minutes to a timedelta.
+def seconds_to_timedelta(seconds: int) -> timedelta:
+    """Convert integer seconds to a timedelta.
 
-    :param minutes: integer number of minutes
+    :param seconds: integer number of seconds
     :return: timedelta object
     """
-    return timedelta(minutes=minutes)
+    return timedelta(seconds=seconds)
 
 
 def parse_timedelta_like(

@@ -1,4 +1,4 @@
-"""Tests for the IntTimedelta type decorator and timedelta/minutes conversion utilities."""
+"""Tests for the IntTimedelta type decorator and timedelta/seconds conversion utilities."""
 
 from datetime import timedelta
 
@@ -10,55 +10,70 @@ from timely_beliefs.beliefs.classes import IntTimedelta
 from timely_beliefs.tests import session
 
 
-class TestTimedeltaMinutesConversion:
-    """Test timedelta_to_minutes and minutes_to_timedelta utility functions."""
+class TestTimedeltaSecondsConversion:
+    """Test timedelta_to_seconds and seconds_to_timedelta utility functions."""
 
     def test_positive_hours(self):
         td = timedelta(hours=9)
-        assert utils.timedelta_to_minutes(td) == 540
+        assert utils.timedelta_to_seconds(td) == 9 * 60 * 60
 
     def test_positive_days(self):
         td = timedelta(days=1)
-        assert utils.timedelta_to_minutes(td) == 1440
+        assert utils.timedelta_to_seconds(td) == 24 * 60 * 60
 
     def test_zero(self):
         td = timedelta(0)
-        assert utils.timedelta_to_minutes(td) == 0
+        assert utils.timedelta_to_seconds(td) == 0
 
     def test_negative_hours(self):
         td = timedelta(hours=-4)
-        assert utils.timedelta_to_minutes(td) == -240
+        assert utils.timedelta_to_seconds(td) == -4 * 60 * 60
+
+    def test_seconds_only(self):
+        td = timedelta(seconds=15)
+        assert utils.timedelta_to_seconds(td) == 15
 
     def test_minutes_only(self):
         td = timedelta(minutes=15)
-        assert utils.timedelta_to_minutes(td) == 15
+        assert utils.timedelta_to_seconds(td) == 15 * 60
 
     def test_complex_timedelta(self):
-        td = timedelta(days=2, hours=3, minutes=30)
-        assert utils.timedelta_to_minutes(td) == 2 * 1440 + 3 * 60 + 30
+        td = timedelta(days=2, hours=3, minutes=30, seconds=45)
+        assert utils.timedelta_to_seconds(td) == (
+            2 * 24 * 60 * 60 + 3 * 60 * 60 + 30 * 60 + 45
+        )
 
-    def test_sub_minute_truncated(self):
-        """Sub-minute precision is truncated (floored) when converting to minutes."""
-        td = timedelta(minutes=5, seconds=30)
-        assert utils.timedelta_to_minutes(td) == 5
+    def test_sub_second_truncated(self):
+        """Sub-second precision is truncated (floored) when converting to seconds."""
+        td = timedelta(seconds=5, microseconds=500000)
+        assert utils.timedelta_to_seconds(td) == 5
+
+    def test_negative_sub_second_floored(self):
+        """Negative sub-second precision is floored toward negative infinity."""
+        td = timedelta(seconds=-5, microseconds=-500000)
+        assert utils.timedelta_to_seconds(td) == -6
 
     def test_roundtrip(self):
-        """Converting timedelta to minutes and back should preserve value (for whole minutes)."""
+        """Converting timedelta to seconds and back should preserve whole-second values."""
         td = timedelta(hours=48)
-        assert utils.minutes_to_timedelta(utils.timedelta_to_minutes(td)) == td
+        assert utils.seconds_to_timedelta(utils.timedelta_to_seconds(td)) == td
 
     def test_roundtrip_negative(self):
         td = timedelta(hours=-4)
-        assert utils.minutes_to_timedelta(utils.timedelta_to_minutes(td)) == td
+        assert utils.seconds_to_timedelta(utils.timedelta_to_seconds(td)) == td
 
-    def test_minutes_to_timedelta(self):
-        assert utils.minutes_to_timedelta(60) == timedelta(hours=1)
+    def test_seconds_to_timedelta(self):
+        assert utils.seconds_to_timedelta(3600) == timedelta(hours=1)
 
-    def test_minutes_to_timedelta_zero(self):
-        assert utils.minutes_to_timedelta(0) == timedelta(0)
+    def test_seconds_to_timedelta_zero(self):
+        assert utils.seconds_to_timedelta(0) == timedelta(0)
 
-    def test_minutes_to_timedelta_negative(self):
-        assert utils.minutes_to_timedelta(-240) == timedelta(hours=-4)
+    def test_seconds_to_timedelta_negative(self):
+        assert utils.seconds_to_timedelta(-4 * 60 * 60) == timedelta(hours=-4)
+
+    def test_timedelta_to_seconds_overflow_raises(self):
+        with pytest.raises(OverflowError, match="integer-second range"):
+            utils.timedelta_to_seconds(timedelta(seconds=utils.INTEGER_SECONDS_MAX + 1))
 
 
 class TestIntTimedeltaTypeDecorator:
@@ -67,13 +82,13 @@ class TestIntTimedeltaTypeDecorator:
     def test_process_bind_param_timedelta(self):
         t = IntTimedelta()
         result = t.process_bind_param(timedelta(hours=9), None)
-        assert result == 540
+        assert result == 9 * 60 * 60
         assert isinstance(result, int)
 
     def test_process_bind_param_pd_timedelta(self):
         t = IntTimedelta()
         result = t.process_bind_param(pd.Timedelta(hours=9), None)
-        assert result == 540
+        assert result == 9 * 60 * 60
         assert isinstance(result, int)
 
     def test_process_bind_param_none(self):
@@ -90,7 +105,12 @@ class TestIntTimedeltaTypeDecorator:
     def test_process_bind_param_negative(self):
         t = IntTimedelta()
         result = t.process_bind_param(timedelta(hours=-4), None)
-        assert result == -240
+        assert result == -4 * 60 * 60
+
+    def test_process_bind_param_int_overflow_raises(self):
+        t = IntTimedelta()
+        with pytest.raises(OverflowError, match="integer-second range"):
+            t.process_bind_param(utils.INTEGER_SECONDS_MAX + 1, None)
 
     def test_process_bind_param_unsupported_type_raises(self):
         t = IntTimedelta()
@@ -104,7 +124,7 @@ class TestIntTimedeltaTypeDecorator:
 
     def test_process_result_value_positive(self):
         t = IntTimedelta()
-        result = t.process_result_value(540, None)
+        result = t.process_result_value(9 * 60 * 60, None)
         assert result == timedelta(hours=9)
         assert isinstance(result, timedelta)
 
@@ -120,7 +140,7 @@ class TestIntTimedeltaTypeDecorator:
 
     def test_process_result_value_negative(self):
         t = IntTimedelta()
-        result = t.process_result_value(-240, None)
+        result = t.process_result_value(-4 * 60 * 60, None)
         assert result == timedelta(hours=-4)
 
 
