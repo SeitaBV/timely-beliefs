@@ -98,7 +98,9 @@ class IntTimedelta(TypeDecorator):
             return tb_utils.seconds_to_timedelta(value)
         return value
 
+
 logger = logging.getLogger(__name__)
+
 
 METADATA = ["sensor", "event_resolution"]
 ONE_SECOND_INTERVAL = literal_column("interval '1 second'")
