@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from pytz import utc
-from sqlalchemy import select
+from sqlalchemy import and_, select, text
 
 import timely_beliefs.beliefs.queries as query_utils
 import timely_beliefs.beliefs.utils as belief_utils
@@ -17,6 +17,7 @@ from timely_beliefs import (
     DBTimedBelief,
     TimedBelief,
 )
+from timely_beliefs.beliefs.classes import _custom_criteria_are_group_constant
 from timely_beliefs.tests import session
 
 
@@ -436,6 +437,54 @@ def test_select_most_recent_deterministic_beliefs(
 
 
 @pytest.mark.parametrize("use_mview", [False, True])
+def test_select_most_recent_beliefs_with_event_window(
+    time_slot_sensor: DBSensor,
+    rolling_day_ahead_beliefs_about_time_slot_events: list[DBTimedBelief],
+    use_mview: bool,
+    refresh_mview,
+):
+    """Check that event window filters (event_starts_after/event_ends_before) are
+    respected when selecting most recent beliefs through the materialized view.
+
+    The mview subquery only carries a sensor_id filter (plus, for the live-tail
+    variant, an event_start < cutoff filter). Without pushing the caller's event
+    window down into that subquery too, the join would still return the right rows
+    (the outer query's own event_start filter would exclude the rest), but at the
+    cost of scanning the entire view. This test protects correctness of the
+    pushed-down filter, i.e. that results are unaffected by the optimization.
+    """
+    refresh_mview()
+
+    event_starts_after = datetime(2050, 1, 3, 15, tzinfo=utc)
+    event_ends_before = datetime(2050, 1, 3, 19, tzinfo=utc)
+
+    # Reference: compute over the full result set, without database-side filtering
+    full_df = DBTimedBelief.search_session(
+        session=session,
+        sensor=time_slot_sensor,
+        most_recent_beliefs_only=False,
+        use_materialized_view=use_mview,
+    )
+    reference_df = belief_utils.select_most_recent_belief(full_df)
+    reference_df = reference_df[
+        (reference_df.event_starts >= event_starts_after)
+        & (reference_df.event_ends <= event_ends_before)
+    ]
+    assert not reference_df.empty
+
+    # Test: apply the event window filters within the query itself
+    df = DBTimedBelief.search_session(
+        session=session,
+        sensor=time_slot_sensor,
+        most_recent_beliefs_only=True,
+        event_starts_after=event_starts_after,
+        event_ends_before=event_ends_before,
+        use_materialized_view=use_mview,
+    )
+    pd.testing.assert_frame_equal(df, reference_df)
+
+
+@pytest.mark.parametrize("use_mview", [False, True])
 def test_select_most_recent_probabilistic_beliefs(
     ex_ante_economics_sensor: DBSensor,
     multiple_probabilistic_day_ahead_beliefs_about_ex_ante_economical_event: list[
@@ -640,3 +689,151 @@ def test_mview_returns_stale_most_recent_beliefs_until_refreshed(
     # After a refresh, the view catches up
     refresh_mview()
     assert search(use_materialized_view=True)["event_value"].tolist() == [999]
+
+
+@pytest.mark.parametrize("use_mview", [False, True])
+def test_most_recent_beliefs_with_belief_time_filter_bypasses_mview(
+    time_slot_sensor: DBSensor,
+    rolling_day_ahead_beliefs_about_time_slot_events: list[DBTimedBelief],
+    use_mview: bool,
+    refresh_mview,
+):
+    """A beliefs_before/beliefs_after filter cannot be applied to the materialized view.
+
+    The view caches the global minimum belief horizon (per event, per source), computed
+    without regard to any belief-time window. If we naively joined the (unfiltered) view
+    and then filtered by belief time afterwards, we could silently drop events whose
+    globally-most-recent belief falls outside the window, even though an earlier belief
+    (within the window) exists for that same event.
+
+    time_slot_sensor's knowledge horizon function is ex_post (the default), so it is
+    eligible for the most_recent_beliefs_only mview branch even with beliefs_before set;
+    this test therefore protects the fix at the mview-eligibility level (not just via the
+    post-processing fallback for knowledge functions incompatible with the mview branch
+    altogether).
+    """
+    refresh_mview()
+
+    beliefs_before = datetime(2050, 1, 1, 14, tzinfo=utc)
+
+    # Reference: compute over the full result set, without database-side filtering
+    full_df = DBTimedBelief.search_session(
+        session=session,
+        sensor=time_slot_sensor,
+        most_recent_beliefs_only=False,
+        use_materialized_view=use_mview,
+    )
+    full_df = full_df[full_df.index.get_level_values("belief_time") <= beliefs_before]
+    reference_df = belief_utils.select_most_recent_belief(full_df)
+    assert not reference_df.empty
+
+    # Test: apply the belief_before filter within the query itself
+    df = DBTimedBelief.search_session(
+        session=session,
+        sensor=time_slot_sensor,
+        most_recent_beliefs_only=True,
+        beliefs_before=beliefs_before,
+        use_materialized_view=use_mview,
+    )
+    pd.testing.assert_frame_equal(df, reference_df)
+
+
+@pytest.mark.parametrize("use_mview", [False, True])
+def test_most_recent_beliefs_with_row_level_custom_criterion_bypasses_mview(
+    ex_ante_economics_sensor: DBSensor,
+    multiple_day_ahead_beliefs_about_ex_ante_economical_event: list[DBTimedBelief],
+    use_mview: bool,
+    refresh_mview,
+):
+    """A custom filter criterion whose truth value can vary within a single
+    (event_start, source_id) group (e.g. a criterion on event_value) cannot be applied to
+    the materialized view, for the same reason belief-time filters cannot: the mview only
+    caches the *globally* most recent belief horizon, so applying such a criterion after
+    the join could silently drop an event whose most recent belief fails the criterion,
+    even though an earlier belief for that event would have passed it.
+
+    The fixture creates 10 beliefs about a single event, with event_value 10 (most
+    recent belief) up to 19 (oldest belief). Filtering out event_value == 10 forces the
+    correct answer to be the second most recent belief (event_value 11); a mview that
+    (incorrectly) caches the unfiltered global minimum belief horizon and applies the
+    criterion only after the join would instead drop the event entirely.
+    """
+    refresh_mview()
+
+    # Reference: compute over the full result set, without database-side filtering
+    full_df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=False,
+        use_materialized_view=use_mview,
+    )
+    full_df = full_df[full_df["event_value"] > 10]
+    reference_df = belief_utils.select_most_recent_belief(full_df)
+    assert not reference_df.empty
+    assert reference_df["event_value"].tolist() == [11]
+
+    df = DBTimedBelief.search_session(
+        session=session,
+        sensor=ex_ante_economics_sensor,
+        most_recent_beliefs_only=True,
+        custom_filter_criteria=[DBTimedBelief.event_value > 10],
+        use_materialized_view=use_mview,
+    )
+    pd.testing.assert_frame_equal(df, reference_df)
+
+
+def test_custom_criteria_are_group_constant_helper():
+    """Unit tests for the conservative introspection helper that decides whether custom
+    filter criteria are safe to apply after (rather than before) the materialized view's
+    MIN(belief_horizon) aggregation.
+    """
+    beliefs_table = DBTimedBelief.__table__
+    source_table = DBBeliefSource.__table__
+
+    # A criterion on a column of another table (e.g. the source class, joined via
+    # source_id) is group-constant and safe.
+    assert _custom_criteria_are_group_constant(
+        [source_table.c.name == "Source A"], beliefs_table
+    )
+
+    # Criteria on the beliefs table's own group-constant columns are safe.
+    assert _custom_criteria_are_group_constant(
+        [DBTimedBelief.event_start == datetime(2020, 1, 1, tzinfo=utc)],
+        beliefs_table,
+    )
+    assert _custom_criteria_are_group_constant(
+        [DBTimedBelief.source_id == 1], beliefs_table
+    )
+
+    # Criteria on beliefs-table columns that can vary within a group are unsafe.
+    assert not _custom_criteria_are_group_constant(
+        [DBTimedBelief.event_value < 1000], beliefs_table
+    )
+    assert not _custom_criteria_are_group_constant(
+        [DBTimedBelief.belief_horizon > timedelta(0)], beliefs_table
+    )
+
+    # A text() clause cannot be introspected, so it is conservatively unsafe.
+    assert not _custom_criteria_are_group_constant([text("1=1")], beliefs_table)
+
+    # A mixed and_() is unsafe if any part of it is unsafe.
+    assert not _custom_criteria_are_group_constant(
+        [
+            and_(
+                DBTimedBelief.source_id == 1,
+                DBTimedBelief.event_value < 1000,
+            )
+        ],
+        beliefs_table,
+    )
+
+    # ... but safe if every part of it is safe.
+    assert _custom_criteria_are_group_constant(
+        [
+            and_(
+                DBTimedBelief.source_id == 1,
+                DBTimedBelief.event_start == datetime(2020, 1, 1, tzinfo=utc),
+            )
+        ],
+        beliefs_table,
+    )

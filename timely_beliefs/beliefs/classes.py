@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import operator
 import types
@@ -38,8 +39,9 @@ from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import Session, backref, declarative_mixin, relationship
 from sqlalchemy.orm.util import AliasedClass
 from sqlalchemy.schema import Index
-from sqlalchemy.sql.elements import BinaryExpression
+from sqlalchemy.sql.elements import BinaryExpression, ColumnClause, TextClause
 from sqlalchemy.sql.expression import Selectable
+from sqlalchemy.sql.visitors import iterate
 
 import timely_beliefs.utils as tb_utils
 from timely_beliefs.beliefs import probabilistic_utils
@@ -96,6 +98,7 @@ class IntTimedelta(TypeDecorator):
             return tb_utils.seconds_to_timedelta(value)
         return value
 
+logger = logging.getLogger(__name__)
 
 METADATA = ["sensor", "event_resolution"]
 ONE_SECOND_INTERVAL = literal_column("interval '1 second'")
@@ -107,6 +110,43 @@ JoinTarget = Union[
     AliasedClass,
     types.FunctionType,
 ]
+
+# Columns of the beliefs table that are constant within one (event_start, source_id)
+# group, and can therefore be safely referenced by a custom filter criterion that is
+# applied after (rather than before) the materialized view's MIN(belief_horizon)
+# aggregation, without changing the outcome.
+GROUP_CONSTANT_BELIEFS_COLUMNS = {"sensor_id", "event_start", "source_id"}
+
+
+def _custom_criteria_are_group_constant(
+    criteria: list[BinaryExpression],
+    beliefs_table: Table,
+    allowed_columns: set[str] = GROUP_CONSTANT_BELIEFS_COLUMNS,
+) -> bool:
+    """Return True iff every criterion only references columns that are constant
+    within one (event_start, source_id) group of the beliefs table, so applying
+    the criterion after the mview join yields the same result as applying it
+    before the MIN(belief_horizon) aggregation in the fallback subquery.
+
+    Conservative: any construct we cannot positively introspect (e.g. text()
+    clauses, or bare columns without a known table) counts as not group-constant.
+    """
+    for criterion in criteria:
+        for element in iterate(criterion):
+            if isinstance(element, TextClause):
+                # Cannot introspect literal SQL; assume unsafe.
+                return False
+            if isinstance(element, ColumnClause):
+                if element.table is None:
+                    # E.g. sqlalchemy.column("x") with no known table; assume unsafe.
+                    return False
+                if element.table is beliefs_table:
+                    if element.name not in allowed_columns:
+                        return False
+                # Columns of other tables (e.g. reached via the source_id join)
+                # are constant within a (event_start, source_id) group, so they
+                # are safe regardless of their name.
+    return True
 
 
 class TimedBelief(object):
@@ -520,32 +560,39 @@ class TimedBeliefDBMixin(TimedBelief):
             get_bounds=True,
         )
 
-        def apply_event_timing_filters(q):
+        def apply_event_timing_filters(q, event_start_col=None):
             """Apply filters that concern the event time.
 
-            This includes any custom filters
+            By default, filters are applied to the beliefs table's event_start column.
+            Pass event_start_col to apply the same (event_start-only) bounds to another
+            selectable that has an event_start column of its own, such as the
+            materialized view backing most_recent_beliefs_only queries. This lets those
+            bounds be pushed down into the materialized view subquery, so Postgres can
+            use its indexes instead of scanning (and hash-joining) the entire view.
             """
+            if event_start_col is None:
+                event_start_col = cls.event_start
             if not pd.isnull(event_starts_after):
-                q = q.filter(cls.event_start >= event_starts_after)
+                q = q.filter(event_start_col >= event_starts_after)
             if not pd.isnull(event_ends_after):
                 if sensor.event_resolution == timedelta(0):
                     # inclusive
-                    q = q.filter(cls.event_start >= event_ends_after)
+                    q = q.filter(event_start_col >= event_ends_after)
                 else:
                     # exclusive
                     q = q.filter(
-                        cls.event_start > event_ends_after - sensor.event_resolution
+                        event_start_col > event_ends_after - sensor.event_resolution
                     )
             if not pd.isnull(event_starts_before):
                 if sensor.event_resolution == timedelta(0):
                     # inclusive
-                    q = q.filter(cls.event_start <= event_starts_before)
+                    q = q.filter(event_start_col <= event_starts_before)
                 else:
                     # exclusive
-                    q = q.filter(cls.event_start < event_starts_before)
+                    q = q.filter(event_start_col < event_starts_before)
             if not pd.isnull(event_ends_before):
                 q = q.filter(
-                    cls.event_start <= event_ends_before - sensor.event_resolution
+                    event_start_col <= event_ends_before - sensor.event_resolution
                 )
 
             return q
@@ -553,7 +600,7 @@ class TimedBeliefDBMixin(TimedBelief):
         def apply_belief_timing_filters(q):
             """Apply filters that concern the belief timing.
 
-            This includes any custom filters
+            This includes any custom filter criteria and join targets.
             """
 
             # Apply rough belief time filter
@@ -647,17 +694,52 @@ class TimedBeliefDBMixin(TimedBelief):
                 )
 
             # The materialized view caches the global minimum belief horizon,
-            # so it cannot be used when belief timing filters are set.
+            # so it cannot be used when belief timing filters (rough belief-time
+            # bounds or horizon bounds) are set, since the fallback subquery
+            # applies those filters BEFORE taking MIN(belief_horizon), whereas
+            # the mview only has the unfiltered global minimum cached. Likewise,
+            # it cannot be used for custom filter criteria whose truth value can
+            # vary within a (event_start, source_id) group of the beliefs table
+            # (e.g. a criterion on event_value or belief_horizon), for the same
+            # reason: the fallback subquery applies custom_filter_criteria before
+            # the MIN, so the mview join (which applies them after) could
+            # silently drop an event whose globally-most-recent belief happens
+            # to fail the criterion, even though an earlier belief for that event
+            # would have passed it.
             mview = None
+            custom_criteria_ok = (
+                custom_filter_criteria is None
+                or len(custom_filter_criteria) == 0
+                or _custom_criteria_are_group_constant(
+                    custom_filter_criteria, cls.__table__
+                )
+            )
             if (
                 use_materialized_view
                 and pd.isnull(horizons_at_least)
                 and pd.isnull(horizons_at_most)
+                and pd.isnull(beliefs_after)
+                and pd.isnull(beliefs_before)
+                and custom_criteria_ok
             ):
                 mview = (
                     most_recent_beliefs_mview
                     if most_recent_beliefs_mview is not None
                     else get_most_recent_beliefs_mview(session)
+                )
+            elif (
+                use_materialized_view
+                and pd.isnull(horizons_at_least)
+                and pd.isnull(horizons_at_most)
+                and pd.isnull(beliefs_after)
+                and pd.isnull(beliefs_before)
+                and not custom_criteria_ok
+            ):
+                logger.debug(
+                    "Bypassing the materialized view for most_recent_beliefs_only, "
+                    "because the given custom filter criteria could not be verified "
+                    "as constant within a (event_start, source_id) group of the "
+                    "beliefs table."
                 )
             if mview is not None:
                 mview_select = select(
@@ -665,6 +747,12 @@ class TimedBeliefDBMixin(TimedBelief):
                     mview.c.source_id,
                     mview.c.most_recent_belief_horizon,
                 ).filter(mview.c.sensor_id == sensor.id)
+                # Push the same event_start bounds down into the mview select, so
+                # Postgres can use the mview's indexes instead of scanning (and
+                # hash-joining) the entire view.
+                mview_select = apply_event_timing_filters(
+                    mview_select, mview.c.event_start
+                )
                 if mview_cutoff is not None:
                     # Only trust the view for events starting before the cutoff;
                     # look up later events in the beliefs table instead, so events
