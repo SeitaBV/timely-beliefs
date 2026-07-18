@@ -112,6 +112,7 @@ def replace_multi_index_level(
     level: str,
     index: pd.Index,
     intersection: bool = False,
+    sort: bool = True,
 ) -> "classes.BeliefsDataFrame":  # noqa: F821
     """Replace one of the index levels of the multi-indexed DataFrame. Returns a new DataFrame object.
     :param df: a BeliefsDataFrame (or just a multi-indexed DataFrame).
@@ -122,6 +123,8 @@ def replace_multi_index_level(
     If intersection is True then add indices not contained in the old index and delete indices not contained in the new
     index. New rows have nan columns values and copies of the first row for other index levels (note that the resulting
     index is usually longer and contains values that were both in the old and new index, i.e. the intersection).
+    :param sort: pass sort=False when the replacement index is order-preserving
+    (e.g. a timezone conversion), to skip re-sorting the result.
     """
     # Todo: check whether timezone information is copied over correctly
 
@@ -174,7 +177,9 @@ def replace_multi_index_level(
     # Construct new MultiIndex
     mux = pd.MultiIndex.from_arrays(new_index_values, names=new_index_names)
 
-    df = df.copy(deep=True)
+    # A shallow copy suffices: column data is never mutated here, and both
+    # sort_index() and reindex() return frames with their own (non-aliased) data
+    df = df.copy(deep=False)
     # Apply new MultiIndex
     if intersection is True:
         # Reindex such that new rows get nan column values
@@ -182,7 +187,7 @@ def replace_multi_index_level(
     else:
         # Replace the index
         df.index = mux
-    return df.sort_index()
+    return df.sort_index() if sort else df
 
 
 def append_doc_of(fun):
