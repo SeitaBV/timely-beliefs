@@ -34,31 +34,43 @@ def select_most_recent_belief(
     if df.empty or df.lineage.unique_beliefs_per_event_per_source:
         return df
 
-    # Drop NaN beliefs before selecting the most recent
-    df = df.for_each_belief(
-        lambda x: x.dropna() if x.isnull().all()["event_value"] else x
-    )
-    if df.empty:
-        return df
-
     if "belief_horizon" in df.index.names:
-        return df.groupby(level=["event_start", "source"], group_keys=False).apply(
-            lambda x: x.xs(
-                min(x.lineage.belief_horizons),
-                level="belief_horizon",
-                drop_level=False,
-            )
-        )
+        timing_level, agg = "belief_horizon", "min"
     elif "belief_time" in df.index.names:
-        return df.groupby(level=["event_start", "source"], group_keys=False).apply(
-            lambda x: x.xs(
-                max(x.lineage.belief_times), level="belief_time", drop_level=False
-            )
-        )
+        timing_level, agg = "belief_time", "max"
     else:
         raise KeyError(
             "No belief_horizon or belief_time index level found in DataFrame."
         )
+    event_level = "event_start" if "event_start" in df.index.names else "event_end"
+
+    def level_codes(index: pd.MultiIndex, names: list) -> list:
+        return [index.codes[index.names.index(name)] for name in names]
+
+    # Drop NaN beliefs (i.e. beliefs whose event values are all NaN)
+    # before selecting the most recent
+    valid = pd.Series(df["event_value"].to_numpy()).notna()
+    keep = (
+        valid.groupby(level_codes(df.index, [event_level, timing_level, "source"]))
+        .transform("any")
+        .to_numpy()
+    )
+    if not keep.all():
+        df = df[keep]
+        if df.empty:
+            return df
+
+    # Keep the most recent belief per event and source, i.e. the minimum
+    # belief horizon (or the maximum belief time), retaining all of its
+    # probabilistic (cumulative probability) rows
+    timing_values = df.index.get_level_values(timing_level)
+    extreme = (
+        pd.Series(timing_values.asi8)
+        .groupby(level_codes(df.index, [event_level, "source"]))
+        .transform(agg)
+        .to_numpy()
+    )
+    return df[timing_values.asi8 == extreme]
 
 
 def upsample_event_start(
@@ -290,7 +302,7 @@ def beliefs_long_to_wide(df: "classes.BeliefsDataFrame") -> "classes.BeliefsData
     )
 
     # Optionally label columns explicitly (use the cp as suffix)
-    df_wide.columns = [f"event_value_{cp:g}" for cp in df_wide.columns]
+    df_wide.columns = ["event_value_{:g}".format(cp) for cp in df_wide.columns]
 
     return df_wide
 
