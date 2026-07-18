@@ -99,10 +99,13 @@ def main():
 
     sensor = setup(args.events, args.horizons, args.sources)
     event_end = START + args.events * EVENT_RESOLUTION
+    # A window covering 10% of the events, so the query returns a subset of the data
+    subset_event_end = START + (args.events // 10) * EVENT_RESOLUTION
     beliefs_before = START - timedelta(hours=args.horizons // 2)
     try:
         scenarios = {
             "plain": dict(),
+            "plain_subset": dict(event_ends_before=subset_event_end),
             "most_recent": dict(most_recent_beliefs_only=True),
             "fallback": dict(
                 most_recent_beliefs_only=True,
@@ -117,8 +120,7 @@ def main():
                     session,
                     sensor,
                     event_starts_after=START,
-                    event_ends_before=event_end,
-                    **kwargs,
+                    **{"event_ends_before": event_end, **kwargs},
                 ),
                 args.reps,
                 profile=args.profile,
