@@ -771,17 +771,24 @@ class TimedBeliefDBMixin(TimedBelief):
         # print("\n\n")
 
         # Build our DataFrame of beliefs
-        df = pd.DataFrame(session.execute(q))
-
-        if df.empty:
+        # Execute on the Core connection to skip needless ORM row processing;
+        # flush first to retain the visibility of pending beliefs that
+        # the ORM's autoflush would otherwise have taken care of
+        if session.autoflush:
+            session.flush()
+        rows = session.connection().execute(q).fetchall()
+        if not rows:
             return BeliefsDataFrame(sensor=sensor)
-        df.columns = [
-            "event_start",
-            "belief_horizon",
-            "source_id",
-            "cumulative_probability",
-            "event_value",
-        ]
+        df = pd.DataFrame(
+            rows,
+            columns=[
+                "event_start",
+                "belief_horizon",
+                "source_id",
+                "cumulative_probability",
+                "event_value",
+            ],
+        )
 
         # Fill in sources
         if source is None:
