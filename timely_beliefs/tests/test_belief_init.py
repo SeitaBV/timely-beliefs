@@ -112,3 +112,57 @@ def test_datetime_parsing(dt, ErrorType, match):
 def test_timedelta_parsing(td, ErrorType, match):
     with pytest.raises(ErrorType, match=match):
         utils.parse_timedelta_like(td)
+
+
+def test_source_ordering_is_a_total_order_for_same_name_sources():
+    """Distinct sources sharing a name must still have a strict total order.
+
+    Regression test for https://github.com/SeitaBV/timely-beliefs/issues/238.
+    """
+    a = BeliefSource("same name")
+    b = BeliefSource("same name")
+    assert (a < b) != (b < a)
+    assert (a > b) != (b > a)
+    assert not (a < b and a > b)
+
+
+def test_concat_frames_with_same_name_sources():
+    """Concatenating frames whose source levels hold distinct sources sharing a
+    name must not map any source to NaN.
+
+    Regression test for https://github.com/SeitaBV/timely-beliefs/issues/238.
+    """
+    from timely_beliefs import BeliefsDataFrame
+
+    sensor = Sensor("total order sensor", event_resolution=timedelta(hours=1))
+    sources = [BeliefSource("s" + str(i % 2 + 1)) for i in range(6)]
+    event_starts = pd.date_range("2025-01-01", periods=5, freq="1h", tz="UTC")
+    belief_times = pd.date_range("2024-12-31", periods=3, freq="1h", tz="UTC")
+    spec = [
+        (4, 1, 0, [0.3, 0.7]),
+        (2, 3, 2, [0.5]),
+        (1, 3, 2, [0.5]),
+        (3, 0, 1, [0.3, 0.7]),
+        (1, 3, 1, [0.5]),
+        (5, 2, 0, [0.5]),
+        (4, 2, 2, [0.3, 0.7]),
+    ]
+    frames = [
+        BeliefsDataFrame(
+            [
+                TimedBelief(
+                    sensor=sensor,
+                    source=sources[s],
+                    event_start=event_starts[e],
+                    belief_time=belief_times[b],
+                    cumulative_probability=cp,
+                    event_value=1.0,
+                )
+                for cp in cps
+            ]
+        )
+        for s, e, b, cps in spec
+    ]
+    bdf = pd.concat(frames)
+    returned_sources = bdf.index.get_level_values("source")
+    assert all(isinstance(source, BeliefSource) for source in returned_sources)
