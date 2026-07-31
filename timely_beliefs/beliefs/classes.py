@@ -771,17 +771,24 @@ class TimedBeliefDBMixin(TimedBelief):
         # print("\n\n")
 
         # Build our DataFrame of beliefs
-        df = pd.DataFrame(session.execute(q))
-
-        if df.empty:
+        # Execute on the Core connection to skip needless ORM row processing;
+        # flush first to retain the visibility of pending beliefs that
+        # the ORM's autoflush would otherwise have taken care of
+        if session.autoflush:
+            session.flush()
+        rows = session.connection().execute(q).fetchall()
+        if not rows:
             return BeliefsDataFrame(sensor=sensor)
-        df.columns = [
-            "event_start",
-            "belief_horizon",
-            "source_id",
-            "cumulative_probability",
-            "event_value",
-        ]
+        df = pd.DataFrame(
+            rows,
+            columns=[
+                "event_start",
+                "belief_horizon",
+                "source_id",
+                "cumulative_probability",
+                "event_value",
+            ],
+        )
 
         # Fill in sources
         if source is None:
@@ -793,9 +800,16 @@ class TimedBeliefDBMixin(TimedBelief):
         df["source_id"] = df["source_id"].map(source_map)
         df = df.rename(columns={"source_id": "source"})
 
+        # Compute belief times directly (cf. the belief_times property), so the
+        # BeliefsDataFrame is constructed with its final index right away,
+        # rather than building a belief_horizon index first and replacing it afterwards
+        event_starts = pd.DatetimeIndex(pd.to_datetime(df["event_start"]))
+        knowledge_times = sensor.knowledge_time(event_starts, sensor.event_resolution)
+        df["belief_time"] = knowledge_times - pd.TimedeltaIndex(df["belief_horizon"])
+        df = df.drop(columns=["belief_horizon"])
+
         # Build our BeliefsDataFrame
-        df = BeliefsDataFrame(df, sensor=sensor)
-        df = df.convert_index_from_belief_horizon_to_time()
+        df = BeliefsDataFrame(df, sensor=sensor).sort_index()
 
         # Actually filter by belief time
         if beliefs_after is not None:
@@ -1254,12 +1268,14 @@ class BeliefsDataFrame(pd.DataFrame):
         )
         return self.append(BeliefsDataFrame(sensor=self.sensor, beliefs=beliefs))
 
-    def _replace_multi_index_level(self, level: str, by: Any) -> "BeliefsDataFrame":
+    def _replace_multi_index_level(
+        self, level: str, by: Any, sort: bool = True
+    ) -> "BeliefsDataFrame":
         if isinstance(by, (datetime, pd.Timestamp)):
             by = pd.DatetimeIndex(data=[by] * len(self.index), name=level)
         elif not isinstance(by, pd.Index):
             by = pd.Index(data=[by] * len(self.index), name=level)
-        return tb_utils.replace_multi_index_level(self, level, by)
+        return tb_utils.replace_multi_index_level(self, level, by, sort=sort)
 
     def convert_index_from_belief_time_to_horizon(self) -> "BeliefsDataFrame":
         return self._replace_multi_index_level("belief_time", self.belief_horizons)
@@ -1279,10 +1295,7 @@ class BeliefsDataFrame(pd.DataFrame):
         if "belief_horizon" in self.index.names:
             return self  # timedeltas don't have timezones
         elif "belief_time" in self.index.names:
-            return self._replace_multi_index_level(
-                "belief_time",
-                pd.to_datetime(self.belief_times, utc=True).tz_convert(timezone),
-            )
+            return self._convert_timezone_of_index_level("belief_time", timezone)
         else:
             raise ValueError(
                 "Missing level 'belief_horizon' or 'belief_time' in index."
@@ -1292,17 +1305,39 @@ class BeliefsDataFrame(pd.DataFrame):
         self, timezone: str | pytz.timezone
     ) -> "BeliefsDataFrame":
         if "event_end" in self.index.names:
-            return self._replace_multi_index_level(
-                "event_end",
-                pd.to_datetime(self.event_ends, utc=True).tz_convert(timezone),
-            )
+            return self._convert_timezone_of_index_level("event_end", timezone)
         elif "event_start" in self.index.names:
-            return self._replace_multi_index_level(
-                "event_start",
-                pd.to_datetime(self.event_starts, utc=True).tz_convert(timezone),
-            )
+            return self._convert_timezone_of_index_level("event_start", timezone)
         else:
             raise ValueError("Missing level 'event_start' or 'event_end' in index.")
+
+    def _convert_timezone_of_index_level(
+        self, level: str, timezone: str | pytz.timezone
+    ) -> "BeliefsDataFrame":
+        """Convert the timezone of a datetime index level.
+
+        Timezone conversion preserves the actual instants, so neither the codes nor
+        the sort order of the index change: the unique level values can be converted
+        directly, and no re-sorting is needed.
+
+        Like replace_multi_index_level, this returns a frame with its own data.
+        """
+        i = self.index.names.index(level)
+        level_values = self.index.levels[i]
+        if isinstance(level_values, pd.DatetimeIndex) and level_values.tz is not None:
+            df = self.copy(deep=True)
+            df.index = self.index.set_levels(
+                level_values.tz_convert(timezone), level=level
+            )
+            return df
+        # Fallback for naive or object-dtype levels
+        return self._replace_multi_index_level(
+            level,
+            pd.to_datetime(self.index.get_level_values(level), utc=True).tz_convert(
+                timezone
+            ),
+            sort=False,
+        )
 
     def drop_belief_time_or_horizon_index_level(self) -> "BeliefsDataFrame":
         return self.droplevel(
