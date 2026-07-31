@@ -227,7 +227,36 @@ class TimedBeliefDBMixin(TimedBelief):
     """
     Mixin class for a table with beliefs.
     The fields source and sensor do not point to another table - overwrite them to make that happen.
+
+    The SQLAlchemy type of the two per-row numeric value columns (``cumulative_probability``
+    and ``event_value``) can be customized by setting ``value_column_type`` on your subclass.
     """
+
+    #: SQLAlchemy type used to declare the two per-row numeric value columns,
+    #: ``cumulative_probability`` and ``event_value``.
+    #:
+    #: Defaults to :class:`sqlalchemy.Float` (``double precision``/float8 on PostgreSQL,
+    #: 8 bytes per value). Since these are the only per-row numeric columns on what is
+    #: typically by far the largest table, hosts that do not need the full ~15-17
+    #: significant decimal digits of double precision can trade precision for storage by
+    #: setting this to ``Float(precision=24)``, which maps to PostgreSQL ``real``
+    #: (float4, 4 bytes, ~7 significant decimal digits)::
+    #:
+    #:     class MyBelief(Base, TimedBeliefDBMixin):
+    #:         __tablename__ = "my_timed_belief"
+    #:         value_column_type = Float(precision=24)
+    #:
+    #: This only affects how the columns are *declared*. Migrating an existing table is
+    #: up to the host, and narrowing the type is lossy and not reversible: stored values
+    #: are rounded to the nearest representable value. Before narrowing, check that the
+    #: reduced precision is acceptable for the full range of magnitudes you store -- a
+    #: sensor holding cumulative meter readings or currency totals in the millions has
+    #: far less headroom than one holding instantaneous power values.
+    #:
+    #: Note also that PostgreSQL's ``sum()`` over a ``real`` column accumulates in
+    #: ``real``, so aggregate queries over many rows may want to cast to
+    #: ``double precision`` first.
+    value_column_type = Float
 
     @declared_attr
     def __table_args__(cls):
@@ -250,10 +279,20 @@ class TimedBeliefDBMixin(TimedBelief):
 
     event_start = Column(DateTime(timezone=True), primary_key=True, index=True)
     belief_horizon = Column(Interval(), nullable=False, primary_key=True)
-    cumulative_probability = Column(
-        Float, nullable=False, primary_key=True, default=0.5
-    )
-    event_value = Column(Float, nullable=False)
+
+    # Declared via declared_attr (rather than as plain Columns) so that subclasses can
+    # customize their type through value_column_type. Note that this preserves the
+    # column and primary-key ordering that plain Columns produced, whereas redeclaring
+    # these columns in a subclass body would move them to the front of both.
+    @declared_attr
+    def cumulative_probability(cls):
+        return Column(
+            cls.value_column_type, nullable=False, primary_key=True, default=0.5
+        )
+
+    @declared_attr
+    def event_value(cls):
+        return Column(cls.value_column_type, nullable=False)
 
     @declared_attr
     def sensor_id(cls):

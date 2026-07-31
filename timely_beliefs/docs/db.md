@@ -5,6 +5,7 @@
 1. [Derived database classes](#derived-database-classes)
 1. [Table creation and session](#table-creation-and-session)
 1. [Subclassing](#subclassing)
+1. [Value column precision](#value-column-precision)
 1. [Queries](#queries)
 
 ## Derived database classes
@@ -143,6 +144,35 @@ This one uses a Mixin class called `TimedBeliefDBMixin` (which is also used in t
 Note that we don't say where the sqlalchemy `Base` comes from here. This is the one from your project.
 If you create tables from timely_belief's Base (see above) as well, you end up with more tables that you probably want to use.
 Which is not a blocker, but for cleanliness you might want to get all tables from timely beliefs base or define all Table implementations yourself, such as with `JoyfulBeliefInCustomTable` above.
+
+### Value column precision
+
+`cumulative_probability` and `event_value` are the only per-row numeric columns on the beliefs table, which is typically by far the largest table.
+By default both are declared as `Float`, which PostgreSQL stores as `double precision` (float8, 8 bytes per value, ~15-17 significant decimal digits).
+
+If you do not need that much precision, you can trade it for storage by setting `value_column_type` on your subclass.
+`Float(precision=24)` maps to PostgreSQL `real` (float4, 4 bytes, ~7 significant decimal digits), which roughly halves the width of both columns:
+
+    from sqlalchemy import Float
+    from timely_beliefs import TimedBeliefDBMixin
+
+
+    class CompactBelief(Base, TimedBeliefDBMixin):
+
+        __tablename__ = "compact_timed_belief"
+
+        value_column_type = Float(precision=24)
+
+This only changes how the columns are *declared*; migrating an existing table is up to you.
+
+Before narrowing the type, weigh the following:
+
+- **It is lossy and not reversible.** Existing values are rounded to the nearest representable value when you migrate. Widening the column again restores the type, not the digits.
+- **Check your magnitudes, not just your units.** ~7 significant digits is ample for instantaneous power readings, and for a cumulative probability in `[0, 1]`. It is *not* ample for cumulative meter readings or currency totals in the millions, where the gap between representable values grows past 0.1.
+- **Migrating is expensive.** `ALTER COLUMN ... TYPE` rewrites the whole table, and rebuilds the primary key because `cumulative_probability` is part of it. On a large beliefs table, plan a maintenance window.
+- **`sum()` accumulates in the column's own type.** PostgreSQL's `sum(real)` returns `real` and accumulates in `real`, so a sum over many rows can drift noticeably. Cast to `double precision` inside aggregate queries: `sum(event_value::double precision)`. (`avg(real)` already accumulates in double precision, and `min`/`max` are unaffected.)
+
+Note that `BeliefsDataFrame` always holds these values as float64 regardless of the column type, so this setting does not change any in-memory dtypes.
 
 ### Queries
 
