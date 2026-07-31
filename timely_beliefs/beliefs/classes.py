@@ -1319,11 +1319,13 @@ class BeliefsDataFrame(pd.DataFrame):
         Timezone conversion preserves the actual instants, so neither the codes nor
         the sort order of the index change: the unique level values can be converted
         directly, and no re-sorting is needed.
+
+        Like replace_multi_index_level, this returns a frame with its own data.
         """
         i = self.index.names.index(level)
         level_values = self.index.levels[i]
         if isinstance(level_values, pd.DatetimeIndex) and level_values.tz is not None:
-            df = self.copy(deep=False)
+            df = self.copy(deep=True)
             df.index = self.index.set_levels(
                 level_values.tz_convert(timezone), level=level
             )
