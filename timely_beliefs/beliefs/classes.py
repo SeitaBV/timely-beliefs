@@ -20,6 +20,7 @@ import pytz
 from pandas.core.groupby import DataFrameGroupBy
 from pandas.util._decorators import cache_readonly
 from sqlalchemy import (
+    BigInteger,
     Column,
     DateTime,
     Float,
@@ -28,6 +29,7 @@ from sqlalchemy import (
     Interval,
     Table,
     and_,
+    cast,
     func,
     select,
     union_all,
@@ -594,9 +596,24 @@ class TimedBeliefDBMixin(TimedBelief):
             return q
 
         # Main query
+        # Select timing columns as epoch microseconds, so the driver returns integers
+        # rather than datetime/timedelta objects - materializing Python objects
+        # for each row dominates the fetch time of large results otherwise.
+        # date_part is used rather than extract, because it returns float8 on all
+        # PostgreSQL versions, whereas extract returns numeric since v14, which is
+        # about 40% slower to compute (the cast keeps both out of Python as ints).
+        # The float8 route is exact for the microsecond-precision values PostgreSQL
+        # stores, as long as the epoch stays within 2**53 microseconds of 1970
+        # (i.e. between the years 1685 and 2255, and for horizons under 285 years):
+        # the double rounds to within a quarter microsecond, and the cast to bigint
+        # rounds (rather than truncates) that back to the exact microsecond.
         q = select(
-            cls.event_start,
-            cls.belief_horizon,
+            cast(
+                func.date_part("epoch", cls.event_start) * 1_000_000, BigInteger
+            ).label("event_start"),
+            cast(
+                func.date_part("epoch", cls.belief_horizon) * 1_000_000, BigInteger
+            ).label("belief_horizon"),
             cls.source_id,
             cls.cumulative_probability,
             cls.event_value,
@@ -779,16 +796,21 @@ class TimedBeliefDBMixin(TimedBelief):
         rows = session.connection().execute(q).fetchall()
         if not rows:
             return BeliefsDataFrame(sensor=sensor)
+
+        # Read each column straight into a typed array, rather than transposing the
+        # rows first, which would hold a second copy of the whole result in memory
+        def column(i: int, dtype) -> np.ndarray:
+            return np.fromiter((row[i] for row in rows), dtype=dtype, count=len(rows))
+
         df = pd.DataFrame(
-            rows,
-            columns=[
-                "event_start",
-                "belief_horizon",
-                "source_id",
-                "cumulative_probability",
-                "event_value",
-            ],
+            {
+                "event_start": pd.to_datetime(column(0, np.int64), unit="us", utc=True),
+                "source_id": column(2, np.int64),
+                "cumulative_probability": column(3, float),
+                "event_value": column(4, float),
+            }
         )
+        belief_horizons = pd.to_timedelta(column(1, np.int64), unit="us")
 
         # Fill in sources
         if source is None:
@@ -803,10 +825,9 @@ class TimedBeliefDBMixin(TimedBelief):
         # Compute belief times directly (cf. the belief_times property), so the
         # BeliefsDataFrame is constructed with its final index right away,
         # rather than building a belief_horizon index first and replacing it afterwards
-        event_starts = pd.DatetimeIndex(pd.to_datetime(df["event_start"]))
+        event_starts = pd.DatetimeIndex(df["event_start"])
         knowledge_times = sensor.knowledge_time(event_starts, sensor.event_resolution)
-        df["belief_time"] = knowledge_times - pd.TimedeltaIndex(df["belief_horizon"])
-        df = df.drop(columns=["belief_horizon"])
+        df["belief_time"] = knowledge_times - belief_horizons
 
         # Build our BeliefsDataFrame
         df = BeliefsDataFrame(df, sensor=sensor).sort_index()
