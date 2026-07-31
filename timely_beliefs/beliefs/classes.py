@@ -596,15 +596,24 @@ class TimedBeliefDBMixin(TimedBelief):
             return q
 
         # Main query
-        # Select timing columns as epoch microseconds (exact, since PostgreSQL
-        # timestamps have microsecond precision), so the driver returns integers
+        # Select timing columns as epoch microseconds, so the driver returns integers
         # rather than datetime/timedelta objects - materializing Python objects
         # for each row dominates the fetch time of large results otherwise.
-        # Note that date_part returns float8 on all PostgreSQL versions
-        # (unlike extract, which returns numeric - i.e. slow Decimals - since v14).
+        # date_part is used rather than extract, because it returns float8 on all
+        # PostgreSQL versions, whereas extract returns numeric since v14, which is
+        # about 40% slower to compute (the cast keeps both out of Python as ints).
+        # The float8 route is exact for the microsecond-precision values PostgreSQL
+        # stores, as long as the epoch stays within 2**53 microseconds of 1970
+        # (i.e. between the years 1685 and 2255, and for horizons under 285 years):
+        # the double rounds to within a quarter microsecond, and the cast to bigint
+        # rounds (rather than truncates) that back to the exact microsecond.
         q = select(
-            cast(func.date_part("epoch", cls.event_start) * 1_000_000, BigInteger),
-            cast(func.date_part("epoch", cls.belief_horizon) * 1_000_000, BigInteger),
+            cast(
+                func.date_part("epoch", cls.event_start) * 1_000_000, BigInteger
+            ).label("event_start"),
+            cast(
+                func.date_part("epoch", cls.belief_horizon) * 1_000_000, BigInteger
+            ).label("belief_horizon"),
             cls.source_id,
             cls.cumulative_probability,
             cls.event_value,
@@ -787,20 +796,21 @@ class TimedBeliefDBMixin(TimedBelief):
         rows = session.connection().execute(q).fetchall()
         if not rows:
             return BeliefsDataFrame(sensor=sensor)
-        raw_columns = list(zip(*rows))
+
+        # Read each column straight into a typed array, rather than transposing the
+        # rows first, which would hold a second copy of the whole result in memory
+        def column(i: int, dtype) -> np.ndarray:
+            return np.fromiter((row[i] for row in rows), dtype=dtype, count=len(rows))
+
         df = pd.DataFrame(
             {
-                "event_start": pd.to_datetime(
-                    np.asarray(raw_columns[0], dtype=np.int64), unit="us", utc=True
-                ),
-                "source_id": np.asarray(raw_columns[2], dtype=np.int64),
-                "cumulative_probability": np.asarray(raw_columns[3], dtype=float),
-                "event_value": np.asarray(raw_columns[4], dtype=float),
+                "event_start": pd.to_datetime(column(0, np.int64), unit="us", utc=True),
+                "source_id": column(2, np.int64),
+                "cumulative_probability": column(3, float),
+                "event_value": column(4, float),
             }
         )
-        belief_horizons = pd.to_timedelta(
-            np.asarray(raw_columns[1], dtype=np.int64), unit="us"
-        )
+        belief_horizons = pd.to_timedelta(column(1, np.int64), unit="us")
 
         # Fill in sources
         if source is None:
