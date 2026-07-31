@@ -177,9 +177,9 @@ def replace_multi_index_level(
     # Construct new MultiIndex
     mux = pd.MultiIndex.from_arrays(new_index_values, names=new_index_names)
 
-    # A shallow copy suffices: column data is never mutated here, and both
-    # sort_index() and reindex() return frames with their own (non-aliased) data
-    df = df.copy(deep=False)
+    # Deep copy, so that mutating the returned frame never affects the caller's data
+    # (pandas only guarantees that for a deep copy as long as copy-on-write is optional)
+    df = df.copy(deep=True)
     # Apply new MultiIndex
     if intersection is True:
         # Reindex such that new rows get nan column values
