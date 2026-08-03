@@ -248,7 +248,9 @@ class TimedBeliefDBMixin(TimedBelief):
             ),
         )
 
-    event_start = Column(DateTime(timezone=True), primary_key=True, index=True)
+    # No index=True here: a single-column index on event_start would be redundant with
+    # the search_session_idx declared above, which leads with event_start.
+    event_start = Column(DateTime(timezone=True), primary_key=True)
     belief_horizon = Column(Interval(), nullable=False, primary_key=True)
     cumulative_probability = Column(
         Float, nullable=False, primary_key=True, default=0.5
@@ -257,11 +259,14 @@ class TimedBeliefDBMixin(TimedBelief):
 
     @declared_attr
     def sensor_id(cls):
+        # No index=True here either: a single-column index on sensor_id would be
+        # redundant with search_session_singleevent_idx, which leads with sensor_id.
+        # That composite also covers the ON DELETE CASCADE below, since PostgreSQL
+        # only needs to find rows by sensor_id and a leading-column match suffices.
         return Column(
             Integer(),
             ForeignKey("sensor.id", ondelete="CASCADE"),
             primary_key=True,
-            index=True,
         )
 
     @declared_attr
