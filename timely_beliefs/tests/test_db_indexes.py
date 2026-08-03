@@ -4,6 +4,8 @@ These build a throwaway declarative class and inspect the resulting table
 metadata, so they need no database.
 """
 
+from __future__ import annotations
+
 from sqlalchemy import Column, ForeignKey, Integer
 from sqlalchemy.orm import declarative_base, declared_attr
 
