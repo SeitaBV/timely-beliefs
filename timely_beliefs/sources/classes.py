@@ -32,8 +32,15 @@ class BeliefSource(object):
         return self.name
 
     def __lt__(self, other):
-        """Set a rule for ordering."""
-        return self.__str__() < other.__str__()
+        """Set a rule for ordering: by string representation, tie-broken by object identity.
+
+        The tie-break makes the ordering a strict total order consistent with the
+        (identity-based) equality, also for distinct sources sharing a name.
+        Without it, sorting is ill-defined for such sources, and pandas operations
+        that sort an index level and then search it (e.g. pd.concat unioning the
+        source level of several BeliefsDataFrames) can silently map sources to NaN.
+        """
+        return (self.__str__(), id(self)) < (other.__str__(), id(other))
 
 
 class BeliefSourceDBMixin(BeliefSource):
