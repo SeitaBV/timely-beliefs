@@ -32,8 +32,10 @@ class BeliefSource(object):
         return self.name
 
     def __lt__(self, other):
-        """Set a rule for ordering."""
-        return self.__str__() < other.__str__()
+        """Set a strict total order, tiebreaking on object identity when names are equal."""
+        if not isinstance(other, BeliefSource):
+            return NotImplemented
+        return (str(self), id(self)) < (str(other), id(other))
 
 
 class BeliefSourceDBMixin(BeliefSource):

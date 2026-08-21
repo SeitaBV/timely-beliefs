@@ -52,8 +52,9 @@ def db():
     session.close()
 
     # Defensive cleanup for optional mviews
-    with engine.begin() as conn:
-        conn.execute(text(DROP_MVIEW_SQL))
+    if engine.name != "sqlite":
+        with engine.begin() as conn:
+            conn.execute(text(DROP_MVIEW_SQL))
 
     Base.metadata.drop_all(engine)
 
@@ -63,6 +64,9 @@ def most_recent_beliefs_mview(db, request):
     """Create a materialized view if the use_mview fixture is used."""
     if "use_mview" not in request.fixturenames:
         return
+
+    if engine.name == "sqlite":
+        pytest.skip("SQLite does not support materialized views")
 
     conn = session.connection()
 
