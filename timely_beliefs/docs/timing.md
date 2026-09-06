@@ -3,6 +3,7 @@
 ## Table of contents
 
 1. [Events and sensors](#events-and-sensors)
+1. [Event resolution vs event frequency](#event-resolution-vs-event-frequency)
 1. [Beliefs in physics](#beliefs-in-physics)
 1. [Beliefs in economics](#beliefs-in-economics)
 1. [A common misconception](#a-common-misconception)
@@ -23,6 +24,46 @@ We define the resolution to be a fixed property of the sensor. For example:
 
 - An anemometer (wind speed meter) determines the number of revolutions within some period of time.
 - A futures contract determines the price of a future delivery within some period of time.
+
+## Event resolution vs event frequency
+
+In `timely-beliefs`, we make a distinction between two temporal concepts:
+
+- **`event_resolution`**: The duration of an individual event (`event_end - event_start`). It is an intrinsic property of the sensor representing the integration window over which a physical or economic quantity is measured or defined (e.g. 15-minute average power, 3-second wind speed, or `0` for instantaneous temperature).
+- **`event_frequency`**: The duration between consecutive event observations in a time series (i.e. how often events are recorded or spaced in time).
+
+### Four common configurations
+
+1. **Continuous back-to-back intervals (`event_resolution == event_frequency`)**
+   The time series consists of consecutive, non-overlapping windows. For example, 15-minute energy measurements where each event spans 15 minutes and a new measurement occurs every 15 minutes:
+   ```
+   event_resolution = 15m
+   event_frequency = 15m
+   ```
+
+2. **Sliding window observations (`event_resolution > event_frequency`)**
+   The measurement window is wider than the recording interval. For example, a sensor recording the 3-second average wind speed every 1 second:
+   ```
+   event_resolution = 3s
+   event_frequency = 1s
+   ```
+
+3. **Instantaneous observations (`event_resolution == 0`)**
+   The measurement represents a point in time rather than a duration over time. For example, thermometer readings recorded once per hour:
+   ```
+   event_resolution = 0s
+   event_frequency = 1h
+   ```
+
+4. **Gappy or irregular time series (`event_frequency is None`)**
+   When observations contain gaps or irregular intervals, pandas cannot infer a single strict frequency (`df.event_frequency` returns `None`). `timely-beliefs` provides `df.most_common_event_frequency` to determine the dominant step size across the series.
+
+### Resampling semantics
+
+When resampling a `BeliefsDataFrame` via `.resample_events()`:
+- **Non-instantaneous sensors**: Both the event resolution and the data frequency are updated to the target resolution. For example, downsampling 15-minute data to 1 hour aggregates 4 events into 1-hour blocks (`event_resolution = 1h`, `event_frequency = 1h`).
+- **Instantaneous sensors**: Resampling (e.g. upsampling hourly temperature to 30 minutes via interpolation) updates the data frequency to 30 minutes while preserving the underlying zero event resolution (`event_resolution = 0s`).
+
 
 ## Beliefs in physics
 

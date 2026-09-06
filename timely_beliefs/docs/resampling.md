@@ -45,6 +45,8 @@ However, the event resolution of the BeliefsDataFrame is updated, as well as kno
     >>> -df5m.knowledge_horizons[0]
     Timedelta('0 days 00:05:00')
 
+See [Keeping track of time](timing.md#event-resolution-vs-event-frequency) for details on how event resolution relates to event frequency during resampling.
+
 ## Downsampling
 
 Downsample to events with a resolution of 2 hours:
