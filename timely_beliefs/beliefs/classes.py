@@ -340,10 +340,16 @@ class TimedBeliefDBMixin(TimedBelief):
         beliefs_data_frame = (
             beliefs_data_frame.convert_index_from_belief_time_to_horizon().reset_index()
         )
-        beliefs = [
-            cls(sensor=beliefs_data_frame.sensor, **d)
-            for d in beliefs_data_frame.to_dict("records")
-        ]
+        if not bulk_save_objects:
+            # Only the ORM path below writes these. The bulk path used to build them
+            # too, which cost more than the write it was feeding: the sensor and source
+            # backrefs pull every one of them into the session, so a batch of 29k
+            # beliefs spent seconds in register_object during the flush, for objects
+            # nothing ever reads.
+            beliefs = [
+                cls(sensor=beliefs_data_frame.sensor, **d)
+                for d in beliefs_data_frame.to_dict("records")
+            ]
 
         if expunge_session:
             session.expunge_all()
