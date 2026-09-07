@@ -195,11 +195,11 @@ def test_copy_handles_negative_and_fractional_horizons(time_slot_sensor, test_so
     assert (got["belief_time"] - got["event_start"]).nunique() == 1
 
 
-def test_copy_handles_sub_microsecond_scale_horizons(time_slot_sensor, test_source_a):
-    """A horizon under 1e-4 seconds must not be written in exponent notation.
+def test_copy_handles_microsecond_horizons(time_slot_sensor, test_source_a):
+    """A horizon of a few microseconds must not be written in exponent notation.
 
-    str(timedelta.total_seconds()) renders 15 microseconds as "1.5e-05", which
-    PostgreSQL's interval parser rejects.
+    str(timedelta.total_seconds()) switches to exponent notation below 1e-4 seconds,
+    rendering 15 microseconds as "1.5e-05", which PostgreSQL's interval parser rejects.
     """
     horizon = timedelta(microseconds=15)
     DBTimedBelief.add_to_session(
