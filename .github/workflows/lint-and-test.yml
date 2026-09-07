@@ -1,6 +1,16 @@
 name: lint-and-test
 
-on: push
+on:
+  # Pull requests, so that contributions from forks are checked before they are merged.
+  # Forks cannot run these checks themselves, because their own Actions runs never report back to this repository.
+  pull_request:
+  # Pushes to main and to tags only, so that the post-merge and released states stay checked,
+  # without running every branch twice. Branches are already covered by the pull request trigger.
+  push:
+    branches:
+      - main
+    tags:
+      - '**'
 
 
 jobs:
