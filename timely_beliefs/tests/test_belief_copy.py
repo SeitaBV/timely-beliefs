@@ -43,10 +43,66 @@ def read_back(sensor, source):
     return bdf.reset_index().sort_values("event_start").reset_index(drop=True)
 
 
-def test_copy_path_is_taken(time_slot_sensor, test_source_a):
+def test_copy_path_is_taken(time_slot_sensor, test_source_a, monkeypatch):
     """A batch over the threshold goes through COPY; a small one does not."""
-    assert classes._should_copy(session, N) is True
-    assert classes._should_copy(session, classes.COPY_THRESHOLD - 1) is False
+    taken = []
+    original = DBTimedBelief._copy_to_session.__func__
+    monkeypatch.setattr(
+        DBTimedBelief,
+        "_copy_to_session",
+        classmethod(lambda cls, *args: (taken.append(True), original(cls, *args))[1]),
+    )
+
+    DBTimedBelief.add_to_session(
+        session, frame_of(time_slot_sensor, test_source_a), commit_transaction=True
+    )
+    assert taken == [True]
+
+    small = classes.COPY_THRESHOLD - 1
+    DBTimedBelief.add_to_session(
+        session,
+        frame_of(time_slot_sensor, test_source_a, n=small, offset=1000.0),
+        allow_overwrite=True,
+        commit_transaction=True,
+    )
+    assert taken == [True], "a batch under the threshold should keep the INSERT"
+
+
+def test_copy_leaves_python_side_defaults_to_the_insert(time_slot_sensor):
+    """COPY only sees the table's own DEFAULTs, so a Python-side one has to opt out.
+
+    cumulative_probability defaults to 0.5 in Python, not in the table, so a frame
+    without that column must not take the COPY path.
+    """
+    table = DBTimedBelief.__table__
+    frame = pd.DataFrame(
+        columns=["event_start", "belief_horizon", "event_value", "source_id"],
+        index=range(N),
+    )
+    assert classes._should_copy(session, table, frame) is False
+
+    frame["cumulative_probability"] = 0.5
+    assert classes._should_copy(session, table, frame) is True
+    assert classes._should_copy(session, table, frame.head(1)) is False
+
+
+def test_copy_upserts_twice_in_one_transaction(time_slot_sensor, test_source_a):
+    """The staging table outlives a batch, so it must not leak rows into the next one."""
+    DBTimedBelief.add_to_session(
+        session,
+        frame_of(time_slot_sensor, test_source_a),
+        allow_overwrite=True,
+        commit_transaction=False,
+    )
+    DBTimedBelief.add_to_session(
+        session,
+        frame_of(time_slot_sensor, test_source_a, offset=7.0),
+        allow_overwrite=True,
+        commit_transaction=True,
+    )
+    got = read_back(time_slot_sensor, test_source_a)
+    assert len(got) == N
+    assert got["event_value"].iloc[0] == 7.0
 
 
 @pytest.mark.parametrize("allow_overwrite", [False, True])

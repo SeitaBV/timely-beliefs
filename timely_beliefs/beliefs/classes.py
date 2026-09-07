@@ -8,6 +8,7 @@ import operator
 import types
 from datetime import datetime, timedelta
 from functools import partial
+from itertools import islice
 from typing import TYPE_CHECKING, Any, Callable, Literal, Type, Union
 
 from packaging import version
@@ -29,6 +30,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Interval,
+    String,
     Table,
     and_,
     cast,
@@ -65,6 +67,11 @@ logger = logging.getLogger(__name__)
 # Below this many beliefs, a multi-row INSERT is not worth replacing: COPY only starts
 # to pay once the client-side cost of binding one parameter per value dominates.
 COPY_THRESHOLD = 200
+
+# How much CSV to hand the driver at a time. Rendering the whole frame up front would
+# hold a second copy of it in memory, which for a batch of a million beliefs is tens of
+# megabytes that buy nothing.
+_COPY_CHUNK_SIZE = 1 << 20
 
 METADATA = ["sensor", "event_resolution"]
 DatetimeLike = Union[datetime, str, pd.Timestamp]
@@ -375,7 +382,7 @@ class TimedBeliefDBMixin(TimedBelief):
             beliefs_data_frame["sensor_id"] = beliefs_data_frame.sensor.id
             beliefs_data_frame = beliefs_data_frame.drop(columns=["source"])
 
-            if _should_copy(session, len(beliefs_data_frame)):
+            if _should_copy(session, cls.__table__, beliefs_data_frame):
                 cls._copy_to_session(session, beliefs_data_frame, allow_overwrite)
             else:
                 smt = insert(cls).values(beliefs_data_frame.to_dict("records"))
@@ -430,18 +437,24 @@ class TimedBeliefDBMixin(TimedBelief):
 
         if allow_overwrite:
             # A temporary table, because COPY has no ON CONFLICT clause of its own.
+            # One per connection, kept across batches: creating and dropping it per
+            # batch left a dozen dead pg_attribute rows behind each time, and cost two
+            # round trips that the upsert path can do without. It empties itself at
+            # commit, and is emptied again here, because two calls within one
+            # transaction would otherwise let the first batch's rows through twice.
             staging = f"tb_copy_{table.name}"
             session.execute(
                 text(
-                    f'CREATE TEMPORARY TABLE "{staging}" '
-                    f'(LIKE "{table.name}" INCLUDING DEFAULTS) ON COMMIT DROP'
+                    f'CREATE TEMPORARY TABLE IF NOT EXISTS "{staging}" '
+                    f'(LIKE "{table.name}" INCLUDING DEFAULTS) ON COMMIT DELETE ROWS'
                 )
             )
+            session.execute(text(f'TRUNCATE "{staging}"'))
             target = staging
         else:
             target = table.name
 
-        _copy_frame(session, target, columns, beliefs_data_frame)
+        _copy_frame(session, target, columns, beliefs_data_frame, table)
 
         if allow_overwrite:
             session.execute(
@@ -453,7 +466,6 @@ class TimedBeliefDBMixin(TimedBelief):
                     "DO UPDATE SET event_value = EXCLUDED.event_value"
                 )
             )
-            session.execute(text(f'DROP TABLE "{staging}"'))
 
     @classmethod
     def search_session(  # noqa: C901
@@ -2567,19 +2579,68 @@ def downsample_beliefs_data_frame(
     return df
 
 
-def _should_copy(session: Session, n_rows: int) -> bool:
+def _should_copy(session: Session, table: Table, frame: pd.DataFrame) -> bool:
     """Whether this batch of beliefs is worth streaming with COPY.
 
     COPY is PostgreSQL-only, so any other backend keeps the multi-row INSERT.
     """
-    if n_rows < COPY_THRESHOLD:
+    if len(frame) < COPY_THRESHOLD:
         return False
     bind = session.get_bind()
-    return bool(bind is not None and bind.dialect.name == "postgresql")
+    if bind is None or bind.dialect.name != "postgresql":
+        return False
+    # A column the frame leaves out falls back to the table's own DEFAULT under COPY,
+    # and a default declared in Python (as cumulative_probability's 0.5 is) never
+    # reaches the table. INSERT fills those in itself, so let it.
+    return not any(
+        column.default is not None and column.name not in frame.columns
+        for column in table.columns
+    )
+
+
+class _CsvRows(io.TextIOBase):
+    """The frame's rows as CSV, rendered while the driver reads them.
+
+    Only ``read`` is used: psycopg2's ``copy_expert`` pulls from it, and the psycopg 3
+    branch pushes what it returns.
+    """
+
+    def __init__(self, frame: pd.DataFrame, columns: list[str]):
+        self._rows = frame[columns].itertuples(index=False, name=None)
+        self._buffer = io.StringIO()
+        self._writer = csv.writer(self._buffer, lineterminator="\n")
+        self._pending = ""
+
+    def readable(self) -> bool:
+        return True
+
+    def read(self, size: int | None = -1) -> str:
+        while size is None or size < 0 or len(self._pending) < size:
+            self._buffer.seek(0)
+            self._buffer.truncate(0)
+            rows = list(islice(self._rows, 1000))
+            if not rows:
+                break
+            self._writer.writerows(
+                [_as_copy_value(value) for value in row] for row in rows
+            )
+            self._pending += self._buffer.getvalue()
+        if size is None or size < 0:
+            chunk, self._pending = self._pending, ""
+            return chunk
+        chunk, self._pending = self._pending[:size], self._pending[size:]
+        return chunk
+
+    def readline(self, size: int | None = -1) -> str:  # pragma: no cover
+        raise io.UnsupportedOperation("_CsvRows is read-in-chunks only")
 
 
 def _copy_frame(
-    session: Session, table_name: str, columns: list[str], frame: pd.DataFrame
+    session: Session,
+    table_name: str,
+    columns: list[str],
+    frame: pd.DataFrame,
+    table: Table,
 ) -> None:
     """Stream a frame into a PostgreSQL table with COPY, inside the session's transaction.
 
@@ -2588,14 +2649,17 @@ def _copy_frame(
     tends to get wrong on exactly the values that are rare enough not to show up in
     testing.
     """
-    buffer = io.StringIO()
-    writer = csv.writer(buffer, lineterminator="\n")
-    for row in frame[columns].itertuples(index=False, name=None):
-        writer.writerow([_as_copy_value(value) for value in row])
-    buffer.seek(0)
+    reader = _CsvRows(frame, columns)
 
     quoted = ", ".join(f'"{c}"' for c in columns)
-    statement = f'COPY "{table_name}" ({quoted}) FROM STDIN WITH (FORMAT csv)'
+    options = "FORMAT csv"
+    # Without this, an empty string in a text column would arrive as NULL, because that
+    # is what an unquoted empty CSV field means. No column of a belief is text, but a
+    # table built on this mixin may well add one.
+    textual = [c for c in columns if isinstance(table.c[c].type, String)]
+    if textual:
+        options += " , FORCE_NOT_NULL (" + ", ".join(f'"{c}"' for c in textual) + ")"
+    statement = f'COPY "{table_name}" ({quoted}) FROM STDIN WITH ({options})'
 
     # Go through session.connection() so the COPY joins the session's transaction and
     # is rolled back with it.
@@ -2604,10 +2668,11 @@ def _copy_frame(
     try:
         with connection.connection.driver_connection.cursor() as cursor:
             if hasattr(cursor, "copy_expert"):  # psycopg2
-                cursor.copy_expert(statement, buffer)
+                cursor.copy_expert(statement, reader)
             else:  # psycopg 3
                 with cursor.copy(statement) as copy:
-                    copy.write(buffer.read())
+                    while chunk := reader.read(_COPY_CHUNK_SIZE):
+                        copy.write(chunk)
     except dialect.dbapi.Error as error:
         # Driving the cursor directly means SQLAlchemy never sees the failure, so a
         # unique violation would surface as a raw psycopg error rather than as
