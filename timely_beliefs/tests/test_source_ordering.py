@@ -34,9 +34,9 @@ def test_belief_source_lt_same_name_tiebreaks_on_identity():
     s2 = BeliefSource("same")
 
     # Exactly one must be strictly less than the other.
-    assert (s1 < s2) != (s2 < s1), (
-        "__lt__ must tiebreak on id() so distinct same-name objects are comparable"
-    )
+    assert (s1 < s2) != (
+        s2 < s1
+    ), "__lt__ must tiebreak on id() so distinct same-name objects are comparable"
 
     # They are not equal to each other (identity semantics).
     assert s1 != s2
@@ -64,8 +64,8 @@ def test_belief_source_identity_equality_and_hash():
     s1 = BeliefSource("Source A")
     s2 = BeliefSource("Source A")  # same name, different object
 
-    assert s1 == s1        # same object is equal to itself
-    assert s1 != s2        # different objects, even with the same name
+    assert s1 == s1  # same object is equal to itself
+    assert s1 != s2  # different objects, even with the same name
 
     # Each source is its own unique dict key / set member.
     source_set = {s1, s2}
