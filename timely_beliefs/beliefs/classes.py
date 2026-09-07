@@ -439,19 +439,18 @@ class TimedBeliefDBMixin(TimedBelief):
 
         if allow_overwrite:
             # A temporary table, because COPY has no ON CONFLICT clause of its own.
-            # One per connection, kept across batches: creating and dropping it per
-            # batch left a dozen dead pg_attribute rows behind each time, and cost two
-            # round trips that the upsert path can do without. It empties itself at
-            # commit, and is emptied again here, because two calls within one
-            # transaction would otherwise let the first batch's rows through twice.
+            # Created and dropped per batch: keeping one per connection saves no round
+            # trip (both shapes are four statements) and only avoids some catalog
+            # churn, in exchange for a definition that outlives the transaction on a
+            # pooled connection and goes stale if a migration renames or drops one of
+            # the columns written here.
             staging = f"tb_copy_{table.name}"
             session.execute(
                 text(
-                    f'CREATE TEMPORARY TABLE IF NOT EXISTS "{staging}" '
-                    f'(LIKE "{table.name}" INCLUDING DEFAULTS) ON COMMIT DELETE ROWS'
+                    f'CREATE TEMPORARY TABLE "{staging}" '
+                    f'(LIKE "{table.name}" INCLUDING DEFAULTS) ON COMMIT DROP'
                 )
             )
-            session.execute(text(f'TRUNCATE "{staging}"'))
             target = staging
         else:
             target = table.name
@@ -468,6 +467,7 @@ class TimedBeliefDBMixin(TimedBelief):
                     "DO UPDATE SET event_value = EXCLUDED.event_value"
                 )
             )
+            session.execute(text(f'DROP TABLE "{staging}"'))
 
     @classmethod
     def search_session(  # noqa: C901

@@ -88,7 +88,11 @@ def test_copy_leaves_python_side_defaults_to_the_insert(time_slot_sensor):
 
 
 def test_copy_upserts_twice_in_one_transaction(time_slot_sensor, test_source_a):
-    """The staging table outlives a batch, so it must not leak rows into the next one."""
+    """Two upserts in one transaction each get their own staging table.
+
+    The second CREATE TEMPORARY TABLE has to find the name free, and must not see the
+    first batch's rows.
+    """
     DBTimedBelief.add_to_session(
         session,
         frame_of(time_slot_sensor, test_source_a),
