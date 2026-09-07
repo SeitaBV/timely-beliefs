@@ -5,6 +5,7 @@ binding one parameter per value. These tests drive batches over COPY_THRESHOLD, 
 take that path, and compare against the same beliefs written the old way.
 """
 
+import math
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -19,7 +20,7 @@ from timely_beliefs.tests import session
 N = classes.COPY_THRESHOLD + 50  # comfortably over the threshold
 
 
-def frame_of(sensor, source, n=N, offset=0.0, belief_horizon=timedelta(0)):
+def frame_of(sensor, source, n=N, offset=0.0, belief_horizon=timedelta(0), values=None):
     """A frame of `n` beliefs about consecutive events, one belief each."""
     index = pd.date_range(
         datetime(2000, 1, 3, 9, tzinfo=pytz.utc),
@@ -27,10 +28,10 @@ def frame_of(sensor, source, n=N, offset=0.0, belief_horizon=timedelta(0)):
         freq=sensor.event_resolution,
         name="event_start",
     )
+    if values is None:
+        values = [float(i) + offset for i in range(n)]
     return BeliefsDataFrame(
-        pd.Series(
-            [float(i) + offset for i in range(n)], index=index, name="event_value"
-        ),
+        pd.Series(values, index=index, name="event_value"),
         belief_horizon=belief_horizon,
         sensor=sensor,
         source=source,
@@ -131,3 +132,38 @@ def test_copy_handles_negative_and_fractional_horizons(time_slot_sensor, test_so
     assert len(got) == N
     # belief_time = event knowledge time - horizon, so a negative horizon lands after it
     assert (got["belief_time"] - got["event_start"]).nunique() == 1
+
+
+def test_copy_handles_sub_microsecond_scale_horizons(time_slot_sensor, test_source_a):
+    """A horizon under 1e-4 seconds must not be written in exponent notation.
+
+    str(timedelta.total_seconds()) renders 15 microseconds as "1.5e-05", which
+    PostgreSQL's interval parser rejects.
+    """
+    horizon = timedelta(microseconds=15)
+    DBTimedBelief.add_to_session(
+        session,
+        frame_of(time_slot_sensor, test_source_a, belief_horizon=horizon),
+        commit_transaction=True,
+    )
+    got = read_back(time_slot_sensor, test_source_a)
+    assert len(got) == N
+    assert (got["belief_time"] - got["event_start"]).nunique() == 1
+
+
+def test_copy_writes_nan_event_values_as_nan(time_slot_sensor, test_source_a):
+    """A NaN event value stays NaN, as it was under the multi-row INSERT.
+
+    An empty CSV field would be NULL, and event_value is NOT NULL.
+    """
+    values = [float(i) for i in range(N)]
+    values[3] = float("nan")
+    DBTimedBelief.add_to_session(
+        session,
+        frame_of(time_slot_sensor, test_source_a, values=values),
+        commit_transaction=True,
+    )
+    got = read_back(time_slot_sensor, test_source_a)
+    assert len(got) == N
+    assert math.isnan(got["event_value"].iloc[3])
+    assert got["event_value"].iloc[4] == 4.0

@@ -2613,14 +2613,22 @@ def _copy_frame(
 
 def _as_copy_value(value):
     """Render one value the way PostgreSQL's CSV COPY parser expects it."""
-    if value is None or value is pd.NaT:
+    if value is None or value is pd.NaT or value is pd.NA:
+        # An unquoted empty field is NULL, which is what a bound None was.
         return ""
     if isinstance(value, float) and math.isnan(value):
-        return ""
+        # Not NULL: a bound NaN went into a float column as NaN, and PostgreSQL's float
+        # input accepts "NaN", so this path stores what the multi-row INSERT stored.
+        # Leaving the field empty would instead break on a NOT NULL column such as
+        # event_value.
+        return "NaN"
     if isinstance(value, (pd.Timedelta, timedelta)):
         # An interval literal, rather than str(timedelta), whose "1 day, 2:00:00" form
-        # PostgreSQL does not accept. Seconds also keep negative horizons intact.
-        return f"{value.total_seconds()} seconds"
+        # PostgreSQL does not accept. Whole microseconds, rather than total_seconds(),
+        # whose float repr turns into exponent notation below 1e-4 ("1.5e-05 seconds"),
+        # which the interval parser rejects. Integer division keeps negative horizons
+        # intact, and microseconds are the resolution an interval column stores anyway.
+        return f"{value // timedelta(microseconds=1)} microseconds"
     if isinstance(value, (pd.Timestamp, datetime)):
         return value.isoformat()
     return value
