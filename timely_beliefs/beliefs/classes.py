@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import math
 import operator
@@ -32,9 +34,11 @@ from sqlalchemy import (
     cast,
     func,
     select,
+    text,
     union_all,
 )
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import Session, backref, declarative_mixin, relationship
@@ -57,6 +61,10 @@ from timely_beliefs.sources import utils as source_utils
 from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 
 logger = logging.getLogger(__name__)
+
+# Below this many beliefs, a multi-row INSERT is not worth replacing: COPY only starts
+# to pay once the client-side cost of binding one parameter per value dominates.
+COPY_THRESHOLD = 200
 
 METADATA = ["sensor", "event_resolution"]
 DatetimeLike = Union[datetime, str, pd.Timestamp]
@@ -361,21 +369,24 @@ class TimedBeliefDBMixin(TimedBelief):
             beliefs_data_frame["sensor_id"] = beliefs_data_frame.sensor.id
             beliefs_data_frame = beliefs_data_frame.drop(columns=["source"])
 
-            smt = insert(cls).values(beliefs_data_frame.to_dict("records"))
+            if _should_copy(session, len(beliefs_data_frame)):
+                cls._copy_to_session(session, beliefs_data_frame, allow_overwrite)
+            else:
+                smt = insert(cls).values(beliefs_data_frame.to_dict("records"))
 
-            if allow_overwrite:
-                smt = smt.on_conflict_do_update(
-                    index_elements=[
-                        "event_start",
-                        "belief_horizon",
-                        "source_id",
-                        "sensor_id",
-                        "cumulative_probability",
-                    ],
-                    set_=dict(event_value=smt.excluded.event_value),
-                )
+                if allow_overwrite:
+                    smt = smt.on_conflict_do_update(
+                        index_elements=[
+                            "event_start",
+                            "belief_horizon",
+                            "source_id",
+                            "sensor_id",
+                            "cumulative_probability",
+                        ],
+                        set_=dict(event_value=smt.excluded.event_value),
+                    )
 
-            session.execute(smt)
+                session.execute(smt)
 
         else:
             if allow_overwrite:
@@ -386,6 +397,57 @@ class TimedBeliefDBMixin(TimedBelief):
 
         if commit_transaction:
             session.commit()
+
+    @classmethod
+    def _copy_to_session(
+        cls,
+        session: Session,
+        beliefs_data_frame: pd.DataFrame,
+        allow_overwrite: bool,
+    ):
+        """Write beliefs with PostgreSQL's COPY rather than a multi-row INSERT.
+
+        A multi-row ``INSERT ... VALUES`` has to bind one parameter per value, so a
+        frame of tens of thousands of beliefs is compiled into hundreds of thousands of
+        bound parameters before the server sees anything. COPY streams the same rows as
+        text, which is roughly an order of magnitude less work on the client and rather
+        less on the server too.
+
+        Without ``allow_overwrite`` the rows go straight into the table, so a conflict
+        raises just as it would have. With ``allow_overwrite`` they go into a temporary
+        table first, and a single INSERT ... SELECT carries the upsert. Duplicate keys
+        within one call still raise, which is what the multi-row INSERT did as well.
+        """
+        columns = list(beliefs_data_frame.columns)
+        table = cls.__table__
+        quoted = ", ".join(f'"{c}"' for c in columns)
+
+        if allow_overwrite:
+            # A temporary table, because COPY has no ON CONFLICT clause of its own.
+            staging = f"tb_copy_{table.name}"
+            session.execute(
+                text(
+                    f'CREATE TEMPORARY TABLE "{staging}" '
+                    f'(LIKE "{table.name}" INCLUDING DEFAULTS) ON COMMIT DROP'
+                )
+            )
+            target = staging
+        else:
+            target = table.name
+
+        _copy_frame(session, target, columns, beliefs_data_frame)
+
+        if allow_overwrite:
+            session.execute(
+                text(
+                    f'INSERT INTO "{table.name}" ({quoted}) '
+                    f'SELECT {quoted} FROM "{staging}" '
+                    "ON CONFLICT (event_start, belief_horizon, source_id, sensor_id, "
+                    "cumulative_probability) "
+                    "DO UPDATE SET event_value = EXCLUDED.event_value"
+                )
+            )
+            session.execute(text(f'DROP TABLE "{staging}"'))
 
     @classmethod
     def search_session(  # noqa: C901
@@ -2497,3 +2559,68 @@ def downsample_beliefs_data_frame(
     ).set_index([belief_timing_col, "source", "cumulative_probability"], append=True)
     df.event_resolution = event_resolution
     return df
+
+
+def _should_copy(session: Session, n_rows: int) -> bool:
+    """Whether this batch of beliefs is worth streaming with COPY.
+
+    COPY is PostgreSQL-only, so any other backend keeps the multi-row INSERT.
+    """
+    if n_rows < COPY_THRESHOLD:
+        return False
+    bind = session.get_bind()
+    return bool(bind is not None and bind.dialect.name == "postgresql")
+
+
+def _copy_frame(
+    session: Session, table_name: str, columns: list[str], frame: pd.DataFrame
+) -> None:
+    """Stream a frame into a PostgreSQL table with COPY, inside the session's transaction.
+
+    The rows are written as CSV: PostgreSQL reads an unquoted empty field as NULL, and
+    the csv module handles quoting and escaping, which hand-rolled text formatting
+    tends to get wrong on exactly the values that are rare enough not to show up in
+    testing.
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    for row in frame[columns].itertuples(index=False, name=None):
+        writer.writerow([_as_copy_value(value) for value in row])
+    buffer.seek(0)
+
+    quoted = ", ".join(f'"{c}"' for c in columns)
+    statement = f'COPY "{table_name}" ({quoted}) FROM STDIN WITH (FORMAT csv)'
+
+    # Go through session.connection() so the COPY joins the session's transaction and
+    # is rolled back with it.
+    connection = session.connection()
+    dialect = connection.dialect
+    try:
+        with connection.connection.driver_connection.cursor() as cursor:
+            if hasattr(cursor, "copy_expert"):  # psycopg2
+                cursor.copy_expert(statement, buffer)
+            else:  # psycopg 3
+                with cursor.copy(statement) as copy:
+                    copy.write(buffer.read())
+    except dialect.dbapi.Error as error:
+        # Driving the cursor directly means SQLAlchemy never sees the failure, so a
+        # unique violation would surface as a raw psycopg error rather than as
+        # IntegrityError. Wrap it the way an ordinary execute would have.
+        raise DBAPIError.instance(
+            statement, None, error, dialect.dbapi.Error, dialect=dialect
+        ) from error
+
+
+def _as_copy_value(value):
+    """Render one value the way PostgreSQL's CSV COPY parser expects it."""
+    if value is None or value is pd.NaT:
+        return ""
+    if isinstance(value, float) and math.isnan(value):
+        return ""
+    if isinstance(value, (pd.Timedelta, timedelta)):
+        # An interval literal, rather than str(timedelta), whose "1 day, 2:00:00" form
+        # PostgreSQL does not accept. Seconds also keep negative horizons intact.
+        return f"{value.total_seconds()} seconds"
+    if isinstance(value, (pd.Timestamp, datetime)):
+        return value.isoformat()
+    return value
