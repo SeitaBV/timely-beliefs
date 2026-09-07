@@ -718,3 +718,43 @@ def test_multiplication_with_constant_retains_metadata(constant):
 
         df = example_df.abs()
         assert_metadata_is_retained(df, original_df=example_df)
+
+
+def test_beliefs_series_init_with_metadata():
+    """Check direct initialization of BeliefsSeries with metadata and copying from existing series."""
+    sensor = tb.Sensor("Test Sensor")
+    resolution = timedelta(minutes=15)
+
+    # Direct init with kwargs
+    s = tb.BeliefsSeries([1.0, 2.0, 3.0], sensor=sensor, event_resolution=resolution)
+    assert s.sensor == sensor
+    assert s.event_resolution == resolution
+
+    # Copy init from BeliefsSeries
+    s_copy = tb.BeliefsSeries(s)
+    assert s_copy.sensor == sensor
+    assert s_copy.event_resolution == resolution
+
+    # Expanding dimensions back to BeliefsDataFrame
+    df_back = s.to_frame()
+    assert isinstance(df_back, tb.BeliefsDataFrame)
+    assert df_back.sensor == sensor
+    assert df_back.event_resolution == resolution
+
+
+def test_beliefs_series_no_single_block_manager_deprecation(recwarn):
+    """Check that slicing and operations on BeliefsDataFrame and BeliefsSeries emit no DeprecationWarnings."""
+    # GH 232
+    example_df = get_example_df()
+    s = example_df["event_value"]
+    assert isinstance(s, tb.BeliefsSeries)
+    _ = s.iloc[0:5]
+    _ = s.head()
+    _ = s.copy()
+
+    deprecation_warnings = [
+        w for w in recwarn if issubclass(w.category, DeprecationWarning)
+    ]
+    assert (
+        not deprecation_warnings
+    ), f"Unexpected deprecation warnings: {deprecation_warnings}"

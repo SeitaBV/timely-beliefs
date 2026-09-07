@@ -5,10 +5,7 @@ import math
 import operator
 import types
 from datetime import datetime, timedelta
-from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, Literal, Type, Union
-
-from packaging import version
 
 if TYPE_CHECKING:
     import altair as alt
@@ -67,6 +64,24 @@ JoinTarget = Union[
     AliasedClass,
     types.FunctionType,
 ]
+
+
+def is_pandas_manager(obj) -> bool:
+    """Check if an object is an internal pandas BlockManager or ArrayManager."""
+    return (
+        hasattr(obj, "blocks")
+        or type(obj).__name__
+        in (
+            "SingleBlockManager",
+            "SingleArrayManager",
+            "BlockManager",
+            "ArrayManager",
+        )
+        or getattr(getattr(obj, "__class__", None), "__module__", "").startswith(
+            "pandas.core.internals"
+        )
+    )
+
 
 # Columns of the beliefs table that are constant within one (event_start, source_id)
 # group, and can therefore be safely referenced by a custom filter criterion that is
@@ -904,64 +919,82 @@ class DBTimedBelief(Base, TimedBeliefDBMixin):
 class BeliefsSeries(pd.Series):
     """Just for slicing, to keep around the metadata."""
 
-    _metadata = METADATA
+    _metadata = ["sensor", "event_resolution"]
 
-    # Pre-Pandas 2.0, call __finalize__() after construction to inherit metadata.
-    if version.parse(pd.__version__) < version.parse("2.0.0"):
-
-        @property
-        def _constructor(self):
-            def f(*args, **kwargs):
-                return BeliefsSeries(*args, **kwargs).__finalize__(
-                    self, method="inherit"
+    @property
+    def _constructor(self):
+        def f(*args, **kwargs):
+            if (
+                len(args) > 0
+                and is_pandas_manager(args[0])
+                and hasattr(BeliefsSeries, "_from_mgr")
+            ):
+                return self._constructor_from_mgr(
+                    args[0], axes=kwargs.get("axes", None)
                 )
+            return BeliefsSeries(*args, **kwargs).__finalize__(self, method="inherit")
 
-            return f
-
-    else:
-
-        @property
-        def _constructor(self):
-            return partial(BeliefsSeries)
-
-        if version.parse(pd.__version__) >= version.parse("2.0.0"):
-
-            def _constructor_from_mgr(self, mgr, axes):
-                s = BeliefsSeries._from_mgr(mgr, axes)
-                for name in self._metadata:
-                    object.__setattr__(s, name, getattr(self, name, None))
-                return s
-
-            def _constructor_expanddim_from_mgr(self, mgr, axes):
-                df = BeliefsDataFrame._from_mgr(mgr, axes)
-                for name in self._metadata:
-                    object.__setattr__(df, name, getattr(self, name, None))
-                return df
+        return f
 
     @property
     def _constructor_expanddim(self):
         def f(*args, **kwargs):
             """Call __finalize__() after construction to inherit metadata."""
-            # adapted from https://github.com/pandas-dev/pandas/issues/19850#issuecomment-367934440
+            if (
+                len(args) > 0
+                and is_pandas_manager(args[0])
+                and hasattr(BeliefsDataFrame, "_from_mgr")
+            ):
+                return self._constructor_expanddim_from_mgr(
+                    args[0], axes=kwargs.get("axes", None)
+                )
             return BeliefsDataFrame(*args, **kwargs).__finalize__(
                 self, method="inherit"
             )
 
-        # workaround from https://github.com/pandas-dev/pandas/issues/32860#issuecomment-697993089
         f._get_axis_number = super(BeliefsSeries, self)._get_axis_number
-
         return f
+
+    def _constructor_from_mgr(self, mgr, axes):
+        s = BeliefsSeries._from_mgr(mgr, axes)
+        for name in self._metadata:
+            object.__setattr__(s, name, getattr(self, name, None))
+        return s
+
+    def _constructor_expanddim_from_mgr(self, mgr, axes):
+        df = BeliefsDataFrame._from_mgr(mgr, axes)
+        for name in self._metadata:
+            object.__setattr__(df, name, getattr(self, name, None))
+        return df
 
     def __finalize__(self, other, method=None, **kwargs):
         """Propagate metadata from other to self."""
         for name in self._metadata:
-            object.__setattr__(self, name, getattr(other, name, None))
-        if hasattr(other, "name"):
+            val = getattr(other, name, None)
+            if val is not None:
+                object.__setattr__(self, name, val)
+        if hasattr(other, "name") and getattr(other, "name") is not None:
             object.__setattr__(self, "name", getattr(other, "name"))
         return self
 
     def __init__(self, *args, **kwargs):
+        sensor: Sensor | None = kwargs.pop("sensor", None)
+        event_resolution: TimedeltaLike | None = kwargs.pop("event_resolution", None)
+        if len(args) > 0 and isinstance(args[0], (BeliefsSeries, BeliefsDataFrame)):
+            super().__init__(*args, **kwargs)
+            assign_sensor_and_event_resolution(
+                self,
+                sensor if sensor is not None else getattr(args[0], "sensor", None),
+                (
+                    event_resolution
+                    if event_resolution is not None
+                    else getattr(args[0], "event_resolution", None)
+                ),
+            )
+            return
         super().__init__(*args, **kwargs)
+        if sensor is not None or event_resolution is not None:
+            assign_sensor_and_event_resolution(self, sensor, event_resolution)
         return
 
     def __repr__(self):
@@ -1016,40 +1049,53 @@ class BeliefsDataFrame(pd.DataFrame):
     :param cumulative_probability: a float in the range [0, 1] describing the cumulative probability of each belief - use this e.g. to initialize a BeliefsDataFrame containing only the values at 95% cumulative probability
     """
 
-    _metadata = METADATA
+    _metadata = ["sensor", "event_resolution"]
 
     @property
     def _constructor(self):
         def f(*args, **kwargs):
             """Call __finalize__() after construction to inherit metadata."""
+            if (
+                len(args) > 0
+                and is_pandas_manager(args[0])
+                and hasattr(BeliefsDataFrame, "_from_mgr")
+            ):
+                return self._constructor_from_mgr(
+                    args[0], axes=kwargs.get("axes", None)
+                )
             return BeliefsDataFrame(*args, **kwargs).__finalize__(
                 self, method="inherit"
             )
 
         return f
 
-    if version.parse(pd.__version__) >= version.parse("2.0.0"):
-
-        def _constructor_from_mgr(self, mgr, axes):
-            df = BeliefsDataFrame._from_mgr(mgr, axes)
-            for name in self._metadata:
-                object.__setattr__(df, name, getattr(self, name, None))
-            return df
-
-        def _constructor_sliced_from_mgr(self, mgr, axes):
-            s = BeliefsSeries._from_mgr(mgr, axes)
-            for name in self._metadata:
-                object.__setattr__(s, name, getattr(self, name, None))
-            return s
-
     @property
     def _constructor_sliced(self):
         def f(*args, **kwargs):
             """Call __finalize__() after construction to inherit metadata."""
-            # adapted from https://github.com/pandas-dev/pandas/issues/19850#issuecomment-367934440
+            if (
+                len(args) > 0
+                and is_pandas_manager(args[0])
+                and hasattr(BeliefsSeries, "_from_mgr")
+            ):
+                return self._constructor_sliced_from_mgr(
+                    args[0], axes=kwargs.get("axes", None)
+                )
             return BeliefsSeries(*args, **kwargs).__finalize__(self, method="inherit")
 
         return f
+
+    def _constructor_from_mgr(self, mgr, axes):
+        df = BeliefsDataFrame._from_mgr(mgr, axes)
+        for name in self._metadata:
+            object.__setattr__(df, name, getattr(self, name, None))
+        return df
+
+    def _constructor_sliced_from_mgr(self, mgr, axes):
+        s = BeliefsSeries._from_mgr(mgr, axes)
+        for name in self._metadata:
+            object.__setattr__(s, name, getattr(self, name, None))
+        return s
 
     def __finalize__(self, other, method=None, **kwargs):
         """Propagate metadata from other to self."""
@@ -1075,14 +1121,20 @@ class BeliefsDataFrame(pd.DataFrame):
 
         if method == "merge":
             for name in self._metadata:
-                object.__setattr__(self, name, getattr(other.left, name, None))
+                val = getattr(other.left, name, None)
+                if val is not None:
+                    object.__setattr__(self, name, val)
         # concat operation: using metadata of the first object
         elif method == "concat":
             for name in self._metadata:
-                object.__setattr__(self, name, getattr(other.objs[0], name, None))
+                val = getattr(other.objs[0], name, None)
+                if val is not None:
+                    object.__setattr__(self, name, val)
         else:
             for name in self._metadata:
-                object.__setattr__(self, name, getattr(other, name, None))
+                val = getattr(other, name, None)
+                if val is not None:
+                    object.__setattr__(self, name, val)
         return self
 
     def __init__(  # noqa: C901 todo: refactor, e.g. by detecting initialization method
