@@ -30,7 +30,6 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Interval,
-    String,
     Table,
     and_,
     cast,
@@ -72,6 +71,9 @@ COPY_THRESHOLD = 200
 # hold a second copy of it in memory, which for a batch of a million beliefs is tens of
 # megabytes that buy nothing.
 _COPY_CHUNK_SIZE = 1 << 20
+
+# What a NULL looks like on the wire. COPY's own text format uses the same marker.
+_COPY_NULL = "\\N"
 
 METADATA = ["sensor", "event_resolution"]
 DatetimeLike = Union[datetime, str, pd.Timestamp]
@@ -454,7 +456,7 @@ class TimedBeliefDBMixin(TimedBelief):
         else:
             target = table.name
 
-        _copy_frame(session, target, columns, beliefs_data_frame, table)
+        _copy_frame(session, target, columns, beliefs_data_frame)
 
         if allow_overwrite:
             session.execute(
@@ -2640,7 +2642,6 @@ def _copy_frame(
     table_name: str,
     columns: list[str],
     frame: pd.DataFrame,
-    table: Table,
 ) -> None:
     """Stream a frame into a PostgreSQL table with COPY, inside the session's transaction.
 
@@ -2652,14 +2653,15 @@ def _copy_frame(
     reader = _CsvRows(frame, columns)
 
     quoted = ", ".join(f'"{c}"' for c in columns)
-    options = "FORMAT csv"
-    # Without this, an empty string in a text column would arrive as NULL, because that
-    # is what an unquoted empty CSV field means. No column of a belief is text, but a
-    # table built on this mixin may well add one.
-    textual = [c for c in columns if isinstance(table.c[c].type, String)]
-    if textual:
-        options += " , FORCE_NOT_NULL (" + ", ".join(f'"{c}"' for c in textual) + ")"
-    statement = f'COPY "{table_name}" ({quoted}) FROM STDIN WITH ({options})'
+    # An explicit NULL marker, rather than CSV's default of an unquoted empty field,
+    # which would make an empty string in a text column indistinguishable from NULL.
+    # No column of a belief is text, but a table built on this mixin may well add one.
+    # A text value that is itself "\\N" would come back as NULL, which is the same
+    # corner COPY's own text format has always had.
+    statement = (
+        f'COPY "{table_name}" ({quoted}) FROM STDIN '
+        f"WITH (FORMAT csv, NULL '{_COPY_NULL}')"
+    )
 
     # Go through session.connection() so the COPY joins the session's transaction and
     # is rolled back with it.
@@ -2685,8 +2687,9 @@ def _copy_frame(
 def _as_copy_value(value):
     """Render one value the way PostgreSQL's CSV COPY parser expects it."""
     if value is None or value is pd.NaT or value is pd.NA:
-        # An unquoted empty field is NULL, which is what a bound None was.
-        return ""
+        # The NULL marker, which is what a bound None was. An empty field is left to
+        # mean an empty string, so a nullable text column can hold either.
+        return _COPY_NULL
     if isinstance(value, float) and math.isnan(value):
         # Not NULL: a bound NaN went into a float column as NaN, and PostgreSQL's float
         # input accepts "NaN", so this path stores what the multi-row INSERT stored.

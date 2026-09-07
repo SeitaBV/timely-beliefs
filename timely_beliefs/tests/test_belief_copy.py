@@ -11,7 +11,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytest
 import pytz
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 
 from timely_beliefs import BeliefsDataFrame, DBTimedBelief
 from timely_beliefs.beliefs import classes
@@ -223,3 +224,50 @@ def test_copy_writes_nan_event_values_as_nan(time_slot_sensor, test_source_a):
     assert len(got) == N
     assert math.isnan(got["event_value"].iloc[3])
     assert got["event_value"].iloc[4] == 4.0
+
+
+def test_copy_raises_on_duplicate_keys_within_one_upsert(
+    time_slot_sensor, test_source_a
+):
+    """Two beliefs about the same event in one allow_overwrite batch raise, as before.
+
+    ON CONFLICT DO UPDATE cannot touch a row twice, and the staging table hands it the
+    whole batch at once, so this has to fail the way the multi-row INSERT did.
+    """
+    index = pd.DatetimeIndex(
+        [datetime(2000, 1, 3, 9, tzinfo=pytz.utc)] * N, name="event_start"
+    )
+    duplicates = BeliefsDataFrame(
+        pd.Series([float(i) for i in range(N)], index=index, name="event_value"),
+        belief_horizon=timedelta(0),
+        sensor=time_slot_sensor,
+        source=test_source_a,
+    )
+    with pytest.raises(ProgrammingError) as excinfo:
+        DBTimedBelief.add_to_session(
+            session, duplicates, allow_overwrite=True, commit_transaction=True
+        )
+    assert "affect row a second time" in str(excinfo.value)
+    session.rollback()
+
+
+def test_copy_keeps_null_apart_from_the_empty_string():
+    """The NULL marker has to leave an empty string in a text column intact.
+
+    No column of a belief is text, so this drives _copy_frame against a table that has
+    one, the way a table built on the mixin might.
+    """
+    session.execute(
+        text(
+            "CREATE TEMPORARY TABLE copy_null_probe "
+            "(label text, note text) ON COMMIT DROP"
+        )
+    )
+    frame = pd.DataFrame({"label": ["", "x"], "note": [None, ""]})
+    classes._copy_frame(session, "copy_null_probe", ["label", "note"], frame)
+
+    rows = session.execute(
+        text("SELECT label, note FROM copy_null_probe ORDER BY label")
+    ).all()
+    assert rows == [("", None), ("x", "")]
+    session.rollback()
