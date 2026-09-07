@@ -28,7 +28,9 @@ def frame_of(sensor, source, n=N, offset=0.0, belief_horizon=timedelta(0)):
         name="event_start",
     )
     return BeliefsDataFrame(
-        pd.Series([float(i) + offset for i in range(n)], index=index, name="event_value"),
+        pd.Series(
+            [float(i) + offset for i in range(n)], index=index, name="event_value"
+        ),
         belief_horizon=belief_horizon,
         sensor=sensor,
         source=source,
@@ -47,7 +49,9 @@ def test_copy_path_is_taken(time_slot_sensor, test_source_a):
 
 
 @pytest.mark.parametrize("allow_overwrite", [False, True])
-def test_copy_matches_insert(time_slot_sensor, test_source_a, test_source_b, allow_overwrite):
+def test_copy_matches_insert(
+    time_slot_sensor, test_source_a, test_source_b, allow_overwrite
+):
     """The same beliefs written via COPY and via the multi-row INSERT come back equal."""
     via_copy = frame_of(time_slot_sensor, test_source_a)
     DBTimedBelief.add_to_session(
@@ -60,7 +64,10 @@ def test_copy_matches_insert(time_slot_sensor, test_source_a, test_source_b, all
     try:
         via_insert = frame_of(time_slot_sensor, test_source_b)
         DBTimedBelief.add_to_session(
-            session, via_insert, allow_overwrite=allow_overwrite, commit_transaction=True
+            session,
+            via_insert,
+            allow_overwrite=allow_overwrite,
+            commit_transaction=True,
         )
     finally:
         classes.COPY_THRESHOLD = original
