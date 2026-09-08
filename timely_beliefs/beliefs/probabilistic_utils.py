@@ -2,17 +2,26 @@ from __future__ import annotations
 
 import math
 from itertools import product
+from statistics import NormalDist
 from typing import Callable
 
 import numpy as np
 import openturns as ot
 import pandas as pd
-import properscoring as ps
 from pandas.core.groupby import DataFrameGroupBy
-from scipy import special
 
 from timely_beliefs import utils as tb_utils
 from timely_beliefs.beliefs import classes  # noqa: F401
+from timely_beliefs.beliefs.crps import crps_ensemble
+
+
+def erfinv(y: float) -> float:
+    """Inverse of the error function.
+
+    erf(z) = 2 * Phi(z * sqrt(2)) - 1, so erfinv(y) = Phi^-1((y + 1) / 2) / sqrt(2),
+    where Phi is the standard normal cdf (whose inverse is stdlib's NormalDist.inv_cdf).
+    """
+    return NormalDist().inv_cdf((y + 1) / 2) / 2**0.5
 
 
 def interpret_complete_cdf(
@@ -50,11 +59,11 @@ def interpret_complete_cdf(
                 x2 = cdf_v[1]
                 y1 = cdf_p[0]
                 y2 = cdf_p[1]
-                mu = (
-                    x1 * special.erfinv(1 - 2 * y2) - x2 * special.erfinv(1 - 2 * y1)
-                ) / (special.erfinv(1 - 2 * y2) - special.erfinv(1 - 2 * y1))
+                mu = (x1 * erfinv(1 - 2 * y2) - x2 * erfinv(1 - 2 * y1)) / (
+                    erfinv(1 - 2 * y2) - erfinv(1 - 2 * y1)
+                )
                 sigma = (2**0.5 * x1 - 2**0.5 * x2) / (
-                    2 * special.erfinv(1 - 2 * y2) - 2 * special.erfinv(1 - 2 * y1)
+                    2 * erfinv(1 - 2 * y2) - 2 * erfinv(1 - 2 * y1)
                 )
                 cdfs.append(ot.Normal(mu, sigma))
             else:
@@ -461,7 +470,7 @@ def calculate_crps(df: "classes.BeliefsDataFrame") -> "classes.BeliefsDataFrame"
 
             # Calculate the continuous ranked profile score for this step (i.e. how well does the forecast describe this possible outcome for the observation)
             crpss.append(
-                ps.crps_ensemble(v_observation, cdf_v_forecast_i, pdf_p_forecast_i)
+                crps_ensemble(v_observation, cdf_v_forecast_i, pdf_p_forecast_i)
             )
 
             # Set the left cp bound for the next step
