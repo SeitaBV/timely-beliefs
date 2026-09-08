@@ -1043,7 +1043,15 @@ class BeliefsSeries(pd.Series):
         return self
 
     def __init__(self, *args, **kwargs):
+        sensor: Sensor | None = kwargs.pop("sensor", None)
+        event_resolution: TimedeltaLike | None = kwargs.pop("event_resolution", None)
         super().__init__(*args, **kwargs)
+        if len(args) > 0 and isinstance(args[0], (BeliefsSeries, BeliefsDataFrame)):
+            if sensor is None:
+                sensor = getattr(args[0], "sensor", None)
+            if event_resolution is None:
+                event_resolution = getattr(args[0], "event_resolution", None)
+        assign_sensor_and_event_resolution(self, sensor, event_resolution)
         return
 
     def __repr__(self):
