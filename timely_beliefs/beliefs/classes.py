@@ -2685,7 +2685,23 @@ def _copy_frame(
 
 
 def _as_copy_value(value):
-    """Render one value the way PostgreSQL's CSV COPY parser expects it."""
+    """Render one value the way PostgreSQL's CSV COPY parser expects it.
+
+    Called once per cell, which is where most of a batch now goes: about 175,000
+    calls for 29,000 beliefs, and roughly three quarters of the time spent building
+    the payload. That is deliberate, and was measured rather than assumed. Converting
+    column-wise instead and handing the frame to ``DataFrame.to_csv`` renders the same
+    payload about 1.7x faster, but costs two things worth more than the time:
+
+    - ``to_csv``'s ``na_rep`` cannot tell a missing value from a NaN, so a NaN event
+      value would be written as the NULL marker and break on event_value's NOT NULL
+      constraint, which is the regression this function's NaN branch exists to avoid.
+    - ``to_csv`` renders the whole payload as one string, which is what _CsvRows was
+      written to avoid holding for a batch of a million beliefs.
+
+    Both are answerable -- special-case the float columns, chunk the frame -- but only
+    by rebuilding column-wise what this does per value, for a fifth off a batch.
+    """
     if value is None or value is pd.NaT or value is pd.NA:
         # The NULL marker, which is what a bound None was. An empty field is left to
         # mean an empty string, so a nullable text column can hold either.
