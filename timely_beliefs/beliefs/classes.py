@@ -2700,7 +2700,8 @@ def _as_copy_value(value):
       written to avoid holding for a batch of a million beliefs.
 
     Both are answerable -- special-case the float columns, chunk the frame -- but only
-    by rebuilding column-wise what this does per value, for a fifth off a batch.
+    by rebuilding column-wise what this does per value, and the whole batch would come
+    out around 20% faster in return.
     """
     if value is None or value is pd.NaT or value is pd.NA:
         # The NULL marker, which is what a bound None was. An empty field is left to
