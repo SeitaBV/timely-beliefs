@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import math
 import operator
 import types
 from datetime import datetime, timedelta
 from functools import partial
+from itertools import islice
 from typing import TYPE_CHECKING, Any, Callable, Literal, Type, Union
 
 from packaging import version
@@ -32,9 +35,11 @@ from sqlalchemy import (
     cast,
     func,
     select,
+    text,
     union_all,
 )
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import Session, backref, declarative_mixin, relationship
@@ -57,6 +62,18 @@ from timely_beliefs.sources import utils as source_utils
 from timely_beliefs.sources.classes import BeliefSource, DBBeliefSource
 
 logger = logging.getLogger(__name__)
+
+# Below this many beliefs, a multi-row INSERT is not worth replacing: COPY only starts
+# to pay once the client-side cost of binding one parameter per value dominates.
+COPY_THRESHOLD = 200
+
+# How much CSV to hand the driver at a time. Rendering the whole frame up front would
+# hold a second copy of it in memory, which for a batch of a million beliefs is tens of
+# megabytes that buy nothing.
+_COPY_CHUNK_SIZE = 1 << 20
+
+# What a NULL looks like on the wire. COPY's own text format uses the same marker.
+_COPY_NULL = "\\N"
 
 METADATA = ["sensor", "event_resolution"]
 DatetimeLike = Union[datetime, str, pd.Timestamp]
@@ -332,10 +349,16 @@ class TimedBeliefDBMixin(TimedBelief):
         beliefs_data_frame = (
             beliefs_data_frame.convert_index_from_belief_time_to_horizon().reset_index()
         )
-        beliefs = [
-            cls(sensor=beliefs_data_frame.sensor, **d)
-            for d in beliefs_data_frame.to_dict("records")
-        ]
+        if not bulk_save_objects:
+            # Only the ORM path below writes these. The bulk path used to build them
+            # too, which cost more than the write it was feeding: the sensor and source
+            # backrefs pull every one of them into the session, so a batch of 29k
+            # beliefs spent seconds in register_object during the flush, for objects
+            # nothing ever reads.
+            beliefs = [
+                cls(sensor=beliefs_data_frame.sensor, **d)
+                for d in beliefs_data_frame.to_dict("records")
+            ]
 
         if expunge_session:
             session.expunge_all()
@@ -361,21 +384,24 @@ class TimedBeliefDBMixin(TimedBelief):
             beliefs_data_frame["sensor_id"] = beliefs_data_frame.sensor.id
             beliefs_data_frame = beliefs_data_frame.drop(columns=["source"])
 
-            smt = insert(cls).values(beliefs_data_frame.to_dict("records"))
+            if _should_copy(session, cls.__table__, beliefs_data_frame):
+                cls._copy_to_session(session, beliefs_data_frame, allow_overwrite)
+            else:
+                smt = insert(cls).values(beliefs_data_frame.to_dict("records"))
 
-            if allow_overwrite:
-                smt = smt.on_conflict_do_update(
-                    index_elements=[
-                        "event_start",
-                        "belief_horizon",
-                        "source_id",
-                        "sensor_id",
-                        "cumulative_probability",
-                    ],
-                    set_=dict(event_value=smt.excluded.event_value),
-                )
+                if allow_overwrite:
+                    smt = smt.on_conflict_do_update(
+                        index_elements=[
+                            "event_start",
+                            "belief_horizon",
+                            "source_id",
+                            "sensor_id",
+                            "cumulative_probability",
+                        ],
+                        set_=dict(event_value=smt.excluded.event_value),
+                    )
 
-            session.execute(smt)
+                session.execute(smt)
 
         else:
             if allow_overwrite:
@@ -386,6 +412,62 @@ class TimedBeliefDBMixin(TimedBelief):
 
         if commit_transaction:
             session.commit()
+
+    @classmethod
+    def _copy_to_session(
+        cls,
+        session: Session,
+        beliefs_data_frame: pd.DataFrame,
+        allow_overwrite: bool,
+    ):
+        """Write beliefs with PostgreSQL's COPY rather than a multi-row INSERT.
+
+        A multi-row ``INSERT ... VALUES`` has to bind one parameter per value, so a
+        frame of tens of thousands of beliefs is compiled into hundreds of thousands of
+        bound parameters before the server sees anything. COPY streams the same rows as
+        text, which is roughly an order of magnitude less work on the client and rather
+        less on the server too.
+
+        Without ``allow_overwrite`` the rows go straight into the table, so a conflict
+        raises just as it would have. With ``allow_overwrite`` they go into a temporary
+        table first, and a single INSERT ... SELECT carries the upsert. Duplicate keys
+        within one call still raise, which is what the multi-row INSERT did as well.
+        """
+        columns = list(beliefs_data_frame.columns)
+        table = cls.__table__
+        quoted = ", ".join(f'"{c}"' for c in columns)
+
+        if allow_overwrite:
+            # A temporary table, because COPY has no ON CONFLICT clause of its own.
+            # Created and dropped per batch: keeping one per connection saves no round
+            # trip (both shapes are four statements) and only avoids some catalog
+            # churn, in exchange for a definition that outlives the transaction on a
+            # pooled connection and goes stale if a migration renames or drops one of
+            # the columns written here.
+            staging = f"tb_copy_{table.name}"
+            session.execute(
+                text(
+                    f'CREATE TEMPORARY TABLE "{staging}" '
+                    f'(LIKE "{table.name}" INCLUDING DEFAULTS) ON COMMIT DROP'
+                )
+            )
+            target = staging
+        else:
+            target = table.name
+
+        _copy_frame(session, target, columns, beliefs_data_frame)
+
+        if allow_overwrite:
+            session.execute(
+                text(
+                    f'INSERT INTO "{table.name}" ({quoted}) '
+                    f'SELECT {quoted} FROM "{staging}" '
+                    "ON CONFLICT (event_start, belief_horizon, source_id, sensor_id, "
+                    "cumulative_probability) "
+                    "DO UPDATE SET event_value = EXCLUDED.event_value"
+                )
+            )
+            session.execute(text(f'DROP TABLE "{staging}"'))
 
     @classmethod
     def search_session(  # noqa: C901
@@ -2497,3 +2579,147 @@ def downsample_beliefs_data_frame(
     ).set_index([belief_timing_col, "source", "cumulative_probability"], append=True)
     df.event_resolution = event_resolution
     return df
+
+
+def _should_copy(session: Session, table: Table, frame: pd.DataFrame) -> bool:
+    """Whether this batch of beliefs is worth streaming with COPY.
+
+    COPY is PostgreSQL-only, so any other backend keeps the multi-row INSERT.
+    """
+    if len(frame) < COPY_THRESHOLD:
+        return False
+    bind = session.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return False
+    # A column the frame leaves out falls back to the table's own DEFAULT under COPY,
+    # and a default declared in Python (as cumulative_probability's 0.5 is) never
+    # reaches the table. INSERT fills those in itself, so let it.
+    return not any(
+        column.default is not None and column.name not in frame.columns
+        for column in table.columns
+    )
+
+
+class _CsvRows(io.TextIOBase):
+    """The frame's rows as CSV, rendered while the driver reads them.
+
+    Only ``read`` is used: psycopg2's ``copy_expert`` pulls from it, and the psycopg 3
+    branch pushes what it returns.
+    """
+
+    def __init__(self, frame: pd.DataFrame, columns: list[str]):
+        self._rows = frame[columns].itertuples(index=False, name=None)
+        self._buffer = io.StringIO()
+        self._writer = csv.writer(self._buffer, lineterminator="\n")
+        self._pending = ""
+
+    def readable(self) -> bool:
+        return True
+
+    def read(self, size: int | None = -1) -> str:
+        while size is None or size < 0 or len(self._pending) < size:
+            self._buffer.seek(0)
+            self._buffer.truncate(0)
+            rows = list(islice(self._rows, 1000))
+            if not rows:
+                break
+            self._writer.writerows(
+                [_as_copy_value(value) for value in row] for row in rows
+            )
+            self._pending += self._buffer.getvalue()
+        if size is None or size < 0:
+            chunk, self._pending = self._pending, ""
+            return chunk
+        chunk, self._pending = self._pending[:size], self._pending[size:]
+        return chunk
+
+    def readline(self, size: int | None = -1) -> str:  # pragma: no cover
+        raise io.UnsupportedOperation("_CsvRows is read-in-chunks only")
+
+
+def _copy_frame(
+    session: Session,
+    table_name: str,
+    columns: list[str],
+    frame: pd.DataFrame,
+) -> None:
+    """Stream a frame into a PostgreSQL table with COPY, inside the session's transaction.
+
+    The rows are written as CSV: PostgreSQL reads an unquoted empty field as NULL, and
+    the csv module handles quoting and escaping, which hand-rolled text formatting
+    tends to get wrong on exactly the values that are rare enough not to show up in
+    testing.
+    """
+    reader = _CsvRows(frame, columns)
+
+    quoted = ", ".join(f'"{c}"' for c in columns)
+    # An explicit NULL marker, rather than CSV's default of an unquoted empty field,
+    # which would make an empty string in a text column indistinguishable from NULL.
+    # No column of a belief is text, but a table built on this mixin may well add one.
+    # A text value that is itself "\\N" would come back as NULL, which is the same
+    # corner COPY's own text format has always had.
+    statement = (
+        f'COPY "{table_name}" ({quoted}) FROM STDIN '
+        f"WITH (FORMAT csv, NULL '{_COPY_NULL}')"
+    )
+
+    # Go through session.connection() so the COPY joins the session's transaction and
+    # is rolled back with it.
+    connection = session.connection()
+    dialect = connection.dialect
+    try:
+        with connection.connection.driver_connection.cursor() as cursor:
+            if hasattr(cursor, "copy_expert"):  # psycopg2
+                cursor.copy_expert(statement, reader)
+            else:  # psycopg 3
+                with cursor.copy(statement) as copy:
+                    while chunk := reader.read(_COPY_CHUNK_SIZE):
+                        copy.write(chunk)
+    except dialect.dbapi.Error as error:
+        # Driving the cursor directly means SQLAlchemy never sees the failure, so a
+        # unique violation would surface as a raw psycopg error rather than as
+        # IntegrityError. Wrap it the way an ordinary execute would have.
+        raise DBAPIError.instance(
+            statement, None, error, dialect.dbapi.Error, dialect=dialect
+        ) from error
+
+
+def _as_copy_value(value):
+    """Render one value the way PostgreSQL's CSV COPY parser expects it.
+
+    Called once per cell, which is where most of a batch now goes: about 175,000
+    calls for 29,000 beliefs, and roughly three quarters of the time spent building
+    the payload. That is deliberate, and was measured rather than assumed. Converting
+    column-wise instead and handing the frame to ``DataFrame.to_csv`` renders the same
+    payload about 1.7x faster, but costs two things worth more than the time:
+
+    - ``to_csv``'s ``na_rep`` cannot tell a missing value from a NaN, so a NaN event
+      value would be written as the NULL marker and break on event_value's NOT NULL
+      constraint, which is the regression this function's NaN branch exists to avoid.
+    - ``to_csv`` renders the whole payload as one string, which is what _CsvRows was
+      written to avoid holding for a batch of a million beliefs.
+
+    Both are answerable -- special-case the float columns, chunk the frame -- but only
+    by rebuilding column-wise what this does per value, and the whole batch would come
+    out around 20% faster in return.
+    """
+    if value is None or value is pd.NaT or value is pd.NA:
+        # The NULL marker, which is what a bound None was. An empty field is left to
+        # mean an empty string, so a nullable text column can hold either.
+        return _COPY_NULL
+    if isinstance(value, float) and math.isnan(value):
+        # Not NULL: a bound NaN went into a float column as NaN, and PostgreSQL's float
+        # input accepts "NaN", so this path stores what the multi-row INSERT stored.
+        # Leaving the field empty would instead break on a NOT NULL column such as
+        # event_value.
+        return "NaN"
+    if isinstance(value, (pd.Timedelta, timedelta)):
+        # An interval literal, rather than str(timedelta), whose "1 day, 2:00:00" form
+        # PostgreSQL does not accept. Whole microseconds, rather than total_seconds(),
+        # whose float repr turns into exponent notation below 1e-4 ("1.5e-05 seconds"),
+        # which the interval parser rejects. Integer division keeps negative horizons
+        # intact, and microseconds are the resolution an interval column stores anyway.
+        return f"{value // timedelta(microseconds=1)} microseconds"
+    if isinstance(value, (pd.Timestamp, datetime)):
+        return value.isoformat()
+    return value
