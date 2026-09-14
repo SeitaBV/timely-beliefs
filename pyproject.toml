@@ -37,8 +37,6 @@ dependencies = [
     "packaging",
     "pytz",
     "isodate",
-    # https://github.com/SeitaBV/timely-beliefs/issues/234
-    "openturns>=1.23",
 
     # Database support
     "psycopg2-binary",
@@ -64,6 +62,13 @@ viz = [
 forecast = [
     "sktime",
     "numpy>=1.21.0; python_version > '3.7'",  # required by sktime==0.15.0
+]
+probabilistic = [
+    # Needed for interpret_complete_cdf, probabilistic_nan_mean,
+    # joint_cdf_with_openturns_copula and get_mean_belief.
+    # Todo: move the reasoning for why this became optional to the changelog.
+    # https://github.com/SeitaBV/timely-beliefs/issues/234
+    "openturns>=1.23",
 ]
 
 [project.readme]
