@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
 import pytest
 from pytz import utc
-from sqlalchemy import and_, select, text
+from sqlalchemy import and_, event, select, text
 
 import timely_beliefs.beliefs.queries as query_utils
 import timely_beliefs.beliefs.utils as belief_utils
@@ -18,7 +19,7 @@ from timely_beliefs import (
     TimedBelief,
 )
 from timely_beliefs.beliefs.classes import _custom_criteria_are_group_constant
-from timely_beliefs.tests import session
+from timely_beliefs.tests import engine, session
 
 
 @pytest.fixture(scope="function")
@@ -508,6 +509,46 @@ def test_select_most_recent_probabilistic_beliefs(
         use_materialized_view=use_mview,
     )
     pd.testing.assert_frame_equal(df, most_recent_df)
+
+
+def test_most_recent_beliefs_read_the_beliefs_table_once(
+    ex_ante_economics_sensor: DBSensor,
+    multiple_probabilistic_day_ahead_beliefs_about_ex_ante_economical_event: list[
+        DBTimedBelief
+    ],
+):
+    """Without a materialized view, the most recent beliefs are selected in a single read of the beliefs table.
+
+    Joining the table to its own GROUP BY also gives the right result,
+    but when Postgres underestimates how many beliefs fall in the searched window,
+    it runs that GROUP BY once per belief, and the search takes quadratic time.
+    A single read leaves the planner nothing to get wrong there.
+    """
+    session.flush()
+    statements = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        df = DBTimedBelief.search_session(
+            session=session,
+            sensor=ex_ante_economics_sensor,
+            most_recent_beliefs_only=True,
+            use_materialized_view=False,
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    # The quantiles of each most recent belief share its horizon, so all of them must be kept
+    assert len(df) == 2
+    beliefs_queries = [s for s in statements if "event_value" in s]
+    assert len(beliefs_queries) == 1
+    table_reads = re.findall(
+        r"\b(?:FROM|JOIN) " + DBTimedBelief.__tablename__ + r"\b", beliefs_queries[0]
+    )
+    assert len(table_reads) == 1
 
 
 @pytest.mark.parametrize(
