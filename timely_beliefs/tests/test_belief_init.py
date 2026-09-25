@@ -122,13 +122,15 @@ def test_timedelta_parsing_passes_on_unrelated_warnings(monkeypatch):
     which used to be raised as an error, so beliefs with a horizon given as a string could not be created.
     The warning should reach the caller as a warning instead.
     """
-    original_timedelta = pd.Timedelta
 
-    class WarningTimedelta(original_timedelta):
+    class WarningTimedelta(pd.Timedelta):
         def __new__(cls, *args, **kwargs):
             warnings.warn("unrelated deprecation", DeprecationWarning)
-            return original_timedelta(*args, **kwargs)
+            # An instance of this class, so the parser still recognises it as a pd.Timedelta.
+            return super().__new__(cls, *args, **kwargs)
 
     monkeypatch.setattr(utils.pd, "Timedelta", WarningTimedelta)
     with pytest.warns(DeprecationWarning, match="unrelated deprecation"):
-        assert utils.parse_timedelta_like("PT1H") == timedelta(hours=1)
+        td = utils.parse_timedelta_like("PT1H")
+    assert type(td) is timedelta
+    assert td == timedelta(hours=1)
