@@ -41,7 +41,10 @@ dependencies = [
     "properscoring",
 
     # Database support
+    # SQLAlchemy 2.0 connects postgresql:// URLs through psycopg2, and SQLAlchemy 2.1 (Python >= 3.11) through psycopg 3,
+    # so we install both drivers, and a plain postgresql:// URL works whichever SQLAlchemy version gets resolved.
     "psycopg2-binary",
+    "psycopg[binary]; python_version >= '3.8'",
     "SQLAlchemy>=2",
 
     # Conditional
