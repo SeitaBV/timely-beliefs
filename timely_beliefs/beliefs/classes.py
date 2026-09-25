@@ -723,6 +723,7 @@ class TimedBeliefDBMixin(TimedBelief):
             )
 
         # Apply most recent beliefs filter as subquery
+        rank_most_recent_beliefs = False
         most_recent_beliefs_only_incompatible_criteria = (
             beliefs_before is not None or beliefs_after is not None
         ) and sensor.knowledge_horizon_fnc not in (ex_ante.__name__, ex_post.__name__)
@@ -819,15 +820,22 @@ class TimedBeliefDBMixin(TimedBelief):
                 else:
                     subq = mview_select.subquery()
             else:
-                subq = most_recent_beliefs_subquery().subquery()
-            q = q.join(
-                subq,
-                and_(
-                    cls.event_start == subq.c.event_start,
-                    cls.source_id == subq.c.source_id,
-                    cls.belief_horizon == subq.c.most_recent_belief_horizon,
-                ),
-            )
+                subq = None
+            if subq is not None:
+                q = q.join(
+                    subq,
+                    and_(
+                        cls.event_start == subq.c.event_start,
+                        cls.source_id == subq.c.source_id,
+                        cls.belief_horizon == subq.c.most_recent_belief_horizon,
+                    ),
+                )
+            else:
+                # Without a materialized view, rank the beliefs in a single pass (see below),
+                # rather than joining the beliefs table to its own GROUP BY:
+                # when Postgres underestimates the number of beliefs in the window,
+                # it runs that GROUP BY once per belief, taking quadratic time.
+                rank_most_recent_beliefs = True
 
         # Apply most recent events filter as subquery
         if most_recent_events_only:
@@ -861,6 +869,27 @@ class TimedBeliefDBMixin(TimedBelief):
         # (sharing the same event start and belief horizon).
         if most_recent_only:
             q = q.order_by(cls.event_start.desc(), cls.belief_horizon.asc()).limit(1)
+
+        # Keep the beliefs with the minimum horizon per event per source.
+        # rank() rather than row_number() or DISTINCT ON,
+        # so that all rows tied at the minimum horizon survive (e.g. the quantiles of a probabilistic belief).
+        # This goes last, so the ranking sees exactly the rows the query selects.
+        if rank_most_recent_beliefs:
+            ranked = q.add_columns(
+                func.rank()
+                .over(
+                    partition_by=(cls.event_start, cls.source_id),
+                    order_by=cls.belief_horizon,
+                )
+                .label("horizon_rank")
+            ).subquery()
+            q = select(
+                ranked.c.event_start,
+                ranked.c.belief_horizon,
+                ranked.c.source_id,
+                ranked.c.cumulative_probability,
+                ranked.c.event_value,
+            ).filter(ranked.c.horizon_rank == 1)
 
         # Useful debugging code, let's keep it here
         # from sqlalchemy.dialects import postgresql
