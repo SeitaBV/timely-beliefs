@@ -1,3 +1,4 @@
+import warnings
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -112,3 +113,22 @@ def test_datetime_parsing(dt, ErrorType, match):
 def test_timedelta_parsing(td, ErrorType, match):
     with pytest.raises(ErrorType, match=match):
         utils.parse_timedelta_like(td)
+
+
+def test_timedelta_parsing_passes_on_unrelated_warnings(monkeypatch):
+    """A warning other than pandas' FutureWarning about ambiguous units does not stop the parsing.
+
+    For example, pandas 2 emits a DeprecationWarning on numpy 2.5 when parsing a timedelta,
+    which used to be raised as an error, so beliefs with a horizon given as a string could not be created.
+    The warning should reach the caller as a warning instead.
+    """
+    original_timedelta = pd.Timedelta
+
+    class WarningTimedelta(original_timedelta):
+        def __new__(cls, *args, **kwargs):
+            warnings.warn("unrelated deprecation", DeprecationWarning)
+            return original_timedelta(*args, **kwargs)
+
+    monkeypatch.setattr(utils.pd, "Timedelta", WarningTimedelta)
+    with pytest.warns(DeprecationWarning, match="unrelated deprecation"):
+        assert utils.parse_timedelta_like("PT1H") == timedelta(hours=1)
