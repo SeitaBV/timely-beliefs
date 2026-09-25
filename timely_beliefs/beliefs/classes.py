@@ -42,7 +42,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
-from sqlalchemy.orm import Session, backref, declarative_mixin, relationship
+from sqlalchemy.orm import Session, backref, relationship
 from sqlalchemy.orm.util import AliasedClass
 from sqlalchemy.schema import Index
 from sqlalchemy.sql.elements import BinaryExpression, ColumnClause, TextClause
@@ -239,7 +239,6 @@ class TimedBelief(object):
         return None
 
 
-@declarative_mixin
 class TimedBeliefDBMixin(TimedBelief):
     """
     Mixin class for a table with beliefs.
