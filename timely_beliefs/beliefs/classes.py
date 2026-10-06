@@ -1071,7 +1071,15 @@ class BeliefsSeries(pd.Series):
         return self
 
     def __init__(self, *args, **kwargs):
+        sensor: Sensor | None = kwargs.pop("sensor", None)
+        event_resolution: TimedeltaLike | None = kwargs.pop("event_resolution", None)
         super().__init__(*args, **kwargs)
+        if len(args) > 0 and isinstance(args[0], (BeliefsSeries, BeliefsDataFrame)):
+            if sensor is None:
+                sensor = getattr(args[0], "sensor", None)
+            if event_resolution is None:
+                event_resolution = getattr(args[0], "event_resolution", None)
+        assign_sensor_and_event_resolution(self, sensor, event_resolution)
         return
 
     def __repr__(self):
@@ -1194,6 +1202,16 @@ class BeliefsDataFrame(pd.DataFrame):
             for name in self._metadata:
                 object.__setattr__(self, name, getattr(other, name, None))
         return self
+
+    def __setattr__(self, name, value):
+        """Clear the cache of sliced columns when metadata changes, so slicing afterwards does not return stale metadata.
+
+        Pandas caches each BeliefsSeries it slices from a DataFrame column,
+        and a cached BeliefsSeries keeps the metadata it was sliced with.
+        """
+        if name in self._metadata and "_item_cache" in self.__dict__:
+            self._clear_item_cache()
+        super().__setattr__(name, value)
 
     def __init__(  # noqa: C901 todo: refactor, e.g. by detecting initialization method
         self, *args, **kwargs
@@ -2575,7 +2593,7 @@ def assign_sensor_and_event_resolution(df, sensor, event_resolution):
     df.sensor = sensor
     df.event_resolution = (
         event_resolution
-        if event_resolution
+        if event_resolution is not None
         else sensor.event_resolution if sensor else None
     )
 
