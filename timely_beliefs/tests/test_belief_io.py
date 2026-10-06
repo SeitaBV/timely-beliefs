@@ -466,7 +466,7 @@ def test_belief_setup_with_timed_beliefs(args, kwargs):
 
 @pytest.mark.parametrize(
     "custom_event_resolution",
-    [None, timedelta(minutes=7, seconds=30), timedelta(hours=1)],
+    [None, timedelta(0), timedelta(minutes=7, seconds=30), timedelta(hours=1)],
 )
 def test_converting_between_data_frame_and_series_retains_metadata(
     custom_event_resolution,

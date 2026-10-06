@@ -2583,7 +2583,7 @@ def assign_sensor_and_event_resolution(df, sensor, event_resolution):
     df.sensor = sensor
     df.event_resolution = (
         event_resolution
-        if event_resolution
+        if event_resolution is not None
         else sensor.event_resolution if sensor else None
     )
 
