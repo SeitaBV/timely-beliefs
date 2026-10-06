@@ -1203,6 +1203,16 @@ class BeliefsDataFrame(pd.DataFrame):
                 object.__setattr__(self, name, getattr(other, name, None))
         return self
 
+    def __setattr__(self, name, value):
+        """Clear the cache of sliced columns when metadata changes, so slicing afterwards does not return stale metadata.
+
+        Pandas caches each BeliefsSeries it slices from a DataFrame column,
+        and a cached BeliefsSeries keeps the metadata it was sliced with.
+        """
+        if name in self._metadata and "_item_cache" in self.__dict__:
+            self._clear_item_cache()
+        super().__setattr__(name, value)
+
     def __init__(  # noqa: C901 todo: refactor, e.g. by detecting initialization method
         self, *args, **kwargs
     ):

@@ -514,6 +514,22 @@ def test_converting_between_data_frame_and_series_retains_metadata(
     )
 
 
+def test_slicing_after_setting_metadata_retains_new_metadata():
+    """Test whether slicing a column after changing the metadata of a BeliefsDataFrame returns the new metadata.
+
+    GH 220: pandas caches sliced columns, so slicing before changing the metadata used to return the stale metadata on the next slice.
+    """
+    df = get_example_df()
+    assert df["event_value"].event_resolution == timedelta(minutes=15)
+
+    df.event_resolution = timedelta(minutes=7, seconds=30)
+    assert df["event_value"].event_resolution == timedelta(minutes=7, seconds=30)
+
+    other_sensor = tb.Sensor("other", event_resolution=timedelta(hours=1))
+    df.sensor = other_sensor
+    assert df["event_value"].sensor == other_sensor
+
+
 def test_dropping_index_levels_retains_metadata():
     example_df = get_example_df()
     df = example_df.copy()
