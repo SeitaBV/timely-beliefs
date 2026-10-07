@@ -35,6 +35,13 @@ if importlib.util.find_spec("sktime") is None:
     # Ignore these tests if sktime is not installed
     print("Ignoring optional test modules prepended with 'test_forecast__'")
     collect_ignore_glob += ["test_forecast__*.py"]
+if importlib.util.find_spec("openturns") is None:
+    # Ignore these tests if openturns (the 'probabilistic' extra) is not installed
+    print(
+        "Ignoring test_probabilistic_downsampling.py and test_viz__ridgeline.py, "
+        "since openturns is not installed."
+    )
+    collect_ignore_glob += ["test_probabilistic_downsampling.py", "test_viz__ridgeline.py"]
 
 
 @pytest.fixture(scope="function")

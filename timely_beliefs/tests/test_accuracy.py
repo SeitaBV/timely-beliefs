@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 import numpy as np
+import pytest
 from pytz import utc
 
 from timely_beliefs import BeliefsDataFrame
@@ -11,6 +12,7 @@ from timely_beliefs.tests.utils import equal_lists
 
 def test_setting_reference():
     """Set a column with reference values."""
+    pytest.importorskip("openturns")  # return_reference_type="mean" uses get_mean_belief
 
     # Deterministic reference values
     example_df = get_example_df()

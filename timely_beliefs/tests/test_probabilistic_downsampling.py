@@ -5,10 +5,9 @@ import openturns as ot
 import pytest
 from pytest import approx
 
-from timely_beliefs.beliefs.probabilistic_utils import (
-    equalize_bins,
-    multivariate_marginal_to_univariate_joint_cdf,
-)
+from timely_beliefs.beliefs.independent_joint_cdf import independent_joint_cdf
+from timely_beliefs.beliefs.probabilistic_backend import joint_cdf_with_openturns_copula
+from timely_beliefs.beliefs.probabilistic_utils import equalize_bins
 from timely_beliefs.tests.utils import equal_lists
 
 
@@ -40,10 +39,10 @@ def multivariate_test_cdfs() -> Tuple[np.ndarray, np.ndarray]:
 
 
 def test_bivariate_aggregation():
-    """Check defaults for bivariate aggregation."""
+    """Check defaults for bivariate aggregation (independent copula, no openturns needed)."""
 
     # For independent variables, sum of outcomes, possible outcomes are P(v=0)=0 and P(v=1)=1
-    cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf([[0, 1], [0, 1]])
+    cdf_p, cdf_v = independent_joint_cdf([[0, 1], [0, 1]])
     assert all(np.diff(cdf_v) >= 0) and all(
         np.diff(cdf_p) >= 0
     )  # Check for non-decreasing cdf
@@ -52,7 +51,7 @@ def test_bivariate_aggregation():
     )  # Check aggregated outcomes (no chance of sum = 0 or 1)
     assert equal_lists(cdf_p, [1])  # Check cumulative probabilities
     # And for possible outcomes P(v=0)=0.5 and P(v=1)=0.5
-    cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf([[0.5, 1], [0.5, 1]])
+    cdf_p, cdf_v = independent_joint_cdf([[0.5, 1], [0.5, 1]])
     assert equal_lists(
         cdf_v, [0, 1, 2]
     )  # Check aggregated outcomes (25% chance of sum = 0 or 2, 50% of sum = 1)
@@ -60,7 +59,8 @@ def test_bivariate_aggregation():
 
 
 def test_multivariate_aggregation():
-    """Check different aggregation functions for multivariate aggregation, as well as a copula."""
+    """Check different aggregation functions for multivariate aggregation (independent copula), as
+    well as a custom copula (which needs openturns, unlike the independent-copula calls above)."""
 
     # For sum
     marginal_pdfs = [
@@ -69,9 +69,7 @@ def test_multivariate_aggregation():
         [1 / 6, 1 / 6, 2 / 3],
     ]
     marginal_cdfs = np.cumsum(marginal_pdfs, axis=1)
-    cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(
-        marginal_cdfs, a=10, b=100
-    )
+    cdf_p, cdf_v = independent_joint_cdf(marginal_cdfs, a=10, b=100)
     assert all(np.diff(cdf_v) >= 0) and all(
         np.diff(cdf_p) >= 0
     )  # Check for non-decreasing cdf
@@ -81,7 +79,7 @@ def test_multivariate_aggregation():
     )  # Check range of cumulative probabilities
 
     # For mean
-    cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(
+    cdf_p, cdf_v = independent_joint_cdf(
         marginal_cdfs, agg_function=np.mean, a=10, b=100
     )
     assert all(np.diff(cdf_v) >= 0) and all(
@@ -95,7 +93,7 @@ def test_multivariate_aggregation():
     # For a normal copula with a correlation matrix with positive correlation between 1st and 2nd variable
     R = ot.CorrelationMatrix(len(marginal_cdfs))
     R[0, 1] = 0.25
-    cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(
+    cdf_p, cdf_v = joint_cdf_with_openturns_copula(
         marginal_cdfs, copula=ot.NormalCopula(R), a=10, b=100
     )
     assert all(np.diff(cdf_v) >= 0) and all(
@@ -109,7 +107,7 @@ def test_multivariate_aggregation():
     # For a normal copula with a correlation matrix with negative correlation between 1st and 2nd variable
     R = ot.CorrelationMatrix(len(marginal_cdfs))
     R[0, 1] = -0.25
-    cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(
+    cdf_p, cdf_v = joint_cdf_with_openturns_copula(
         marginal_cdfs, copula=ot.NormalCopula(R), a=10, b=100
     )
     assert all(np.diff(cdf_v) >= 0) and all(
@@ -122,14 +120,13 @@ def test_multivariate_aggregation():
 
 
 def test_bivariate_aggregation_with_unmatched_bins():
-    """Check bivariate aggregation where the outcomes of the first and second variables are completely different."""
+    """Check bivariate aggregation where the outcomes of the first and second variables are
+    completely different (independent copula, no openturns needed)."""
 
     marginal_cdfs_v = [[5, 6.5, 7], [1.2, 2.02, 3]]
     marginal_cdfs_p = [[1 / 3, 2 / 3, 1], [1 / 4, 2 / 3, 3 / 4]]
 
-    cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(
-        marginal_cdfs_p, marginal_cdfs_v=marginal_cdfs_v
-    )
+    cdf_p, cdf_v = independent_joint_cdf(marginal_cdfs_p, marginal_cdfs_v=marginal_cdfs_v)
     assert all(np.diff(cdf_v) >= 0) and all(
         np.diff(cdf_p) >= 0
     )  # Check for non-decreasing cdf
@@ -142,7 +139,7 @@ def test_bivariate_aggregation_with_unmatched_bins():
 
     # Show equalising bins is irrelevant
     marginal_cdfs_v, marginal_cdfs_p = equalize_bins(marginal_cdfs_v, marginal_cdfs_p)
-    cdf_p_2, cdf_v_2 = multivariate_marginal_to_univariate_joint_cdf(
+    cdf_p_2, cdf_v_2 = independent_joint_cdf(
         marginal_cdfs_p, marginal_cdfs_v=marginal_cdfs_v
     )
     assert equal_lists(cdf_p, cdf_p_2)
@@ -151,7 +148,8 @@ def test_bivariate_aggregation_with_unmatched_bins():
 
 def test_marginal_distributions_with_residual_probability():
     """Aggregate three time slots with CDFs that are not fully specified.
-    That means each has a residual probability that their outcome is higher than the highest value given.
+    That means each has a residual probability that their outcome is higher than the highest value
+    given. Independent copula first (no openturns needed), then a custom copula (which does).
     """
 
     # Make sure incomplete cdf functions can still be transformed (a higher outcome with cp=1 can be assumed to exist)
@@ -160,7 +158,7 @@ def test_marginal_distributions_with_residual_probability():
         [1 / 4, 4 / 6, 5 / 6],
         [1 / 6, 5 / 9, 8 / 9],
     ]
-    cdf_p, _ = multivariate_marginal_to_univariate_joint_cdf(marginal_cdfs)
+    cdf_p, _ = independent_joint_cdf(marginal_cdfs)
     assert all(np.diff(cdf_p) >= 0)  # Check for non-decreasing cdf
     assert (
         cdf_p[-1] < 1
@@ -173,9 +171,7 @@ def test_marginal_distributions_with_residual_probability():
     # Make a correlation matrix with negative correlation between the first and second variable
     R = ot.CorrelationMatrix(len(marginal_cdfs))
     R[0, 1] = -0.25
-    cdf_p, _ = multivariate_marginal_to_univariate_joint_cdf(
-        marginal_cdfs, copula=ot.NormalCopula(R)
-    )
+    cdf_p, _ = joint_cdf_with_openturns_copula(marginal_cdfs, copula=ot.NormalCopula(R))
     assert all(np.diff(cdf_p) >= 0)  # Check for non-decreasing cdf
     a = (
         cdf_p[-1] - cdf_p[-2]
@@ -186,9 +182,7 @@ def test_marginal_distributions_with_residual_probability():
     # Make a correlation matrix with positive correlation between the first and second variable
     R = ot.CorrelationMatrix(len(marginal_cdfs))
     R[0, 1] = 0.25
-    cdf_p, _ = multivariate_marginal_to_univariate_joint_cdf(
-        marginal_cdfs, copula=ot.NormalCopula(R)
-    )
+    cdf_p, _ = joint_cdf_with_openturns_copula(marginal_cdfs, copula=ot.NormalCopula(R))
     assert all(np.diff(cdf_p) >= 0)  # Check for non-decreasing cdf
     a = (
         cdf_p[-1] - cdf_p[-2]
@@ -199,14 +193,13 @@ def test_marginal_distributions_with_residual_probability():
 
 
 def test_multivariate_aggregation_with_unmatched_bins(multivariate_test_cdfs):
-    """Check multivariate aggregation where the outcomes of each variable are completely different."""
+    """Check multivariate aggregation where the outcomes of each variable are completely different
+    (independent copula, no openturns needed)."""
 
     marginal_cdf_p, marginal_cdf_v = multivariate_test_cdfs
     dim = len(marginal_cdf_p)
 
-    cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(
-        marginal_cdf_p, marginal_cdfs_v=marginal_cdf_v
-    )
+    cdf_p, cdf_v = independent_joint_cdf(marginal_cdf_p, marginal_cdfs_v=marginal_cdf_v)
 
     assert all(np.diff(cdf_v) >= 0) and all(
         np.diff(cdf_p) >= 0
@@ -223,7 +216,7 @@ def test_multivariate_aggregation_with_unmatched_bins_and_dependence(
     multivariate_test_cdfs,
 ):
     """Check multivariate aggregation where the outcomes of each variable are completely different,
-    and the variables are correlated."""
+    and the variables are correlated (needs a custom copula, hence openturns)."""
 
     marginal_cdf_p, marginal_cdf_v = multivariate_test_cdfs
     dim = len(marginal_cdf_p)
@@ -232,7 +225,7 @@ def test_multivariate_aggregation_with_unmatched_bins_and_dependence(
     R = ot.CorrelationMatrix(dim)
     for d in range(1, dim):
         R[d - 1, d] = 0.25
-    cdf_p, cdf_v = multivariate_marginal_to_univariate_joint_cdf(
+    cdf_p, cdf_v = joint_cdf_with_openturns_copula(
         marginal_cdf_p, marginal_cdfs_v=marginal_cdf_v, copula=ot.NormalCopula(R)
     )
     assert all(np.diff(cdf_v) >= 0) and all(
@@ -245,7 +238,7 @@ def test_multivariate_aggregation_with_unmatched_bins_and_dependence(
         cdf_p[-1] < 1 or cdf_p[-1] == approx(1)
     )  # Check range of cumulative probabilities
 
-    cdf_p_2, cdf_v_2 = multivariate_marginal_to_univariate_joint_cdf(
+    cdf_p_2, cdf_v_2 = joint_cdf_with_openturns_copula(
         marginal_cdf_p,
         marginal_cdfs_v=marginal_cdf_v,
         copula=ot.NormalCopula(R),

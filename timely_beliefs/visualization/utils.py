@@ -12,10 +12,7 @@ import numpy as np
 import pandas as pd
 
 from timely_beliefs.beliefs import classes  # noqa: F401
-from timely_beliefs.beliefs.probabilistic_utils import (
-    get_nth_percentile_belief,
-    interpret_complete_cdf,
-)
+from timely_beliefs.beliefs.probabilistic_utils import get_nth_percentile_belief
 from timely_beliefs.visualization import graphs, selectors
 
 
@@ -426,8 +423,10 @@ def interpret_and_sample_distribution_long_form(
     frame = pd.DataFrame()
     for _group_index, df in df.for_each_belief():
 
-        # Interpret CDF
-        dist = interpret_complete_cdf(
+        # Interpret CDF as an openturns distribution
+        from timely_beliefs.beliefs import probabilistic_backend as backend
+
+        dist = backend.interpret_complete_cdf_as_distribution(
             cdfs_p=[df.index.get_level_values("cumulative_probability").values],
             cdfs_v=[df["event_value"].values],
             distribution=distribution,
