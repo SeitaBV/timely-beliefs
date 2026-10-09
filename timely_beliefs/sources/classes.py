@@ -38,6 +38,7 @@ class BeliefSource(object):
         return (str(self), id(self)) < (str(other), id(other))
 
 
+@total_ordering
 class BeliefSourceDBMixin(BeliefSource):
     """
     Mixin class for a table with belief sources.
@@ -49,6 +50,37 @@ class BeliefSourceDBMixin(BeliefSource):
 
     def __init__(self, name: str):
         BeliefSource.__init__(self, name)
+
+    def __eq__(self, other):
+        """Two database-backed sources are equal if they share a persisted primary key."""
+        if not isinstance(other, BeliefSourceDBMixin):
+            return NotImplemented
+        if self.id is not None and other.id is not None:
+            return self.id == other.id
+        return self is other
+
+    def __hash__(self):
+        """Hash based on name so hash is stable before and after flushing an id."""
+        return hash(self.name)
+
+    def __lt__(self, other):
+        """Order by name, then primary key, falling back to identity for unflushed instances."""
+        if not isinstance(other, BeliefSource):
+            return NotImplemented
+        other_id = getattr(other, "id", None)
+        self_key = (
+            str(self),
+            self.id is None,
+            self.id or 0,
+            0 if self.id is not None else id(self),
+        )
+        other_key = (
+            str(other),
+            other_id is None,
+            other_id or 0,
+            0 if other_id is not None else id(other),
+        )
+        return self_key < other_key
 
 
 class DBBeliefSource(Base, BeliefSourceDBMixin):

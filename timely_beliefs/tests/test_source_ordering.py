@@ -5,13 +5,15 @@ __lt__ tiebreaks on id(self) when names are equal, giving a strict total order
 consistent with identity-based equality.
 """
 
+import subprocess
+import sys
 from datetime import timedelta
 
 import pandas as pd
 import pytest
 
 import timely_beliefs as tb
-from timely_beliefs import BeliefSource
+from timely_beliefs import BeliefSource, DBBeliefSource
 
 
 def test_belief_source_lt_different_names():
@@ -127,3 +129,127 @@ def test_pandas_nan_regression():
     bdf = pd.concat(frames)
     nan_sources = sum(1 for t in bdf.index if not isinstance(t[2], tb.BeliefSource))
     assert nan_sources == 0, f"Expected 0 NaN sources, got {nan_sources}"
+
+
+def test_db_belief_source_lt_different_names():
+    """Alphabetic ordering when names differ."""
+    s_a = DBBeliefSource("alpha")
+    s_a.id = 2
+    s_b = DBBeliefSource("beta")
+    s_b.id = 1
+
+    assert s_a < s_b
+    assert not (s_b < s_a)
+
+
+def test_db_belief_source_lt_same_name_orders_by_id():
+    """Two DBBeliefSources sharing a name order deterministically by primary key."""
+    s1 = DBBeliefSource("same")
+    s1.id = 1
+    s2 = DBBeliefSource("same")
+    s2.id = 2
+
+    assert s1 < s2
+    assert not (s2 < s1)
+
+    # Regardless of Python object allocation order, ordering is strictly by id.
+    s_b = DBBeliefSource("same")
+    s_b.id = 2
+    s_a = DBBeliefSource("same")
+    s_a.id = 1
+
+    assert s_a < s_b
+    assert not (s_b < s_a)
+
+
+def test_db_belief_source_equality_and_hash_persisted():
+    """Two persisted DBBeliefSources with the same id are equal and have the same hash."""
+    s1 = DBBeliefSource("same")
+    s1.id = 1
+    s2 = DBBeliefSource("same")
+    s2.id = 1
+    s3 = DBBeliefSource("same")
+    s3.id = 2
+
+    assert s1 == s2
+    assert s1 != s3
+    assert not (s1 < s2)
+    assert not (s2 < s1)
+    assert s1 <= s2
+    assert s1 >= s2
+
+    assert hash(s1) == hash(s2)
+    assert len({s1, s2}) == 1
+    assert len({s1, s3}) == 2
+
+
+def test_db_belief_source_unflushed_ordering_and_equality():
+    """Unflushed instances sort after persisted ones and tiebreak on identity."""
+    s_persisted = DBBeliefSource("same")
+    s_persisted.id = 1
+    s_unflushed1 = DBBeliefSource("same")
+    s_unflushed1.id = None
+    s_unflushed2 = DBBeliefSource("same")
+    s_unflushed2.id = None
+
+    assert s_persisted < s_unflushed1
+    assert not (s_unflushed1 < s_persisted)
+    assert s_persisted != s_unflushed1
+
+    assert s_unflushed1 != s_unflushed2
+    assert (s_unflushed1 < s_unflushed2) != (s_unflushed2 < s_unflushed1)
+
+
+def test_db_belief_source_hash_stability_on_flush():
+    """Hashing by name ensures an unflushed source remains found in dicts after flush."""
+    s = DBBeliefSource("Source A")
+    s.id = None
+    d = {s: "created"}
+    assert s in d
+
+    # Simulate database flush assigning primary key
+    s.id = 42
+    assert s in d
+    assert d[s] == "created"
+
+    # Cross-session instance representing the same row matches dict key
+    s_fetched = DBBeliefSource("Source A")
+    s_fetched.id = 42
+    assert s_fetched in d
+    assert d[s_fetched] == "created"
+
+
+def test_db_belief_source_mixed_with_in_memory_source():
+    """DBBeliefSource and plain BeliefSource comparison behaves consistently."""
+    db_s = DBBeliefSource("same")
+    db_s.id = 1
+    mem_s = BeliefSource("same")
+
+    assert db_s != mem_s
+    assert mem_s != db_s
+    assert db_s < mem_s
+    assert not (mem_s < db_s)
+
+
+def test_db_belief_source_ordering_persisted_across_processes():
+    """Two DBBeliefSource rows sharing a name order identically in a fresh process (issue #256)."""
+    script = """
+from timely_beliefs import DBBeliefSource
+
+# Reverse allocation order in this process
+s2 = DBBeliefSource("same")
+s2.id = 2
+s1 = DBBeliefSource("same")
+s1.id = 1
+
+assert s1 < s2
+assert not (s2 < s1)
+print("OK")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == "OK"
