@@ -1,12 +1,14 @@
-"""Tests for BeliefSource strict total ordering (issue #238).
+"""Tests for BeliefSource strict total ordering (issues #238 and #256).
 
-BeliefSource equality and hashing use object identity (Python default).
-__lt__ tiebreaks on id(self) when names are equal, giving a strict total order
-consistent with identity-based equality.
+In-memory BeliefSource equality and hashing use object identity (Python default),
+and __lt__ tiebreaks on id(self) when names are equal,
+giving a strict total order consistent with identity-based equality.
+
+A database-backed source (BeliefSourceDBMixin) is equal to any object loaded for the same row,
+and __lt__ tiebreaks on the row's primary key instead,
+so its order is the same in every process.
 """
 
-import subprocess
-import sys
 from datetime import timedelta
 
 import pandas as pd
@@ -14,6 +16,8 @@ import pytest
 
 import timely_beliefs as tb
 from timely_beliefs import BeliefSource, DBBeliefSource
+from timely_beliefs.tests import Session, session
+from timely_beliefs.tests.test_db_subclassing import RatedSourceInCustomTable
 
 
 def test_belief_source_lt_different_names():
@@ -131,125 +135,120 @@ def test_pandas_nan_regression():
     assert nan_sources == 0, f"Expected 0 NaN sources, got {nan_sources}"
 
 
-def test_db_belief_source_lt_different_names():
-    """Alphabetic ordering when names differ."""
-    s_a = DBBeliefSource("alpha")
-    s_a.id = 2
-    s_b = DBBeliefSource("beta")
-    s_b.id = 1
+def flushed_sources(*names: str) -> list[DBBeliefSource]:
+    """Database-backed sources with the given names, flushed in the given order, so their primary keys ascend in that order.
+
+    The objects are created in reverse order,
+    so that their memory addresses cannot be mistaken for their primary keys.
+    """
+    sources = [DBBeliefSource(name) for name in reversed(names)][::-1]
+    for source in sources:
+        session.add(source)
+        session.flush()
+    return sources
+
+
+def test_db_belief_source_lt_different_names(db):
+    """Alphabetic ordering when names differ, whatever the primary keys."""
+    s_b, s_a = flushed_sources("beta", "alpha")
 
     assert s_a < s_b
     assert not (s_b < s_a)
 
 
-def test_db_belief_source_lt_same_name_orders_by_id():
-    """Two DBBeliefSources sharing a name order deterministically by primary key."""
-    s1 = DBBeliefSource("same")
-    s1.id = 1
-    s2 = DBBeliefSource("same")
-    s2.id = 2
+def test_db_belief_source_lt_same_name_orders_by_id(db):
+    """Database-backed sources sharing a name order by primary key (issue #256)."""
+    sources = flushed_sources(*["same"] * 10)
 
-    assert s1 < s2
-    assert not (s2 < s1)
-
-    # Regardless of Python object allocation order, ordering is strictly by id.
-    s_b = DBBeliefSource("same")
-    s_b.id = 2
-    s_a = DBBeliefSource("same")
-    s_a.id = 1
-
-    assert s_a < s_b
-    assert not (s_b < s_a)
+    assert sorted(reversed(sources)) == sources
+    assert [s.id for s in sorted(reversed(sources))] == sorted(s.id for s in sources)
 
 
-def test_db_belief_source_equality_and_hash_persisted():
-    """Two persisted DBBeliefSources with the same id are equal and have the same hash."""
-    s1 = DBBeliefSource("same")
-    s1.id = 1
-    s2 = DBBeliefSource("same")
-    s2.id = 1
-    s3 = DBBeliefSource("same")
-    s3.id = 2
+def test_db_belief_source_equality_and_hash_per_row(db):
+    """Two objects loaded for one row, in different sessions, are equal, hash equal and neither orders first."""
+    (s1,) = flushed_sources("same")
+    session.commit()
+    other_session = Session()
+    try:
+        s1_again = other_session.get(DBBeliefSource, s1.id)
+        assert s1_again is not s1
+        s2 = DBBeliefSource("same")
+        other_session.add(s2)
+        other_session.flush()
 
-    assert s1 == s2
-    assert s1 != s3
-    assert not (s1 < s2)
-    assert not (s2 < s1)
-    assert s1 <= s2
-    assert s1 >= s2
+        assert s1 == s1_again
+        assert s1 != s2
+        assert not (s1 < s1_again)
+        assert not (s1_again < s1)
+        assert s1 <= s1_again
+        assert s1 >= s1_again
 
-    assert hash(s1) == hash(s2)
-    assert len({s1, s2}) == 1
-    assert len({s1, s3}) == 2
+        assert hash(s1) == hash(s1_again)
+        assert len({s1, s1_again}) == 1
+        assert len({s1, s2}) == 2
+    finally:
+        other_session.rollback()
+        other_session.close()
 
 
-def test_db_belief_source_unflushed_ordering_and_equality():
-    """Unflushed instances sort after persisted ones and tiebreak on identity."""
-    s_persisted = DBBeliefSource("same")
-    s_persisted.id = 1
+def test_db_belief_source_equality_and_hash_do_not_load(db):
+    """Expired, detached sources can still be compared for equality and hashed, so neither loads from the database."""
+    s1, s2 = flushed_sources("same", "same")
+    session.commit()  # expires both
+    session.close()  # detaches both
+
+    assert s1 != s2
+    assert s1 == s1
+    assert len({s1, s2}) == 2
+
+
+def test_db_belief_source_different_tables_are_different_sources(db):
+    """Sources from different tables are different sources, even with the same name and primary key."""
+    (s,) = flushed_sources("same")
+    custom = RatedSourceInCustomTable(name="same")
+    custom.id = s.id
+    session.add(custom)
+    session.flush()
+    assert s.id == custom.id
+
+    assert s != custom
+    assert (s < custom) != (custom < s)
+
+
+def test_db_belief_source_unflushed_ordering_and_equality(db):
+    """Sources that were not flushed yet only equal themselves, and sort after flushed ones, tiebreaking on identity."""
+    (s_flushed,) = flushed_sources("same")
     s_unflushed1 = DBBeliefSource("same")
-    s_unflushed1.id = None
     s_unflushed2 = DBBeliefSource("same")
-    s_unflushed2.id = None
 
-    assert s_persisted < s_unflushed1
-    assert not (s_unflushed1 < s_persisted)
-    assert s_persisted != s_unflushed1
+    assert s_flushed < s_unflushed1
+    assert not (s_unflushed1 < s_flushed)
+    assert s_flushed != s_unflushed1
 
+    assert s_unflushed1 == s_unflushed1
     assert s_unflushed1 != s_unflushed2
     assert (s_unflushed1 < s_unflushed2) != (s_unflushed2 < s_unflushed1)
 
 
-def test_db_belief_source_hash_stability_on_flush():
-    """Hashing by name ensures an unflushed source remains found in dicts after flush."""
+def test_db_belief_source_hash_stability_on_flush(db):
+    """A source used as a dict key before it is flushed is still found after the flush and a commit."""
     s = DBBeliefSource("Source A")
-    s.id = None
     d = {s: "created"}
-    assert s in d
 
-    # Simulate database flush assigning primary key
-    s.id = 42
+    session.add(s)
+    session.flush()
+    session.commit()
+
     assert s in d
     assert d[s] == "created"
 
-    # Cross-session instance representing the same row matches dict key
-    s_fetched = DBBeliefSource("Source A")
-    s_fetched.id = 42
-    assert s_fetched in d
-    assert d[s_fetched] == "created"
 
-
-def test_db_belief_source_mixed_with_in_memory_source():
-    """DBBeliefSource and plain BeliefSource comparison behaves consistently."""
-    db_s = DBBeliefSource("same")
-    db_s.id = 1
+def test_db_belief_source_mixed_with_in_memory_source(db):
+    """A database-backed source and an in-memory source with the same name are different, and order consistently."""
+    (db_s,) = flushed_sources("same")
     mem_s = BeliefSource("same")
 
     assert db_s != mem_s
     assert mem_s != db_s
     assert db_s < mem_s
     assert not (mem_s < db_s)
-
-
-def test_db_belief_source_ordering_persisted_across_processes():
-    """Two DBBeliefSource rows sharing a name order identically in a fresh process (issue #256)."""
-    script = """
-from timely_beliefs import DBBeliefSource
-
-# Reverse allocation order in this process
-s2 = DBBeliefSource("same")
-s2.id = 2
-s1 = DBBeliefSource("same")
-s1.id = 1
-
-assert s1 < s2
-assert not (s2 < s1)
-print("OK")
-"""
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    assert result.stdout.strip() == "OK"
