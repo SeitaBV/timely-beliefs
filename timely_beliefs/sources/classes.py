@@ -38,7 +38,6 @@ class BeliefSource(object):
         return (str(self), id(self)) < (str(other), id(other))
 
 
-@total_ordering
 class BeliefSourceDBMixin(BeliefSource):
     """
     Mixin class for a table with belief sources.
