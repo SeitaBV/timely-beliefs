@@ -9,6 +9,8 @@ and __lt__ tiebreaks on the row's primary key instead,
 so its order is the same in every process.
 """
 
+from __future__ import annotations
+
 from datetime import timedelta
 
 import pandas as pd
