@@ -1056,6 +1056,18 @@ def resample_instantaneous_events(
     This is done to keep the data frequency in step with midnight in the sensor's timezone.
     """
 
+    sensor = getattr(df, "sensor", None)
+    event_resolution = getattr(df, "event_resolution", None)
+    if event_resolution is None and sensor is not None:
+        event_resolution = getattr(sensor, "event_resolution", None)
+    if event_resolution is not None and event_resolution != timedelta(0):
+        raise ValueError(
+            f"resample_instantaneous_events only supports instantaneous data (event_resolution == timedelta(0)), but received event_resolution of {event_resolution}."
+        )
+
+    if df.empty:
+        return df
+
     # Default resampling method for instantaneous sensors
     if method is None:
         method = "asfreq"
@@ -1083,7 +1095,7 @@ def resample_instantaneous_events(
             # As a backup, use the original timezone from the BeliefsDataFrame's sensor
             resampled_df_timezone = resampled_df_offset.tz_convert(df.sensor.timezone)
         else:
-            ValueError("Missing original timezone.")
+            raise ValueError("Missing original timezone.")
         # See which resampled rows still fall in the given offset, in this timezone
         resampled_df_timezone = resampled_df_timezone[
             resampled_df_timezone.index.map(lambda x: x.utcoffset()) == offset

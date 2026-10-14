@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -263,3 +265,35 @@ def test_resample_instantaneous_events(
     )
     print(ds_df)
     assert equal_lists(ds_df.values, exp_event_values)
+
+
+def test_resample_instantaneous_events_rejects_non_instantaneous_data():
+    """resample_instantaneous_events should raise ValueError for non-instantaneous data."""
+    # BeliefsDataFrame with non-zero event resolution from sensor
+    df = get_example_df()
+    assert df.event_resolution == timedelta(minutes=15)
+    with pytest.raises(
+        ValueError,
+        match="resample_instantaneous_events only supports instantaneous data",
+    ):
+        resample_instantaneous_events(df, timedelta(hours=1))
+
+    # Plain DataFrame with an explicit non-zero event_resolution attribute
+    plain_df = pd.DataFrame(
+        {"event_value": [1.0]},
+        index=pd.date_range("2020-01-01", periods=1, freq="1h", name="event_start"),
+    )
+    plain_df.event_resolution = timedelta(hours=1)
+    with pytest.raises(
+        ValueError,
+        match="resample_instantaneous_events only supports instantaneous data",
+    ):
+        resample_instantaneous_events(plain_df, timedelta(hours=2))
+
+
+def test_resample_instantaneous_events_empty_df():
+    """Empty frames should return immediately without error."""
+    empty_df = pd.DataFrame(columns=["event_value"])
+    empty_df.index.name = "event_start"
+    res = resample_instantaneous_events(empty_df, timedelta(hours=1))
+    assert res.empty
