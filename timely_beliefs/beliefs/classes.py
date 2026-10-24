@@ -469,7 +469,7 @@ class TimedBeliefDBMixin(TimedBelief):
             session.execute(text(f'DROP TABLE "{staging}"'))
 
     @classmethod
-    def search_session(  # noqa: C901
+    def search_session(
         cls,
         session: Session,
         sensor: SensorDBMixin | int,
@@ -537,6 +537,170 @@ class TimedBeliefDBMixin(TimedBelief):
                              so they are not missed even if they were recorded after the last refresh
         :returns: a multi-index DataFrame with all relevant beliefs
         """
+        sensor = cls._get_sensors(session, [sensor], sensor_class)[0]
+        return cls._search_session_group(
+            session=session,
+            sensors=[sensor],
+            event_starts_after=event_starts_after,
+            event_ends_after=event_ends_after,
+            event_starts_before=event_starts_before,
+            event_ends_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
+            horizons_at_least=horizons_at_least,
+            horizons_at_most=horizons_at_most,
+            source=source,
+            most_recent_beliefs_only=most_recent_beliefs_only,
+            most_recent_events_only=most_recent_events_only,
+            most_recent_only=most_recent_only,
+            place_beliefs_in_sensor_timezone=place_beliefs_in_sensor_timezone,
+            place_events_in_sensor_timezone=place_events_in_sensor_timezone,
+            custom_filter_criteria=custom_filter_criteria,
+            custom_join_targets=custom_join_targets,
+            use_materialized_view=use_materialized_view,
+            most_recent_beliefs_mview=most_recent_beliefs_mview,
+            mview_cutoff=mview_cutoff,
+        )[0]
+
+    @classmethod
+    def search_session_multi(
+        cls,
+        session: Session,
+        sensors: list[SensorDBMixin | int],
+        sensor_class: Type[SensorDBMixin] | None = DBSensor,
+        **kwargs,
+    ) -> list[BeliefsDataFrame]:
+        """Search a database session for beliefs about the events of several sensors.
+
+        This takes the same arguments as search_session, except that it takes a list of sensors (or sensor ids).
+        It returns a list with one BeliefsDataFrame for each sensor, in the order of the given sensors,
+        and each of these is the same as what search_session returns for that sensor.
+
+        The beliefs table is queried once for each group of sensors that share the timing properties
+        that the given filters depend on, rather than once for each sensor.
+        Without event or belief time filters, all sensors are in one group.
+        Event filters that depend on the event end (event_ends_after, event_starts_before and event_ends_before)
+        group sensors by event resolution.
+        Belief time filters (beliefs_after and beliefs_before) group sensors by knowledge horizon.
+        Searching for only the most recent belief (most_recent_only) queries each sensor on its own.
+
+        :param sensors: sensors to which the beliefs pertain, or their unique sensor ids
+        :returns: a list of multi-index DataFrames with all relevant beliefs, one for each sensor
+        """
+        sensors = cls._get_sensors(session, sensors, sensor_class)
+
+        # Sensors can share a query, if the query filters do not depend on how they differ
+        uses_event_resolution = any(
+            not pd.isnull(kwargs.get(name))
+            for name in ("event_ends_after", "event_starts_before", "event_ends_before")
+        )
+        uses_knowledge_horizon = (
+            kwargs.get("beliefs_after") is not None
+            or kwargs.get("beliefs_before") is not None
+        )
+        sources = kwargs.get("source")
+        n_sources = (
+            0 if sources is None else len(sources) if isinstance(sources, list) else 1
+        )
+        one_query_per_sensor = kwargs.get("most_recent_only") or (
+            kwargs.get("most_recent_beliefs_only")
+            and kwargs.get("most_recent_events_only")
+            and n_sources == 1
+        )
+
+        def get_group(sensor: SensorDBMixin):
+            if one_query_per_sensor:
+                return sensor.id
+            group = []
+            if uses_event_resolution:
+                group.append(sensor.event_resolution)
+            if uses_knowledge_horizon:
+                group.append(
+                    sensor_utils.eval_verified_knowledge_horizon_fnc(
+                        sensor.knowledge_horizon_fnc,
+                        sensor.knowledge_horizon_par,
+                        event_resolution=sensor.event_resolution,
+                        get_bounds=True,
+                    )
+                )
+                group.append(
+                    sensor.knowledge_horizon_fnc in (ex_ante.__name__, ex_post.__name__)
+                )
+            return tuple(group)
+
+        groups: dict = {}
+        for sensor in {sensor.id: sensor for sensor in sensors}.values():
+            groups.setdefault(get_group(sensor), []).append(sensor)
+
+        results = {}
+        for group in groups.values():
+            for sensor, df in zip(
+                group, cls._search_session_group(session, group, **kwargs)
+            ):
+                results[sensor.id] = df
+        return [results[sensor.id] for sensor in sensors]
+
+    @classmethod
+    def _get_sensors(
+        cls,
+        session: Session,
+        sensors: list[SensorDBMixin | int],
+        sensor_class: Type[SensorDBMixin] | None = DBSensor,
+    ) -> list[SensorDBMixin]:
+        """Look up the sensors that were given by their id, using one query."""
+        sensor_ids = [sensor for sensor in sensors if isinstance(sensor, int)]
+        if not sensor_ids:
+            return list(sensors)
+
+        # Check for proper sensor class
+        if not issubclass(sensor_class, SensorDBMixin):
+            raise ValueError(
+                f"sensor {sensor_ids[0]} is a {type(sensor_ids[0])}, which is not a subclass of {SensorDBMixin}"
+            )
+        found = {
+            sensor.id: sensor
+            for sensor in session.execute(
+                select(sensor_class).filter(sensor_class.id.in_(sensor_ids))
+            ).scalars()
+        }
+        if any(sensor_id not in found for sensor_id in sensor_ids):
+            raise ValueError("No such sensor")
+        return [
+            found[sensor] if isinstance(sensor, int) else sensor for sensor in sensors
+        ]
+
+    @classmethod
+    def _search_session_group(  # noqa: C901
+        cls,
+        session: Session,
+        sensors: list[SensorDBMixin],
+        event_starts_after: datetime | None = None,
+        event_ends_after: datetime | None = None,
+        event_starts_before: datetime | None = None,
+        event_ends_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
+        horizons_at_least: timedelta | None = None,
+        horizons_at_most: timedelta | None = None,
+        source: BeliefSource | list[BeliefSource] | None = None,
+        most_recent_beliefs_only: bool = False,
+        most_recent_events_only: bool = False,
+        most_recent_only: bool = False,
+        place_beliefs_in_sensor_timezone: bool = True,
+        place_events_in_sensor_timezone: bool = True,
+        custom_filter_criteria: list[BinaryExpression] | None = None,
+        custom_join_targets: list[JoinTarget] | None = None,
+        use_materialized_view: bool = True,
+        most_recent_beliefs_mview: Table | None = None,
+        mview_cutoff: datetime | None = None,
+    ) -> list[BeliefsDataFrame]:
+        """Search a database session for beliefs about the events of a group of sensors, using one query.
+
+        See search_session for the arguments.
+        The sensors should share the timing properties that the filters depend on
+        (search_session_multi takes care of that), because the first sensor stands in for all of them.
+        The result has one BeliefsDataFrame for each sensor, in the order of the given sensors.
+        """
         source_class = cls.source.property.mapper.class_
 
         # Check for timezone-aware datetime input
@@ -565,18 +729,18 @@ class TimedBeliefDBMixin(TimedBelief):
                 beliefs_before, "belief_before"
             )
 
-        # Query sensor, required for its timing properties
-        if isinstance(sensor, int):
-            # Check for proper sensor class
-            if not issubclass(sensor_class, SensorDBMixin):
-                raise ValueError(
-                    f"sensor {sensor} is a {type(sensor)}, which is not a subclass of {SensorDBMixin}"
-                )
-            sensor = session.execute(
-                select(sensor_class).filter(sensor_class.id == sensor)
-            ).scalar_one_or_none()
-            if sensor is None:
-                raise ValueError("No such sensor")
+        # The first sensor stands in for all sensors when it comes to their timing properties
+        sensor = sensors[0]
+        sensor_ids = [s.id for s in sensors]
+        several_sensors = len(sensors) > 1
+
+        def sensor_id_filter(sensor_id_col):
+            if several_sensors:
+                return sensor_id_col.in_(sensor_ids)
+            return sensor_id_col == sensor_ids[0]
+
+        # Several sensors share a query, so rows need to tell which sensor they belong to
+        sensor_id_cols = [cls.sensor_id] if several_sensors else []
 
         # Parse source parameter
         sources: list = []
@@ -584,7 +748,7 @@ class TimedBeliefDBMixin(TimedBelief):
             sources = [source] if not isinstance(source, list) else source
             # Fast-track empty list of sources
             if sources == []:
-                return BeliefsDataFrame(sensor=sensor, beliefs=[])
+                return [BeliefsDataFrame(sensor=s, beliefs=[]) for s in sensors]
 
         # Get bounds on the knowledge horizon (so we can already roughly filter by belief time)
         (
@@ -697,7 +861,8 @@ class TimedBeliefDBMixin(TimedBelief):
             cls.source_id,
             cls.cumulative_probability,
             cls.event_value,
-        ).filter(cls.sensor_id == sensor.id)
+            *sensor_id_cols,
+        ).filter(sensor_id_filter(cls.sensor_id))
 
         q = apply_event_timing_filters(q)
         q = apply_belief_timing_filters(q)
@@ -720,6 +885,8 @@ class TimedBeliefDBMixin(TimedBelief):
             raise ValueError(
                 "most_recent_events|beliefs_only can not be used with most_recent_only."
             )
+        if most_recent_only and several_sensors:
+            raise ValueError("most_recent_only can only be used with one sensor.")
 
         # Apply most recent beliefs filter as subquery
         rank_most_recent_beliefs = False
@@ -737,13 +904,14 @@ class TimedBeliefDBMixin(TimedBelief):
                     cls.event_start,
                     cls.source_id,
                     func.min(cls.belief_horizon).label("most_recent_belief_horizon"),
+                    *sensor_id_cols,
                 )
                 # Apply event and belief timing filters to the subquery, too,
                 # before taking the minimum horizon (the former is crucial for speed)
                 subq = apply_event_timing_filters(subq)
                 subq = apply_belief_timing_filters(subq)
-                return subq.filter(cls.sensor_id == sensor.id).group_by(
-                    cls.event_start, cls.source_id
+                return subq.filter(sensor_id_filter(cls.sensor_id)).group_by(
+                    cls.event_start, cls.source_id, *sensor_id_cols
                 )
 
             # The materialized view caches the global minimum belief horizon,
@@ -799,7 +967,8 @@ class TimedBeliefDBMixin(TimedBelief):
                     mview.c.event_start,
                     mview.c.source_id,
                     mview.c.most_recent_belief_horizon,
-                ).filter(mview.c.sensor_id == sensor.id)
+                    *([mview.c.sensor_id] if several_sensors else []),
+                ).filter(sensor_id_filter(mview.c.sensor_id))
                 # Push the same event_start bounds down into the mview select, so
                 # Postgres can use the mview's indexes instead of scanning (and
                 # hash-joining) the entire view.
@@ -827,6 +996,11 @@ class TimedBeliefDBMixin(TimedBelief):
                         cls.event_start == subq.c.event_start,
                         cls.source_id == subq.c.source_id,
                         cls.belief_horizon == subq.c.most_recent_belief_horizon,
+                        *(
+                            [cls.sensor_id == subq.c.sensor_id]
+                            if several_sensors
+                            else []
+                        ),
                     ),
                 )
             else:
@@ -842,6 +1016,7 @@ class TimedBeliefDBMixin(TimedBelief):
             subq_most_recent_events = select(
                 cls.source_id,
                 func.max(cls.event_start).label("most_recent_event_start"),
+                *sensor_id_cols,
             )
             subq_most_recent_events = apply_event_timing_filters(
                 subq_most_recent_events
@@ -850,8 +1025,8 @@ class TimedBeliefDBMixin(TimedBelief):
                 subq_most_recent_events
             )
             subq_most_recent_events = (
-                subq_most_recent_events.filter(cls.sensor_id == sensor.id)
-                .group_by(cls.source_id)
+                subq_most_recent_events.filter(sensor_id_filter(cls.sensor_id))
+                .group_by(cls.source_id, *sensor_id_cols)
                 .subquery()
             )
             q = q.join(
@@ -860,6 +1035,11 @@ class TimedBeliefDBMixin(TimedBelief):
                     cls.source_id == subq_most_recent_events.c.source_id,
                     cls.event_start
                     == subq_most_recent_events.c.most_recent_event_start,
+                    *(
+                        [cls.sensor_id == subq_most_recent_events.c.sensor_id]
+                        if several_sensors
+                        else []
+                    ),
                 ),
             )
 
@@ -877,7 +1057,7 @@ class TimedBeliefDBMixin(TimedBelief):
             ranked = q.add_columns(
                 func.rank()
                 .over(
-                    partition_by=(cls.event_start, cls.source_id),
+                    partition_by=(cls.event_start, cls.source_id, *sensor_id_cols),
                     order_by=cls.belief_horizon,
                 )
                 .label("horizon_rank")
@@ -888,6 +1068,7 @@ class TimedBeliefDBMixin(TimedBelief):
                 ranked.c.source_id,
                 ranked.c.cumulative_probability,
                 ranked.c.event_value,
+                *([ranked.c.sensor_id] if several_sensors else []),
             ).filter(ranked.c.horizon_rank == 1)
 
         # Useful debugging code, let's keep it here
@@ -904,7 +1085,7 @@ class TimedBeliefDBMixin(TimedBelief):
             session.flush()
         rows = session.connection().execute(q).fetchall()
         if not rows:
-            return BeliefsDataFrame(sensor=sensor)
+            return [BeliefsDataFrame(sensor=s) for s in sensors]
 
         # Read each column straight into a typed array, rather than transposing the
         # rows first, which would hold a second copy of the whole result in memory
@@ -931,33 +1112,61 @@ class TimedBeliefDBMixin(TimedBelief):
         df["source_id"] = df["source_id"].map(source_map)
         df = df.rename(columns={"source_id": "source"})
 
-        # Compute belief times directly (cf. the belief_times property), so the
-        # BeliefsDataFrame is constructed with its final index right away,
-        # rather than building a belief_horizon index first and replacing it afterwards
-        event_starts = pd.DatetimeIndex(df["event_start"])
-        knowledge_times = sensor.knowledge_time(event_starts, sensor.event_resolution)
-        df["belief_time"] = knowledge_times - belief_horizons
+        def finish(sensor, df, belief_horizons) -> BeliefsDataFrame:
+            """Turn the rows of one sensor into its BeliefsDataFrame."""
 
-        # Build our BeliefsDataFrame
-        df = BeliefsDataFrame(df, sensor=sensor).sort_index()
+            # Compute belief times directly (cf. the belief_times property), so the
+            # BeliefsDataFrame is constructed with its final index right away,
+            # rather than building a belief_horizon index first and replacing it afterwards
+            event_starts = pd.DatetimeIndex(df["event_start"])
+            knowledge_times = sensor.knowledge_time(
+                event_starts, sensor.event_resolution
+            )
+            df["belief_time"] = knowledge_times - belief_horizons
 
-        # Actually filter by belief time
-        if beliefs_after is not None:
-            df = df[df.index.get_level_values("belief_time") >= beliefs_after]
-        if beliefs_before is not None:
-            df = df[df.index.get_level_values("belief_time") <= beliefs_before]
+            # Build our BeliefsDataFrame
+            df = BeliefsDataFrame(df, sensor=sensor).sort_index()
 
-        # Select most recent beliefs using postprocessing in case of incompatible search criteria
-        if most_recent_beliefs_only and most_recent_beliefs_only_incompatible_criteria:
-            df = belief_utils.select_most_recent_belief(df)
+            # Actually filter by belief time
+            if beliefs_after is not None:
+                df = df[df.index.get_level_values("belief_time") >= beliefs_after]
+            if beliefs_before is not None:
+                df = df[df.index.get_level_values("belief_time") <= beliefs_before]
 
-        # Convert timezone of beliefs and events to sensor timezone
-        if place_beliefs_in_sensor_timezone:
-            df = df.convert_timezone_of_belief_timing_index(sensor.timezone)
-        if place_events_in_sensor_timezone:
-            df = df.convert_timezone_of_event_timing_index(sensor.timezone)
+            # Select most recent beliefs using postprocessing in case of incompatible search criteria
+            if (
+                most_recent_beliefs_only
+                and most_recent_beliefs_only_incompatible_criteria
+            ):
+                df = belief_utils.select_most_recent_belief(df)
 
-        return df
+            # Convert timezone of beliefs and events to sensor timezone
+            if place_beliefs_in_sensor_timezone:
+                df = df.convert_timezone_of_belief_timing_index(sensor.timezone)
+            if place_events_in_sensor_timezone:
+                df = df.convert_timezone_of_event_timing_index(sensor.timezone)
+
+            return df
+
+        if not several_sensors:
+            return [finish(sensor, df, belief_horizons)]
+
+        # Split the rows by sensor
+        row_sensor_ids = column(5, np.int64)
+        results = []
+        for s in sensors:
+            in_sensor = row_sensor_ids == s.id
+            if not in_sensor.any():
+                results.append(BeliefsDataFrame(sensor=s))
+                continue
+            results.append(
+                finish(
+                    s,
+                    df[in_sensor].reset_index(drop=True),
+                    belief_horizons[in_sensor],
+                )
+            )
+        return results
 
 
 class DBTimedBelief(Base, TimedBeliefDBMixin):

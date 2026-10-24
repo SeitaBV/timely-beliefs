@@ -878,3 +878,131 @@ def test_custom_criteria_are_group_constant_helper():
         ],
         beliefs_table,
     )
+
+
+def _add_beliefs_for_several_sensors(sensors, sources):
+    """Add beliefs about four events per sensor, from each source, formed at three different times."""
+    for s, sensor in enumerate(sensors):
+        for source in sources:
+            for e in range(4):
+                event_start = datetime(2024, 1, 1, e, tzinfo=utc)
+                for b in range(3):
+                    session.add(
+                        DBTimedBelief(
+                            sensor=sensor,
+                            source=source,
+                            event_start=event_start,
+                            belief_time=event_start - timedelta(hours=2 * (b + 1)),
+                            event_value=10.0 * s + e + b / 10,
+                        )
+                    )
+    session.flush()
+
+
+@pytest.mark.parametrize("use_mview", [False, True])
+@pytest.mark.parametrize(
+    "filters",
+    [
+        pytest.param({}, id="no filters"),
+        pytest.param({"most_recent_beliefs_only": True}, id="most recent beliefs"),
+        pytest.param({"most_recent_events_only": True}, id="most recent events"),
+        pytest.param(
+            {"most_recent_beliefs_only": True, "most_recent_events_only": True},
+            id="most recent beliefs and events",
+        ),
+        pytest.param({"most_recent_only": True}, id="most recent only"),
+        pytest.param(
+            {
+                "event_starts_after": datetime(2024, 1, 1, 1, tzinfo=utc),
+                "event_ends_before": datetime(2024, 1, 1, 4, tzinfo=utc),
+            },
+            id="event window",
+        ),
+        pytest.param(
+            {"beliefs_before": datetime(2023, 12, 31, 22, tzinfo=utc)},
+            id="beliefs before",
+        ),
+        pytest.param({"horizons_at_least": timedelta(hours=3)}, id="horizons at least"),
+        pytest.param({"horizons_at_most": timedelta(hours=3)}, id="horizons at most"),
+        pytest.param({"source": "a"}, id="one source"),
+    ],
+)
+def test_search_session_multi_equals_one_search_per_sensor(
+    filters,
+    use_mview,
+    refresh_mview,
+    instantaneous_sensor,
+    time_slot_sensor,
+    ex_ante_economics_sensor,
+    ex_ante_economics_sensor_b,
+    test_source_a,
+    test_source_b,
+):
+    """Searching several sensors at once must give, for each sensor, what searching it alone gives."""
+    sensors = [
+        instantaneous_sensor,
+        time_slot_sensor,
+        ex_ante_economics_sensor,
+        ex_ante_economics_sensor_b,
+    ]
+    _add_beliefs_for_several_sensors(sensors, [test_source_a, test_source_b])
+    refresh_mview()
+
+    filters = dict(filters)
+    if filters.get("source") == "a":
+        filters["source"] = test_source_a
+
+    expected = [
+        DBTimedBelief.search_session(
+            session=session, sensor=sensor, use_materialized_view=use_mview, **filters
+        )
+        for sensor in sensors
+    ]
+    found = DBTimedBelief.search_session_multi(
+        session=session, sensors=sensors, use_materialized_view=use_mview, **filters
+    )
+
+    assert len(found) == len(sensors)
+    for sensor, bdf, expected_bdf in zip(sensors, found, expected):
+        pd.testing.assert_frame_equal(bdf, expected_bdf)
+
+
+def test_search_session_multi_reads_the_beliefs_table_once_per_group(
+    instantaneous_sensor,
+    time_slot_sensor,
+    ex_ante_economics_sensor,
+    ex_ante_economics_sensor_b,
+    test_source_a,
+):
+    """Sensors that share the values their filters depend on are searched in one query.
+
+    Without event-time or belief-time filters, no filter depends on the event resolution
+    or on the knowledge horizon, so all sensors form one group.
+    """
+    sensors = [
+        instantaneous_sensor,
+        time_slot_sensor,
+        ex_ante_economics_sensor,
+        ex_ante_economics_sensor_b,
+    ]
+    _add_beliefs_for_several_sensors(sensors, [test_source_a])
+    statements = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        found = DBTimedBelief.search_session_multi(
+            session=session,
+            sensors=sensors,
+            most_recent_beliefs_only=True,
+            use_materialized_view=False,
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    assert len(found) == len(sensors)
+    assert all(len(bdf) > 0 for bdf in found)
+    beliefs_queries = [s for s in statements if "event_value" in s]
+    assert len(beliefs_queries) == 1
