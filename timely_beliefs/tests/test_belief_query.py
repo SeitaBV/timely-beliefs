@@ -965,3 +965,44 @@ def test_search_session_multi_equals_one_search_per_sensor(
     assert len(found) == len(sensors)
     for sensor, bdf, expected_bdf in zip(sensors, found, expected):
         pd.testing.assert_frame_equal(bdf, expected_bdf)
+
+
+def test_search_session_multi_reads_the_beliefs_table_once_per_group(
+    instantaneous_sensor,
+    time_slot_sensor,
+    ex_ante_economics_sensor,
+    ex_ante_economics_sensor_b,
+    test_source_a,
+):
+    """Sensors that share the values their filters depend on are searched in one query.
+
+    Without event-time or belief-time filters, no filter depends on the event resolution
+    or on the knowledge horizon, so all sensors form one group.
+    """
+    sensors = [
+        instantaneous_sensor,
+        time_slot_sensor,
+        ex_ante_economics_sensor,
+        ex_ante_economics_sensor_b,
+    ]
+    _add_beliefs_for_several_sensors(sensors, [test_source_a])
+    statements = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        found = DBTimedBelief.search_session_multi(
+            session=session,
+            sensors=sensors,
+            most_recent_beliefs_only=True,
+            use_materialized_view=False,
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    assert len(found) == len(sensors)
+    assert all(len(bdf) > 0 for bdf in found)
+    beliefs_queries = [s for s in statements if "event_value" in s]
+    assert len(beliefs_queries) == 1
