@@ -959,6 +959,26 @@ class TimedBeliefDBMixin(TimedBelief):
 
         return df
 
+    @classmethod
+    def search_session_multi(
+        cls,
+        session: Session,
+        sensors: list[SensorDBMixin | int],
+        **kwargs,
+    ) -> list[BeliefsDataFrame]:
+        """Search a database session for beliefs about events of several sensors.
+
+        Takes the same filters as search_session.
+
+        :param sensors: sensors to which the beliefs pertain (or their unique sensor ids)
+        :returns: a list with one BeliefsDataFrame per sensor, in the order of the given sensors,
+                  each equal to what search_session returns for that sensor alone
+        """
+        return [
+            cls.search_session(session=session, sensor=sensor, **kwargs)
+            for sensor in sensors
+        ]
+
 
 class DBTimedBelief(Base, TimedBeliefDBMixin):
     """Database representation of TimedBelief.
