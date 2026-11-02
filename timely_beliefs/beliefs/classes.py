@@ -959,6 +959,391 @@ class TimedBeliefDBMixin(TimedBelief):
 
         return df
 
+    @classmethod
+    def search_session_multi(  # noqa: C901
+        cls,
+        session: Session,
+        sensors: list,
+        sensor_class: Type[SensorDBMixin] | None = DBSensor,
+        event_starts_after: datetime | None = None,
+        event_ends_after: datetime | None = None,
+        event_starts_before: datetime | None = None,
+        event_ends_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
+        horizons_at_least: timedelta | None = None,
+        horizons_at_most: timedelta | None = None,
+        source: "BeliefSource | list[BeliefSource] | None" = None,
+        most_recent_beliefs_only: bool = False,
+        most_recent_events_only: bool = False,
+        most_recent_only: bool = False,
+        place_beliefs_in_sensor_timezone: bool = True,
+        place_events_in_sensor_timezone: bool = True,
+        custom_filter_criteria: list | None = None,
+        custom_join_targets: list | None = None,
+    ) -> dict:
+        """Read several sensors' beliefs in as few queries as the filters allow.
+
+        A round-trip-saving companion to ``search_session``: calling it once for N
+        sensors issues one query per group of sensors that share an event resolution
+        and a knowledge horizon, rather than one query per sensor.
+        Each per-sensor frame it returns is what ``search_session`` would have returned
+        for that sensor on its own; only the number of database round trips differs.
+
+        Filter combinations whose result is defined per sensor in a way a single grouped
+        query cannot express (``most_recent_only``, ``most_recent_events_only``) fall back
+        to one ``search_session`` call per sensor, so the result is always correct, just
+        not batched.
+
+        The materialized-view fast path is not used here; the grouped subquery returns
+        the same most-recent beliefs. Query those sensors through ``search_session`` one
+        by one if you specifically need the view.
+
+        :param sensors: the sensors to read, as Sensor instances or ids (both may be mixed)
+        :returns: a dict mapping each sensor's id to its BeliefsDataFrame, in the order the
+                  sensors were passed (duplicates collapsed)
+        """
+        # Resolve any ids to Sensor objects, in one query for all of them.
+        sensor_objs = [s for s in sensors if not isinstance(s, int)]
+        ids_to_fetch = [s for s in sensors if isinstance(s, int)]
+        if ids_to_fetch:
+            if not issubclass(sensor_class, SensorDBMixin):
+                raise ValueError(
+                    f"sensor_class {sensor_class} is not a subclass of {SensorDBMixin}"
+                )
+            fetched = (
+                session.execute(
+                    select(sensor_class).filter(sensor_class.id.in_(ids_to_fetch))
+                )
+                .scalars()
+                .all()
+            )
+            by_id = {s.id: s for s in fetched}
+            missing = [i for i in ids_to_fetch if i not in by_id]
+            if missing:
+                raise ValueError(f"No such sensor(s): {missing}")
+            sensor_objs.extend(by_id[i] for i in ids_to_fetch)
+
+        sensor_by_id = {s.id: s for s in sensor_objs}
+        # Keep the caller's order, collapsing any duplicates.
+        ordered: list[int] = []
+        seen: set[int] = set()
+        for s in sensors:
+            sid = s if isinstance(s, int) else s.id
+            if sid not in seen:
+                seen.add(sid)
+                ordered.append(sid)
+
+        # Filters whose result is per-sensor single-row / per-source: not batchable.
+        if most_recent_only or most_recent_events_only:
+            return {
+                sid: cls.search_session(
+                    session=session,
+                    sensor=sensor_by_id[sid],
+                    event_starts_after=event_starts_after,
+                    event_ends_after=event_ends_after,
+                    event_starts_before=event_starts_before,
+                    event_ends_before=event_ends_before,
+                    beliefs_after=beliefs_after,
+                    beliefs_before=beliefs_before,
+                    horizons_at_least=horizons_at_least,
+                    horizons_at_most=horizons_at_most,
+                    source=source,
+                    most_recent_beliefs_only=most_recent_beliefs_only,
+                    most_recent_events_only=most_recent_events_only,
+                    most_recent_only=most_recent_only,
+                    place_beliefs_in_sensor_timezone=place_beliefs_in_sensor_timezone,
+                    place_events_in_sensor_timezone=place_events_in_sensor_timezone,
+                    custom_filter_criteria=custom_filter_criteria,
+                    custom_join_targets=custom_join_targets,
+                    use_materialized_view=False,
+                )
+                for sid in ordered
+            }
+
+        source_class = cls.source.property.mapper.class_
+
+        # Normalise timing inputs exactly as search_session does.
+        if not pd.isnull(event_starts_after):
+            event_starts_after = tb_utils.parse_datetime_like(
+                event_starts_after, "event_starts_after"
+            )
+        if not pd.isnull(event_ends_after):
+            event_ends_after = tb_utils.parse_datetime_like(
+                event_ends_after, "event_ends_after"
+            )
+        if not pd.isnull(event_starts_before):
+            event_starts_before = tb_utils.parse_datetime_like(
+                event_starts_before, "event_starts_before"
+            )
+        if not pd.isnull(event_ends_before):
+            event_ends_before = tb_utils.parse_datetime_like(
+                event_ends_before, "event_ends_before"
+            )
+        if not pd.isnull(beliefs_after):
+            beliefs_after = tb_utils.parse_datetime_like(beliefs_after, "beliefs_after")
+        if not pd.isnull(beliefs_before):
+            beliefs_before = tb_utils.parse_datetime_like(
+                beliefs_before, "beliefs_before"
+            )
+
+        # Parse the source parameter. An explicit empty list means "no sources",
+        # so every sensor's frame is empty (matching search_session's fast-track).
+        source_was_given = source is not None
+        sources: list = []
+        if source_was_given:
+            sources = [source] if not isinstance(source, list) else source
+            if sources == []:
+                return {
+                    sid: BeliefsDataFrame(sensor=sensor_by_id[sid], beliefs=[])
+                    for sid in ordered
+                }
+
+        # Group sensors by the timing properties that search_session reads off the
+        # sensor, so one grouped query can stand in for every sensor in the group.
+        groups: dict = {}
+        for s in sensor_objs:
+            key = (
+                s.event_resolution,
+                s.knowledge_horizon_fnc,
+                tuple(sorted((s.knowledge_horizon_par or {}).items())),
+            )
+            groups.setdefault(key, []).append(s)
+
+        numeric_by_sid: dict = {}
+        needed_source_ids: set = set()
+
+        for group in groups.values():
+            rep = group[0]
+            group_ids = [s.id for s in group]
+
+            (
+                knowledge_horizon_min,
+                knowledge_horizon_max,
+            ) = sensor_utils.eval_verified_knowledge_horizon_fnc(
+                rep.knowledge_horizon_fnc,
+                rep.knowledge_horizon_par,
+                event_resolution=rep.event_resolution,
+                get_bounds=True,
+            )
+
+            def apply_event_timing_filters(q):
+                if not pd.isnull(event_starts_after):
+                    q = q.filter(cls.event_start >= event_starts_after)
+                if not pd.isnull(event_ends_after):
+                    if rep.event_resolution == timedelta(0):
+                        q = q.filter(cls.event_start >= event_ends_after)
+                    else:
+                        q = q.filter(
+                            cls.event_start > event_ends_after - rep.event_resolution
+                        )
+                if not pd.isnull(event_starts_before):
+                    if rep.event_resolution == timedelta(0):
+                        q = q.filter(cls.event_start <= event_starts_before)
+                    else:
+                        q = q.filter(cls.event_start < event_starts_before)
+                if not pd.isnull(event_ends_before):
+                    q = q.filter(
+                        cls.event_start <= event_ends_before - rep.event_resolution
+                    )
+                return q
+
+            def apply_belief_timing_filters(q):
+                if not pd.isnull(
+                    beliefs_after
+                ) and belief_utils.extreme_timedeltas_not_equal(
+                    knowledge_horizon_min, timedelta.min
+                ):
+                    q = q.filter(
+                        cls.event_start - cls.belief_horizon
+                        >= beliefs_after + knowledge_horizon_min
+                    )
+                if not pd.isnull(
+                    beliefs_before
+                ) and belief_utils.extreme_timedeltas_not_equal(
+                    knowledge_horizon_max, timedelta.max
+                ):
+                    q = q.filter(
+                        cls.event_start - cls.belief_horizon
+                        <= beliefs_before + knowledge_horizon_max
+                    )
+                if not pd.isnull(horizons_at_least):
+                    q = q.filter(cls.belief_horizon >= horizons_at_least)
+                if not pd.isnull(horizons_at_most):
+                    q = q.filter(cls.belief_horizon <= horizons_at_most)
+                if custom_filter_criteria is not None:
+                    q = q.filter(*custom_filter_criteria)
+                if custom_join_targets is not None:
+                    for target in custom_join_targets:
+                        q = q.join(target)
+                return q
+
+            # Main query, mirroring search_session's epoch-microsecond transport, but
+            # keyed by sensor_id IN (...) and carrying sensor_id so rows can be split.
+            q = select(
+                cls.sensor_id,
+                cast(
+                    func.date_part("epoch", cls.event_start) * 1_000_000, BigInteger
+                ).label("event_start"),
+                cast(
+                    func.date_part("epoch", cls.belief_horizon) * 1_000_000,
+                    BigInteger,
+                ).label("belief_horizon"),
+                cls.source_id,
+                cls.cumulative_probability,
+                cls.event_value,
+            ).filter(cls.sensor_id.in_(group_ids))
+
+            q = apply_event_timing_filters(q)
+            q = apply_belief_timing_filters(q)
+
+            if len(sources) > 0:
+                q = q.join(source_class).filter(
+                    cls.source_id.in_([s.id for s in sources])
+                )
+
+            most_recent_beliefs_only_incompatible_criteria = (
+                beliefs_before is not None or beliefs_after is not None
+            ) and rep.knowledge_horizon_fnc not in (
+                ex_ante.__name__,
+                ex_post.__name__,
+            )
+            if (
+                most_recent_beliefs_only
+                and not most_recent_beliefs_only_incompatible_criteria
+            ):
+                subq = select(
+                    cls.sensor_id,
+                    cls.event_start,
+                    cls.source_id,
+                    func.min(cls.belief_horizon).label("most_recent_belief_horizon"),
+                )
+                subq = apply_event_timing_filters(subq)
+                subq = apply_belief_timing_filters(subq)
+                subq = (
+                    subq.filter(cls.sensor_id.in_(group_ids))
+                    .group_by(cls.sensor_id, cls.event_start, cls.source_id)
+                    .subquery()
+                )
+                q = q.join(
+                    subq,
+                    and_(
+                        cls.sensor_id == subq.c.sensor_id,
+                        cls.event_start == subq.c.event_start,
+                        cls.source_id == subq.c.source_id,
+                        cls.belief_horizon == subq.c.most_recent_belief_horizon,
+                    ),
+                )
+
+            if session.autoflush:
+                session.flush()
+            rows = session.connection().execute(q).fetchall()
+
+            if not rows:
+                for s in group:
+                    numeric_by_sid[s.id] = None
+                continue
+
+            sensor_id_col = np.fromiter(
+                (row[0] for row in rows), dtype=np.int64, count=len(rows)
+            )
+            event_start_col = np.fromiter(
+                (row[1] for row in rows), dtype=np.int64, count=len(rows)
+            )
+            belief_horizon_col = np.fromiter(
+                (row[2] for row in rows), dtype=np.int64, count=len(rows)
+            )
+            source_id_col = np.fromiter(
+                (row[3] for row in rows), dtype=np.int64, count=len(rows)
+            )
+            cumulative_probability_col = np.fromiter(
+                (row[4] for row in rows), dtype=float, count=len(rows)
+            )
+            event_value_col = np.fromiter(
+                (row[5] for row in rows), dtype=float, count=len(rows)
+            )
+            needed_source_ids.update(np.unique(source_id_col).tolist())
+
+            for s in group:
+                mask = sensor_id_col == s.id
+                if not mask.any():
+                    numeric_by_sid[s.id] = None
+                    continue
+                numeric_by_sid[s.id] = {
+                    "event_start": event_start_col[mask],
+                    "belief_horizon": belief_horizon_col[mask],
+                    "source_id": source_id_col[mask],
+                    "cumulative_probability": cumulative_probability_col[mask],
+                    "event_value": event_value_col[mask],
+                }
+
+        # Resolve sources. The same few sources recur across a run, so go through
+        # Session.get, which returns a source already in the identity map without a
+        # query (and issues a by-id query only the first time each one is seen),
+        # rather than a fresh id-IN query on every search.
+        if source_was_given:
+            source_map = {s.id: s for s in sources}
+        else:
+            source_map = {}
+            for sid in needed_source_ids:
+                obj = session.get(source_class, sid)
+                if obj is not None:
+                    source_map[sid] = obj
+
+        # Build each sensor's BeliefsDataFrame, exactly as search_session's tail does.
+        out: dict = {}
+        for sid in ordered:
+            sensor = sensor_by_id[sid]
+            data = numeric_by_sid.get(sid)
+            if not data:
+                out[sid] = BeliefsDataFrame(sensor=sensor)
+                continue
+
+            df = pd.DataFrame(
+                {
+                    "event_start": pd.to_datetime(
+                        data["event_start"], unit="us", utc=True
+                    ),
+                    "source_id": data["source_id"],
+                    "cumulative_probability": data["cumulative_probability"],
+                    "event_value": data["event_value"],
+                }
+            )
+            belief_horizons = pd.to_timedelta(data["belief_horizon"], unit="us")
+            df["source_id"] = df["source_id"].map(source_map)
+            df = df.rename(columns={"source_id": "source"})
+
+            event_starts = pd.DatetimeIndex(df["event_start"])
+            knowledge_times = sensor.knowledge_time(
+                event_starts, sensor.event_resolution
+            )
+            df["belief_time"] = knowledge_times - belief_horizons
+
+            df = BeliefsDataFrame(df, sensor=sensor).sort_index()
+
+            if beliefs_after is not None:
+                df = df[df.index.get_level_values("belief_time") >= beliefs_after]
+            if beliefs_before is not None:
+                df = df[df.index.get_level_values("belief_time") <= beliefs_before]
+
+            incompatible = (
+                beliefs_before is not None or beliefs_after is not None
+            ) and sensor.knowledge_horizon_fnc not in (
+                ex_ante.__name__,
+                ex_post.__name__,
+            )
+            if most_recent_beliefs_only and incompatible:
+                df = belief_utils.select_most_recent_belief(df)
+
+            if place_beliefs_in_sensor_timezone:
+                df = df.convert_timezone_of_belief_timing_index(sensor.timezone)
+            if place_events_in_sensor_timezone:
+                df = df.convert_timezone_of_event_timing_index(sensor.timezone)
+
+            out[sid] = df
+
+        return out
+
 
 class DBTimedBelief(Base, TimedBeliefDBMixin):
     """Database representation of TimedBelief.
