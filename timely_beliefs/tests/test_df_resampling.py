@@ -264,6 +264,51 @@ def test_downsample_probabilistic(df_4323, test_source_a: BeliefSource):
     assert cdf_p[4] - cdf_p[3] == approx((1.0 - 0.5) ** 2)  # 1 for the 5th
 
 
+def test_downsample_deterministic_multi_source_skips_openturns(monkeypatch):
+    """Regression test: downsampling deterministic beliefs from multiple sources should take the
+    plain-mean fast path, not build an openturns joint distribution (a ~50x slowdown). Fails if
+    independent_joint_cdf or interpret_complete_cdf gets called at all.
+    """
+    from timely_beliefs.beliefs import probabilistic_utils
+
+    def fail(*args, **kwargs):
+        raise AssertionError(
+            "Downsampling deterministic multi-source beliefs should not reach any joint-cdf "
+            "computation at all (interpret_complete_cdf/independent_joint_cdf); "
+            "see probabilistic_nan_mean's all_deterministic short-circuit."
+        )
+
+    monkeypatch.setattr(probabilistic_utils, "interpret_complete_cdf", fail)
+    monkeypatch.setattr(probabilistic_utils, "independent_joint_cdf", fail)
+
+    sensor = Sensor("t", event_resolution=timedelta(minutes=15))
+    sources = [BeliefSource(f"s{i}") for i in range(2)]
+    start = datetime(2000, 1, 1, tzinfo=pytz.utc)
+    beliefs = [
+        TimedBelief(
+            sensor=sensor,
+            source=source,
+            event_start=start + i * timedelta(minutes=15),
+            belief_time=start,
+            event_value=float(i),
+        )
+        for i in range(4)
+        for source in sources
+    ]
+    df = BeliefsDataFrame(beliefs, sensor=sensor)
+
+    # Sanity check: this data does take the slow (multi-source) path in resample_events, not the
+    # single-source fast track.
+    assert df.lineage.number_of_sources == 2
+
+    df = df.resample_events(timedelta(hours=1))
+
+    assert df.event_resolution == timedelta(hours=1)
+    assert len(df) == 2  # one row per source
+    assert sorted(df["event_value"].values.tolist()) == [1.5, 1.5]
+    assert (df.index.get_level_values("cumulative_probability") == 1.0).all()
+
+
 # def test_downsample_probabilistic_with_autocorrelation(df_4323):
 #     """Test downsampling probabilistic beliefs with autocorrelation (apply a copula)."""
 #     df = df_4323
