@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import numpy as np
 import pandas as pd
 import pytest
 from pytz import utc
@@ -167,6 +168,34 @@ def test_multi_accepts_ids_and_raises_for_unknown(
         DBTimedBelief.search_session_multi(session, ids + [99999])
     with pytest.raises(ValueError, match="No such sensor"):
         DBTimedBelief.search_session(session, 99999)
+
+
+def test_multi_accepts_numpy_ids(instantaneous_sensor, time_slot_sensor, test_source_a):
+    """Ids taken from an array are numpy integers, and they should work like normal ids."""
+    sensors = [instantaneous_sensor, time_slot_sensor]
+    add_beliefs(sensors, [test_source_a])
+    ids = np.array([time_slot_sensor.id, instantaneous_sensor.id])
+    multi = DBTimedBelief.search_session_multi(session, list(ids))
+    expected = DBTimedBelief.search_session_multi(session, [int(i) for i in ids])
+    assert [df.sensor.id for df in multi] == [int(i) for i in ids]
+    for df, other in zip(multi, expected):
+        pd.testing.assert_frame_equal(df, other)
+    single = DBTimedBelief.search_session(session, ids[0])
+    pd.testing.assert_frame_equal(single, expected[0])
+
+
+def test_unknown_sensors_are_named(instantaneous_sensor):
+    with pytest.raises(ValueError, match=r"No such sensor\(s\): \[99998, 99999\]"):
+        DBTimedBelief.search_session_multi(
+            session, [instantaneous_sensor.id, 99999, 99998]
+        )
+
+
+def test_wrong_sensor_class_is_named(instantaneous_sensor):
+    with pytest.raises(ValueError, match="sensor_class .*int.* is not a subclass"):
+        DBTimedBelief.search_session_multi(
+            session, [instantaneous_sensor.id], sensor_class=int
+        )
 
 
 def statements(sensors, **kwargs):

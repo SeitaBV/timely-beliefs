@@ -648,14 +648,16 @@ class TimedBeliefDBMixin(TimedBelief):
         sensor_class: Type[SensorDBMixin] | None = DBSensor,
     ) -> list[SensorDBMixin]:
         """Look up the sensors that were given by their id, using one query."""
-        sensor_ids = [sensor for sensor in sensors if isinstance(sensor, int)]
+        sensor_ids = [
+            int(sensor) for sensor in sensors if isinstance(sensor, (int, np.integer))
+        ]
         if not sensor_ids:
             return list(sensors)
 
         # Check for proper sensor class
         if not issubclass(sensor_class, SensorDBMixin):
             raise ValueError(
-                f"sensor {sensor_ids[0]} is a {type(sensor_ids[0])}, which is not a subclass of {SensorDBMixin}"
+                f"sensor_class {sensor_class} is not a subclass of {SensorDBMixin}"
             )
         found = {
             sensor.id: sensor
@@ -663,10 +665,12 @@ class TimedBeliefDBMixin(TimedBelief):
                 select(sensor_class).filter(sensor_class.id.in_(sensor_ids))
             ).scalars()
         }
-        if any(sensor_id not in found for sensor_id in sensor_ids):
-            raise ValueError("No such sensor")
+        missing = sorted(set(sensor_ids) - set(found))
+        if missing:
+            raise ValueError(f"No such sensor(s): {missing}")
         return [
-            found[sensor] if isinstance(sensor, int) else sensor for sensor in sensors
+            found[int(sensor)] if isinstance(sensor, (int, np.integer)) else sensor
+            for sensor in sensors
         ]
 
     @classmethod
