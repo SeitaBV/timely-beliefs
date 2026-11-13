@@ -198,6 +198,23 @@ def test_wrong_sensor_class_is_named(instantaneous_sensor):
         )
 
 
+def test_multi_copies_repeated_sensors(
+    instantaneous_sensor, time_slot_sensor, test_source_a
+):
+    """A sensor that is given twice gets two frames, and a change in one does not change the other."""
+    sensors = [instantaneous_sensor, time_slot_sensor]
+    add_beliefs(sensors, [test_source_a])
+    multi = DBTimedBelief.search_session_multi(
+        session, [instantaneous_sensor, time_slot_sensor, instantaneous_sensor]
+    )
+    assert len(multi[0]) > 0
+    assert multi[0] is not multi[2]
+    pd.testing.assert_frame_equal(multi[0], multi[2])
+    assert multi[2].sensor == instantaneous_sensor
+    multi[2]["event_value"] = -1.0
+    assert (multi[0]["event_value"] != -1.0).all()
+
+
 def statements(sensors, **kwargs):
     """Return the SQL statements that read beliefs."""
     seen = []

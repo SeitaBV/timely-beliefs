@@ -575,6 +575,7 @@ class TimedBeliefDBMixin(TimedBelief):
         This takes the same arguments as search_session, except that it takes a list of sensors (or sensor ids).
         It returns a list with one BeliefsDataFrame for each sensor, in the order of the given sensors,
         and each of these is the same as what search_session returns for that sensor.
+        A sensor that is given more than once gets its own copy of the frame each time.
 
         The beliefs table is queried once for each group of sensors that share the timing properties
         that the given filters depend on, rather than once for each sensor.
@@ -638,7 +639,16 @@ class TimedBeliefDBMixin(TimedBelief):
                 group, cls._search_session_group(session, group, **kwargs)
             ):
                 results[sensor.id] = df
-        return [results[sensor.id] for sensor in sensors]
+
+        # A sensor that is given more than once gets a copy each time,
+        # so that changing one result in place does not change the other.
+        returned = set()
+        output = []
+        for sensor in sensors:
+            df = results[sensor.id]
+            output.append(df.copy() if sensor.id in returned else df)
+            returned.add(sensor.id)
+        return output
 
     @classmethod
     def _get_sensors(
