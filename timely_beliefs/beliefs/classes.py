@@ -1165,20 +1165,20 @@ class TimedBeliefDBMixin(TimedBelief):
         if not several_sensors:
             return [finish(sensor, df, belief_horizons)]
 
-        # Split the rows by sensor
+        # Split the rows by sensor, in one pass over the rows
+        # (comparing all rows with each sensor would cost O(rows x sensors))
         row_sensor_ids = column(5, np.int64)
+        positions = (
+            pd.Series(row_sensor_ids).groupby(row_sensor_ids, sort=False).indices
+        )
         results = []
         for s in sensors:
-            in_sensor = row_sensor_ids == s.id
-            if not in_sensor.any():
+            i = positions.get(s.id)
+            if i is None:
                 results.append(BeliefsDataFrame(sensor=s))
                 continue
             results.append(
-                finish(
-                    s,
-                    df[in_sensor].reset_index(drop=True),
-                    belief_horizons[in_sensor],
-                )
+                finish(s, df.take(i).reset_index(drop=True), belief_horizons[i])
             )
         return results
 
