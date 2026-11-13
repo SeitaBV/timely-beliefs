@@ -1045,6 +1045,9 @@ def resample_instantaneous_events(
 ) -> pd.DataFrame | "classes.BeliefsDataFrame":
     """Resample data representing instantaneous events.
 
+    Requires instantaneous data where `df.event_resolution` (or `df.sensor.event_resolution`)
+    equals `timedelta(0)`. Raises `ValueError` if a non-zero event resolution is encountered.
+
     Updates the event frequency of the resulting data frame, and possibly also its event resolution.
     The event resolution is only updated if the resampling method computes a characteristic of a period of events,
     like 'mean' or 'first'.
@@ -1065,12 +1068,32 @@ def resample_instantaneous_events(
             f"resample_instantaneous_events only supports instantaneous data (event_resolution == timedelta(0)), but received event_resolution of {event_resolution}."
         )
 
-    if df.empty:
-        return df
-
     # Default resampling method for instantaneous sensors
     if method is None:
         method = "asfreq"
+
+    if df.empty:
+        resampled_df = df.copy()
+        if method in (
+            "mean",
+            "max",
+            "min",
+            "median",
+            "count",
+            "nunique",
+            "first",
+            "last",
+            "ohlc",
+            "prod",
+            "size",
+            "sem",
+            "std",
+            "sum",
+            "var",
+            "quantile",
+        ):
+            resampled_df.event_resolution = resolution
+        return resampled_df
 
     # Use event_start as the only index level
     index_levels = df.index.names

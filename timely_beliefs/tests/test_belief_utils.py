@@ -292,8 +292,30 @@ def test_resample_instantaneous_events_rejects_non_instantaneous_data():
 
 
 def test_resample_instantaneous_events_empty_df():
-    """Empty frames should return immediately without error."""
+    """Empty frames should return a copy immediately and update resolution for aggregating methods."""
+    # Plain DataFrame returns a copy without mutation
     empty_df = pd.DataFrame(columns=["event_value"])
     empty_df.index.name = "event_start"
     res = resample_instantaneous_events(empty_df, timedelta(hours=1))
     assert res.empty
+    assert res is not empty_df
+
+    # Empty BeliefsDataFrame with instantaneous sensor
+    sensor = Sensor("instantaneous_sensor")
+    assert sensor.event_resolution == timedelta(0)
+    bdf = BeliefsDataFrame(sensor=sensor)
+    assert bdf.empty
+    assert bdf.event_resolution == timedelta(0)
+
+    # asfreq retains instantaneous resolution
+    res_asfreq = resample_instantaneous_events(bdf, timedelta(hours=1), method="asfreq")
+    assert res_asfreq.empty
+    assert res_asfreq is not bdf
+    assert res_asfreq.event_resolution == timedelta(0)
+
+    # aggregating method updates event_resolution to the target resolution
+    res_mean = resample_instantaneous_events(bdf, timedelta(hours=1), method="mean")
+    assert res_mean.empty
+    assert res_mean is not bdf
+    assert res_mean.event_resolution == timedelta(hours=1)
+    assert bdf.event_resolution == timedelta(0)
