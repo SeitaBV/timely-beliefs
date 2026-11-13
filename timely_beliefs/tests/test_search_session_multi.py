@@ -235,6 +235,75 @@ def test_multi_rejects_unknown_arguments():
         )
 
 
+def test_multi_with_sensors_in_different_timezones(test_source_a):
+    """Each result is placed in the timezone of its sensor, also around a change of the clock."""
+    sensors = [
+        DBSensor(
+            name=f"hourly {timezone}",
+            event_resolution=timedelta(hours=1),
+            timezone=timezone,
+        )
+        for timezone in ("UTC", "Europe/Amsterdam", "Asia/Tokyo")
+    ]
+    session.add_all(sensors)
+    session.flush()
+    # Amsterdam changes its clock on 2024-03-31 at 01:00 UTC
+    start = datetime(2024, 3, 30, 22, tzinfo=utc)
+    session.add_all(
+        DBTimedBelief(
+            sensor=sensor,
+            source=test_source_a,
+            event_start=start + timedelta(hours=e),
+            belief_horizon=timedelta(hours=h),
+            event_value=float(10 * s + e + h),
+        )
+        for s, sensor in enumerate(sensors)
+        for e in range(8)
+        for h in (1, 3)
+    )
+    session.flush()
+    for kwargs in (
+        dict(),
+        dict(
+            event_ends_before=pd.Timestamp("2024-03-31 04:00Z"),
+            most_recent_beliefs_only=True,
+        ),
+    ):
+        multi = DBTimedBelief.search_session_multi(
+            session, sensors, use_materialized_view=False, **kwargs
+        )
+        for sensor, df in zip(sensors, multi):
+            single = DBTimedBelief.search_session(
+                session, sensor, use_materialized_view=False, **kwargs
+            )
+            pd.testing.assert_frame_equal(df, single)
+            assert len(df) > 0
+            event_starts = df.index.get_level_values("event_start")
+            assert str(event_starts.tz) == sensor.timezone
+
+
+def test_multi_with_a_custom_join_on_the_sensor_table(test_source_a):
+    """A filter on a joined table works, and a sensor that does not match gets an empty frame."""
+    sensors = [
+        DBSensor(name=name, event_resolution=timedelta(minutes=15))
+        for name in ("keep a", "keep b", "drop c")
+    ]
+    session.add_all(sensors)
+    session.flush()
+    add_beliefs(sensors, [test_source_a])
+    kwargs = dict(
+        custom_join_targets=[DBSensor],
+        custom_filter_criteria=[DBSensor.name.like("keep%")],
+        use_materialized_view=False,
+    )
+    multi = DBTimedBelief.search_session_multi(session, sensors, **kwargs)
+    for sensor, df in zip(sensors, multi):
+        single = DBTimedBelief.search_session(session, sensor, **kwargs)
+        pd.testing.assert_frame_equal(df, single)
+    assert len(multi[0]) > 0 and len(multi[1]) > 0
+    assert len(multi[2]) == 0
+
+
 def statements(sensors, **kwargs):
     """Return the SQL statements that read beliefs."""
     seen = []
