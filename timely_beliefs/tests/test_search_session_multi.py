@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -213,6 +214,25 @@ def test_multi_copies_repeated_sensors(
     assert multi[2].sensor == instantaneous_sensor
     multi[2]["event_value"] = -1.0
     assert (multi[0]["event_value"] != -1.0).all()
+
+
+def test_multi_has_the_arguments_of_search_session():
+    """search_session_multi takes the arguments of search_session, with a list of sensors."""
+    single = dict(inspect.signature(DBTimedBelief.search_session).parameters)
+    multi = dict(inspect.signature(DBTimedBelief.search_session_multi).parameters)
+    single.pop("sensor")
+    multi.pop("sensors")
+    assert list(multi) == list(single)
+    for name, parameter in single.items():
+        assert multi[name].default == parameter.default, name
+
+
+def test_multi_rejects_unknown_arguments():
+    """A misspelled argument is an error, also when there are no sensors to search for."""
+    with pytest.raises(TypeError, match="beliefs_befor"):
+        DBTimedBelief.search_session_multi(
+            session, [], beliefs_befor=datetime(2024, 1, 1, tzinfo=utc)
+        )
 
 
 def statements(sensors, **kwargs):

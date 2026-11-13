@@ -568,7 +568,25 @@ class TimedBeliefDBMixin(TimedBelief):
         session: Session,
         sensors: list[SensorDBMixin | int],
         sensor_class: Type[SensorDBMixin] | None = DBSensor,
-        **kwargs,
+        event_starts_after: datetime | None = None,
+        event_ends_after: datetime | None = None,
+        event_starts_before: datetime | None = None,
+        event_ends_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
+        horizons_at_least: timedelta | None = None,
+        horizons_at_most: timedelta | None = None,
+        source: BeliefSource | list[BeliefSource] | None = None,
+        most_recent_beliefs_only: bool = False,
+        most_recent_events_only: bool = False,
+        most_recent_only: bool = False,
+        place_beliefs_in_sensor_timezone: bool = True,
+        place_events_in_sensor_timezone: bool = True,
+        custom_filter_criteria: list[BinaryExpression] | None = None,
+        custom_join_targets: list[JoinTarget] | None = None,
+        use_materialized_view: bool = True,
+        most_recent_beliefs_mview: Table | None = None,
+        mview_cutoff: datetime | None = None,
     ) -> list[BeliefsDataFrame]:
         """Search a database session for beliefs about the events of several sensors.
 
@@ -589,24 +607,39 @@ class TimedBeliefDBMixin(TimedBelief):
         :returns: a list of multi-index DataFrames with all relevant beliefs, one for each sensor
         """
         sensors = cls._get_sensors(session, sensors, sensor_class)
+        filters = dict(
+            event_starts_after=event_starts_after,
+            event_ends_after=event_ends_after,
+            event_starts_before=event_starts_before,
+            event_ends_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
+            horizons_at_least=horizons_at_least,
+            horizons_at_most=horizons_at_most,
+            source=source,
+            most_recent_beliefs_only=most_recent_beliefs_only,
+            most_recent_events_only=most_recent_events_only,
+            most_recent_only=most_recent_only,
+            place_beliefs_in_sensor_timezone=place_beliefs_in_sensor_timezone,
+            place_events_in_sensor_timezone=place_events_in_sensor_timezone,
+            custom_filter_criteria=custom_filter_criteria,
+            custom_join_targets=custom_join_targets,
+            use_materialized_view=use_materialized_view,
+            most_recent_beliefs_mview=most_recent_beliefs_mview,
+            mview_cutoff=mview_cutoff,
+        )
 
         # Sensors can share a query, if the query filters do not depend on how they differ
         uses_event_resolution = any(
-            not pd.isnull(kwargs.get(name))
-            for name in ("event_ends_after", "event_starts_before", "event_ends_before")
+            not pd.isnull(value)
+            for value in (event_ends_after, event_starts_before, event_ends_before)
         )
-        uses_knowledge_horizon = (
-            kwargs.get("beliefs_after") is not None
-            or kwargs.get("beliefs_before") is not None
-        )
-        sources = kwargs.get("source")
+        uses_knowledge_horizon = beliefs_after is not None or beliefs_before is not None
         n_sources = (
-            0 if sources is None else len(sources) if isinstance(sources, list) else 1
+            0 if source is None else len(source) if isinstance(source, list) else 1
         )
-        one_query_per_sensor = kwargs.get("most_recent_only") or (
-            kwargs.get("most_recent_beliefs_only")
-            and kwargs.get("most_recent_events_only")
-            and n_sources == 1
+        one_query_per_sensor = most_recent_only or (
+            most_recent_beliefs_only and most_recent_events_only and n_sources == 1
         )
 
         def get_group(sensor: SensorDBMixin):
@@ -636,7 +669,7 @@ class TimedBeliefDBMixin(TimedBelief):
         results = {}
         for group in groups.values():
             for sensor, df in zip(
-                group, cls._search_session_group(session, group, **kwargs)
+                group, cls._search_session_group(session, group, **filters)
             ):
                 results[sensor.id] = df
 
