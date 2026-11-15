@@ -12,16 +12,27 @@ from pandas.core.groupby import DataFrameGroupBy
 
 from timely_beliefs import utils as tb_utils
 from timely_beliefs.beliefs import classes  # noqa: F401
-from timely_beliefs.beliefs.crps import crps_ensemble
 
 
-def erfinv(y: float) -> float:
-    """Inverse of the error function.
+def crps_ensemble(
+    observation: float, values: np.ndarray, probabilities: np.ndarray | None = None
+) -> float:
+    """Compute the continuous ranked probability score of a (weighted) ensemble forecast, given a single observation.
 
-    erf(z) = 2 * Phi(z * sqrt(2)) - 1, so erfinv(y) = Phi^-1((y + 1) / 2) / sqrt(2),
-    where Phi is the standard normal cdf (whose inverse is stdlib's NormalDist.inv_cdf).
+    Uses CRPS(F, x) = E|X - x| - 1/2 E|X - X'|,
+    where X and X' are independent draws from the forecast distribution F (Gneiting & Raftery 2007, eq. 21).
+    The probabilities are normalized to sum to 1; without them, all ensemble members are equally likely.
     """
-    return NormalDist().inv_cdf((y + 1) / 2) / 2**0.5
+    values = np.asarray(values, dtype=float)
+    if probabilities is None:
+        p = np.ones_like(values)
+    else:
+        p = np.asarray(probabilities, dtype=float)
+    p = p / p.sum()
+    return (
+        p @ np.abs(values - observation)
+        - 0.5 * p @ np.abs(values[:, np.newaxis] - values[np.newaxis, :]) @ p
+    )
 
 
 def interpret_complete_cdf(
@@ -59,12 +70,15 @@ def interpret_complete_cdf(
                 x2 = cdf_v[1]
                 y1 = cdf_p[0]
                 y2 = cdf_p[1]
-                mu = (x1 * erfinv(1 - 2 * y2) - x2 * erfinv(1 - 2 * y1)) / (
-                    erfinv(1 - 2 * y2) - erfinv(1 - 2 * y1)
-                )
-                sigma = (2**0.5 * x1 - 2**0.5 * x2) / (
-                    2 * erfinv(1 - 2 * y2) - 2 * erfinv(1 - 2 * y1)
-                )
+                if not (0 < y1 < 1 and 0 < y2 < 1):
+                    raise ValueError(
+                        "Fitting a normal distribution requires cumulative probabilities strictly between 0 and 1."
+                    )
+                # Solve x = mu + sigma * z for both points, with z the standard normal quantile of each cumulative probability
+                z1 = NormalDist().inv_cdf(y1)
+                z2 = NormalDist().inv_cdf(y2)
+                mu = (x1 * z2 - x2 * z1) / (z2 - z1)
+                sigma = (x2 - x1) / (z2 - z1)
                 cdfs.append(ot.Normal(mu, sigma))
             else:
                 cdfs.append(ot.UserDefined([[v] for v in cdf_v], cdf_p))

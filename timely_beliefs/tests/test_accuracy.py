@@ -1,10 +1,16 @@
 from datetime import datetime, timedelta
+from statistics import NormalDist
 
 import numpy as np
+import pytest
 from pytz import utc
 
 from timely_beliefs import BeliefsDataFrame
-from timely_beliefs.beliefs.probabilistic_utils import partial_cdf
+from timely_beliefs.beliefs.probabilistic_utils import (
+    crps_ensemble,
+    interpret_complete_cdf,
+    partial_cdf,
+)
 from timely_beliefs.examples import get_example_df
 from timely_beliefs.tests.utils import equal_lists
 
@@ -85,6 +91,39 @@ def test_crps():
     assert (
         125 < crps[df.lineage.sources[1]] < 250
     )  # Expected value was wrong by 250, but source 2 still forecast about 50% right
+
+
+@pytest.mark.parametrize(
+    "observation, values, probabilities, expected",
+    [
+        # A single member scores its absolute error.
+        (3, [5], None, 2),
+        # E|X - x| = 0.5 and E|X - X'| = 0.5, so the score is 0.5 - 0.25.
+        (0, [0, 1], None, 0.25),
+        # E|X - x| = 0.75 and E|X - X'| = 2 * 0.25 * 0.75, so the score is 0.75 - 0.1875.
+        (0, [0, 1], [0.25, 0.75], 0.5625),
+        # Probabilities are normalized, so only their ratio matters.
+        (0, [0, 1], [1, 3], 0.5625),
+    ],
+)
+def test_crps_ensemble(observation, values, probabilities, expected):
+    """Check the CRPS of small ensembles against scores worked out by hand."""
+    assert crps_ensemble(observation, values, probabilities) == pytest.approx(expected)
+
+
+def test_interpret_complete_cdf_as_normal():
+    """Fit a normal distribution through two points on its CDF: one standard deviation below the mean, and the mean."""
+    (distribution,) = interpret_complete_cdf(
+        [[NormalDist().cdf(-1), 0.5]], [[90, 100]], distribution="normal"
+    )
+    assert distribution.getMean()[0] == pytest.approx(100)
+    assert distribution.getStandardDeviation()[0] == pytest.approx(10)
+
+
+def test_interpret_complete_cdf_as_normal_needs_inner_probabilities():
+    """A cumulative probability of 0 or 1 lies at an infinite distance from the mean, so it cannot pin down a normal distribution."""
+    with pytest.raises(ValueError, match="strictly between 0 and 1"):
+        interpret_complete_cdf([[0.5, 1]], [[100, 110]], distribution="normal")
 
 
 def test_partial_cdf():
