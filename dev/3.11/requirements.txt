@@ -32,11 +32,10 @@ jsonschema-specifications==2025.4.1
     # via jsonschema
 markupsafe==3.0.2
     # via jinja2
-numpy==1.26.4 ; python_version > "3.7"
+numpy==1.26.4
     # via
     #   altair
     #   pandas
-    #   properscoring
     #   scikit-learn
     #   scipy
     #   sktime
@@ -44,16 +43,20 @@ numpy==1.26.4 ; python_version > "3.7"
 openturns==1.25
     # via timely-beliefs (setup.py)
 packaging==25.0
-    # via sktime
-pandas==2.2.1 ; python_version > "3.7"
+    # via
+    #   sktime
+    #   timely-beliefs (setup.py)
+pandas==2.2.1
     # via
     #   altair
     #   sktime
     #   timely-beliefs (setup.py)
-properscoring==0.1
-    # via timely-beliefs (setup.py)
 psutil==7.0.0
     # via openturns
+psycopg[binary]==3.3.9
+    # via timely-beliefs (setup.py)
+psycopg-binary==3.3.9
+    # via psycopg
 psycopg2-binary==2.9.10
     # via timely-beliefs (setup.py)
 python-dateutil==2.9.0.post0
@@ -74,12 +77,10 @@ scikit-base==0.12.4
     # via sktime
 scikit-learn==1.7.1
     # via sktime
-scipy==1.16.1 ; python_version > "3.7"
+scipy==1.16.1
     # via
-    #   properscoring
     #   scikit-learn
     #   sktime
-    #   timely-beliefs (setup.py)
 six==1.17.0
     # via python-dateutil
 sktime==0.38.4
@@ -92,6 +93,7 @@ toolz==1.0.0
     # via altair
 typing-extensions==4.14.1
     # via
+    #   psycopg
     #   referencing
     #   sqlalchemy
 tzdata==2025.2
