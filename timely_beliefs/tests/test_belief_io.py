@@ -464,17 +464,70 @@ def test_belief_setup_with_timed_beliefs(args, kwargs):
     tb.BeliefsDataFrame()
 
 
-def test_converting_between_data_frame_and_series_retains_metadata():
+@pytest.mark.parametrize(
+    "custom_event_resolution",
+    [None, timedelta(0), timedelta(minutes=7, seconds=30), timedelta(hours=1)],
+)
+def test_converting_between_data_frame_and_series_retains_metadata(
+    custom_event_resolution,
+):
     """
     Test whether slicing of a BeliefsDataFrame into a BeliefsSeries retains the metadata.
     Test whether expanding dimensions of a BeliefsSeries into a BeliefsDataFrame retains the metadata.
+    GH 220: Ensure event_resolution is retained even when it differs from sensor.event_resolution.
     """
     example_df = get_example_df()
+    if custom_event_resolution is not None:
+        example_df.event_resolution = custom_event_resolution
     df = example_df
     series = df["event_value"]
-    assert_metadata_is_retained(series, original_df=example_df, is_series=True)
-    df = series.to_frame()
-    assert_metadata_is_retained(df, original_df=example_df)
+    assert_metadata_is_retained(
+        series,
+        original_df=example_df,
+        is_series=True,
+        event_resolution=custom_event_resolution,
+    )
+
+    # Test direct BeliefsSeries constructor
+    series_constructed = tb.BeliefsSeries(series)
+    assert_metadata_is_retained(
+        series_constructed,
+        original_df=example_df,
+        is_series=True,
+        event_resolution=custom_event_resolution,
+    )
+
+    # Test to_frame()
+    df_from_to_frame = series.to_frame()
+    assert_metadata_is_retained(
+        df_from_to_frame,
+        original_df=example_df,
+        event_resolution=custom_event_resolution,
+    )
+
+    # Test BeliefsDataFrame(series)
+    df_from_constructor = tb.BeliefsDataFrame(series)
+    assert_metadata_is_retained(
+        df_from_constructor,
+        original_df=example_df,
+        event_resolution=custom_event_resolution,
+    )
+
+
+def test_slicing_after_setting_metadata_retains_new_metadata():
+    """Test whether slicing a column after changing the metadata of a BeliefsDataFrame returns the new metadata.
+
+    GH 220: pandas caches sliced columns, so slicing before changing the metadata used to return the stale metadata on the next slice.
+    """
+    df = get_example_df()
+    assert df["event_value"].event_resolution == timedelta(minutes=15)
+
+    df.event_resolution = timedelta(minutes=7, seconds=30)
+    assert df["event_value"].event_resolution == timedelta(minutes=7, seconds=30)
+
+    other_sensor = tb.Sensor("other", event_resolution=timedelta(hours=1))
+    df.sensor = other_sensor
+    assert df["event_value"].sensor == other_sensor
 
 
 def test_dropping_index_levels_retains_metadata():

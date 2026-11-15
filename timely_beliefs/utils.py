@@ -23,8 +23,10 @@ def parse_timedelta_like(
     :return: timedelta
     """
     try:
-        with warnings.catch_warnings(record=True):
-            warnings.simplefilter("error")
+        with warnings.catch_warnings():
+            # Only the FutureWarning is ours to turn into a ValueError.
+            # Other warnings (e.g. a DeprecationWarning pandas 2 emits on numpy 2.5) reach the caller unchanged.
+            warnings.simplefilter("error", FutureWarning)
             if isinstance(td, str):
                 try:
                     td = pd.Timedelta(td)
