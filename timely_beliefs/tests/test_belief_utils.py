@@ -319,3 +319,14 @@ def test_resample_instantaneous_events_empty_df():
     assert res_mean is not bdf
     assert res_mean.event_resolution == timedelta(hours=1)
     assert bdf.event_resolution == timedelta(0)
+
+
+@pytest.mark.parametrize("periods", [0, 3])
+def test_resample_instantaneous_events_rejects_unsupported_method(periods):
+    """An unsupported resampling method should raise NotImplementedError, whether or not the frame holds any events."""
+    index = pd.date_range(
+        "2022-10-29 00:00+02", periods=periods, freq="1h", name="event_start"
+    )
+    df = pd.DataFrame(list(range(periods)), index=index, columns=["event_value"])
+    with pytest.raises(NotImplementedError, match="'bogus' method"):
+        resample_instantaneous_events(df, timedelta(hours=2), method="bogus")

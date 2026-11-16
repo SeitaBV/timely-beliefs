@@ -1037,6 +1037,52 @@ def extreme_timedeltas_not_equal(
     return td_a != td_b
 
 
+# Resampling methods that derive a property of each period of events, so they set the event resolution to the period
+PERIOD_RESAMPLING_METHODS = (
+    "mean",
+    "max",
+    "min",
+    "median",
+    "count",
+    "nunique",
+    "first",
+    "last",
+    "ohlc",
+    "prod",
+    "size",
+    "sem",
+    "std",
+    "sum",
+    "var",
+    "quantile",
+)
+# Resampling methods that derive intermediate events, so they leave the event resolution unaffected
+INTERMEDIATE_RESAMPLING_METHODS = (
+    "asfreq",
+    "interpolate",
+    "ffill",
+    "bfill",
+    "pad",
+    "backfill",
+    "nearest",
+)
+
+
+def resampling_method_updates_event_resolution(method: str) -> bool:
+    """Tell whether resampling with the given method changes the event resolution to the resampling period.
+
+    Methods that derive a property of a period of events (typically used for downsampling) update the event resolution.
+    Methods that derive intermediate events (typically used for upsampling) leave it unaffected.
+    """
+    if method in PERIOD_RESAMPLING_METHODS:
+        return True
+    if method in INTERMEDIATE_RESAMPLING_METHODS:
+        return False
+    raise NotImplementedError(
+        f"Please file a GitHub ticket for timely-beliefs to support the '{method}' method."
+    )
+
+
 def resample_instantaneous_events(
     df: pd.DataFrame | "classes.BeliefsDataFrame",
     resolution: timedelta,
@@ -1045,8 +1091,9 @@ def resample_instantaneous_events(
 ) -> pd.DataFrame | "classes.BeliefsDataFrame":
     """Resample data representing instantaneous events.
 
-    Requires instantaneous data where `df.event_resolution` (or `df.sensor.event_resolution`)
-    equals `timedelta(0)`. Raises `ValueError` if a non-zero event resolution is encountered.
+    Requires instantaneous data, where `df.event_resolution` (or `df.sensor.event_resolution`) equals `timedelta(0)`.
+    Raises `ValueError` if a non-zero event resolution is encountered,
+    and `NotImplementedError` for a resampling method that is not supported.
 
     Updates the event frequency of the resulting data frame, and possibly also its event resolution.
     The event resolution is only updated if the resampling method computes a characteristic of a period of events,
@@ -1071,27 +1118,11 @@ def resample_instantaneous_events(
     # Default resampling method for instantaneous sensors
     if method is None:
         method = "asfreq"
+    updates_event_resolution = resampling_method_updates_event_resolution(method)
 
     if df.empty:
         resampled_df = df.copy()
-        if method in (
-            "mean",
-            "max",
-            "min",
-            "median",
-            "count",
-            "nunique",
-            "first",
-            "last",
-            "ohlc",
-            "prod",
-            "size",
-            "sem",
-            "std",
-            "sum",
-            "var",
-            "quantile",
-        ):
+        if updates_event_resolution:
             resampled_df.event_resolution = resolution
         return resampled_df
 
@@ -1134,45 +1165,8 @@ def resample_instantaneous_events(
     resampled_df["event_start"] = resampled_df.index
     resampled_df = resampled_df.set_index(index_levels)
 
-    if method in (
-        "mean",
-        "max",
-        "min",
-        "median",
-        "count",
-        "nunique",
-        "first",
-        "last",
-        "ohlc",
-        "prod",
-        "size",
-        "sem",
-        "std",
-        "sum",
-        "var",
-        "quantile",
-    ):
-        # These methods derive properties of a period of events.
-        # Therefore, the event resolution is updated.
-        # The methods are typically used for downsampling.
+    if updates_event_resolution:
         resampled_df.event_resolution = resolution
-    elif method in (
-        "asfreq",
-        "interpolate",
-        "ffill",
-        "bfill",
-        "pad",
-        "backfill",
-        "nearest",
-    ):
-        # These methods derive intermediate events.
-        # Therefore, the event resolution is unaffected.
-        # The methods are typically used for upsampling.
-        pass
-    else:
-        raise NotImplementedError(
-            f"Please file a GitHub ticket for timely-beliefs to support the '{method}' method."
-        )
 
     if dropna:
         return resampled_df.dropna()
