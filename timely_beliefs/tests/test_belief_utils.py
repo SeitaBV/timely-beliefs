@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -263,3 +265,68 @@ def test_resample_instantaneous_events(
     )
     print(ds_df)
     assert equal_lists(ds_df.values, exp_event_values)
+
+
+def test_resample_instantaneous_events_rejects_non_instantaneous_data():
+    """resample_instantaneous_events should raise ValueError for non-instantaneous data."""
+    # BeliefsDataFrame with non-zero event resolution from sensor
+    df = get_example_df()
+    assert df.event_resolution == timedelta(minutes=15)
+    with pytest.raises(
+        ValueError,
+        match="resample_instantaneous_events only supports instantaneous data",
+    ):
+        resample_instantaneous_events(df, timedelta(hours=1))
+
+    # Plain DataFrame with an explicit non-zero event_resolution attribute
+    plain_df = pd.DataFrame(
+        {"event_value": [1.0]},
+        index=pd.date_range("2020-01-01", periods=1, freq="1h", name="event_start"),
+    )
+    plain_df.event_resolution = timedelta(hours=1)
+    with pytest.raises(
+        ValueError,
+        match="resample_instantaneous_events only supports instantaneous data",
+    ):
+        resample_instantaneous_events(plain_df, timedelta(hours=2))
+
+
+def test_resample_instantaneous_events_empty_df():
+    """Empty frames should return a copy immediately and update resolution for aggregating methods."""
+    # Plain DataFrame returns a copy without mutation
+    empty_df = pd.DataFrame(columns=["event_value"])
+    empty_df.index.name = "event_start"
+    res = resample_instantaneous_events(empty_df, timedelta(hours=1))
+    assert res.empty
+    assert res is not empty_df
+
+    # Empty BeliefsDataFrame with instantaneous sensor
+    sensor = Sensor("instantaneous_sensor")
+    assert sensor.event_resolution == timedelta(0)
+    bdf = BeliefsDataFrame(sensor=sensor)
+    assert bdf.empty
+    assert bdf.event_resolution == timedelta(0)
+
+    # asfreq retains instantaneous resolution
+    res_asfreq = resample_instantaneous_events(bdf, timedelta(hours=1), method="asfreq")
+    assert res_asfreq.empty
+    assert res_asfreq is not bdf
+    assert res_asfreq.event_resolution == timedelta(0)
+
+    # aggregating method updates event_resolution to the target resolution
+    res_mean = resample_instantaneous_events(bdf, timedelta(hours=1), method="mean")
+    assert res_mean.empty
+    assert res_mean is not bdf
+    assert res_mean.event_resolution == timedelta(hours=1)
+    assert bdf.event_resolution == timedelta(0)
+
+
+@pytest.mark.parametrize("periods", [0, 3])
+def test_resample_instantaneous_events_rejects_unsupported_method(periods):
+    """An unsupported resampling method should raise NotImplementedError, whether or not the frame holds any events."""
+    index = pd.date_range(
+        "2022-10-29 00:00+02", periods=periods, freq="1h", name="event_start"
+    )
+    df = pd.DataFrame(list(range(periods)), index=index, columns=["event_value"])
+    with pytest.raises(NotImplementedError, match="'bogus' method"):
+        resample_instantaneous_events(df, timedelta(hours=2), method="bogus")

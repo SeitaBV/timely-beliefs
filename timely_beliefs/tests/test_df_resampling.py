@@ -407,12 +407,14 @@ def test_downsample_instantaneous(df_instantaneous_8111):
     print(df_resampled_1)
     df_expected_1 = df_instantaneous_8111[
         df_instantaneous_8111.index.get_level_values("event_start").isin(
-            [
-                "2000-01-03 10:00:00+00:00",
-                "2000-01-03 12:00:00+00:00",
-                "2000-01-03 14:00:00+00:00",
-                "2000-01-03 16:00:00+00:00",
-            ]
+            pd.to_datetime(
+                [
+                    "2000-01-03 10:00:00+00:00",
+                    "2000-01-03 12:00:00+00:00",
+                    "2000-01-03 14:00:00+00:00",
+                    "2000-01-03 16:00:00+00:00",
+                ]
+            )
         )
     ]
     pd.testing.assert_frame_equal(
@@ -429,13 +431,15 @@ def test_downsample_instantaneous(df_instantaneous_8111):
     print(df_resampled_2)
     df_expected_2 = df_instantaneous_8111[
         df_instantaneous_8111.index.get_level_values("event_start").isin(
-            [
-                "2000-01-03 9:00:00+00:00",
-                "2000-01-03 10:00:00+00:00",
-                "2000-01-03 12:00:00+00:00",
-                "2000-01-03 14:00:00+00:00",
-                "2000-01-03 16:00:00+00:00",
-            ]
+            pd.to_datetime(
+                [
+                    "2000-01-03 9:00:00+00:00",
+                    "2000-01-03 10:00:00+00:00",
+                    "2000-01-03 12:00:00+00:00",
+                    "2000-01-03 14:00:00+00:00",
+                    "2000-01-03 16:00:00+00:00",
+                ]
+            )
         )
     ]
     # replace 9 AM with 8 AM
