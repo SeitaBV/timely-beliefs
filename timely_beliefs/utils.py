@@ -60,7 +60,9 @@ def parse_datetime_like(
             dt = pd.Timestamp(dt)
         if isinstance(dt, pd.Timestamp):
             dt = dt.to_pydatetime()
-        if isinstance(dt, pd.Series):
+        # Skip Series that hold datetimes already,
+        # because pd.to_datetime would still create Timestamps from them, to decide whether to cache its parsing
+        if isinstance(dt, pd.Series) and not pd.api.types.is_datetime64_any_dtype(dt):
             dt = pd.to_datetime(dt)
     except ValueError as e:
         raise ValueError(

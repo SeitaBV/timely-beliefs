@@ -1634,9 +1634,11 @@ class BeliefsDataFrame(pd.DataFrame):
                     )
 
                 # Check for correct types and convert if possible
-                self["event_start"] = pd.to_datetime(self["event_start"])
-                if "belief_time" in self:
-                    self["belief_time"] = pd.to_datetime(self["belief_time"])
+                for col in ("event_start", "belief_time"):
+                    if col in self and not pd.api.types.is_datetime64_any_dtype(
+                        self[col]
+                    ):
+                        self[col] = pd.to_datetime(self[col])
                 self["source"] = source_utils.ensure_sources_exists(self["source"])
 
                 # Set index levels and metadata
