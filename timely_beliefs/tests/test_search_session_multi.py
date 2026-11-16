@@ -199,6 +199,22 @@ def test_wrong_sensor_class_is_named(instantaneous_sensor):
         )
 
 
+def test_multi_source_levels_hold_only_their_own_sources(
+    instantaneous_sensor, time_slot_sensor, test_source_a, test_source_b
+):
+    """Sensors that share a query but not their sources each get a source level with only their own sources, as an object Index."""
+    add_beliefs([instantaneous_sensor], [test_source_a])
+    add_beliefs([time_slot_sensor], [test_source_b])
+    multi = DBTimedBelief.search_session_multi(
+        session, [instantaneous_sensor, time_slot_sensor]
+    )
+    for df, source in zip(multi, [test_source_a, test_source_b]):
+        source_level = df.index.levels[df.index.names.index("source")]
+        assert type(source_level) is pd.Index
+        assert source_level.dtype == object
+        assert list(source_level) == [source]
+
+
 def test_multi_copies_repeated_sensors(
     instantaneous_sensor, time_slot_sensor, test_source_a
 ):

@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 from pytz import utc
 
+import timely_beliefs as tb
 from timely_beliefs import BeliefSource, Sensor, TimedBelief, utils
 
 
@@ -134,3 +135,51 @@ def test_timedelta_parsing_passes_on_unrelated_warnings(monkeypatch):
         td = utils.parse_timedelta_like("PT1H")
     assert type(td) is timedelta
     assert td == timedelta(hours=1)
+
+
+class HashCountingSource(BeliefSource):
+    """A source that counts how often a source is hashed."""
+
+    hashes = 0
+
+    def __hash__(self):
+        HashCountingSource.hashes += 1
+        return id(self)
+
+
+def test_categorical_source_column():
+    """A frame built from a categorical source column equals one built from a column of source objects.
+
+    Its source level holds only the sources that have beliefs, as an object Index,
+    so search_session can pass its sources as a categorical column without changing the frames it returns.
+    Building it hashes each source a few times, rather than a few times for each row.
+    """
+    sensor = Sensor("sensor", event_resolution=timedelta(minutes=15))
+    sources = [HashCountingSource(name) for name in ("A", "B", "without beliefs")]
+    n = 1000
+    codes = [i % 2 for i in range(n)]
+    event_starts = pd.date_range("2024-01-01", periods=n, freq="15min", tz="UTC")
+    data = dict(
+        event_start=event_starts,
+        belief_time=event_starts - timedelta(hours=1),
+        cumulative_probability=0.5,
+        event_value=range(n),
+    )
+    from_objects = tb.BeliefsDataFrame(
+        pd.DataFrame({**data, "source": [sources[c] for c in codes]}), sensor=sensor
+    )
+    HashCountingSource.hashes = 0
+    from_categories = tb.BeliefsDataFrame(
+        pd.DataFrame(
+            {**data, "source": pd.Categorical.from_codes(codes, categories=sources)}
+        ),
+        sensor=sensor,
+    )
+    assert HashCountingSource.hashes < 50
+    pd.testing.assert_frame_equal(from_categories, from_objects)
+    source_level = from_categories.index.levels[
+        from_categories.index.names.index("source")
+    ]
+    assert type(source_level) is pd.Index
+    assert source_level.dtype == object
+    assert set(source_level) == set(sources[:2])
