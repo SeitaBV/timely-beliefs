@@ -595,11 +595,10 @@ class TimedBeliefDBMixin(TimedBelief):
         and each of these is the same as what search_session returns for that sensor.
         A sensor that is given more than once gets its own copy of the frame each time.
 
-        The beliefs table is queried once for each group of sensors that share the timing properties
-        that the given filters depend on, rather than once for each sensor.
+        The beliefs table is queried once for each group of sensors that share the timing properties that the given filters depend on,
+        rather than once for each sensor.
         Without event or belief time filters, all sensors are in one group.
-        Event filters that depend on the event end (event_ends_after, event_starts_before and event_ends_before)
-        group sensors by event resolution.
+        Event filters that depend on the event end (event_ends_after, event_starts_before and event_ends_before) group sensors by event resolution.
         Belief time filters (beliefs_after and beliefs_before) group sensors by knowledge horizon.
         Searching for only the most recent belief (most_recent_only) queries each sensor on its own.
 
@@ -744,8 +743,8 @@ class TimedBeliefDBMixin(TimedBelief):
         """Search a database session for beliefs about the events of a group of sensors, using one query.
 
         See search_session for the arguments.
-        The sensors should share the timing properties that the filters depend on
-        (search_session_multi takes care of that), because the first sensor stands in for all of them.
+        The sensors should share the timing properties that the filters depend on (search_session_multi takes care of that),
+        because the first sensor stands in for all of them.
         The result has one BeliefsDataFrame for each sensor, in the order of the given sensors.
         """
         source_class = cls.source.property.mapper.class_
@@ -1162,8 +1161,8 @@ class TimedBeliefDBMixin(TimedBelief):
         def finish(sensor, df, belief_horizons) -> BeliefsDataFrame:
             """Turn the rows of one sensor into its BeliefsDataFrame."""
 
-            # Compute belief times directly (cf. the belief_times property), so the
-            # BeliefsDataFrame is constructed with its final index right away,
+            # Compute belief times directly (cf. the belief_times property),
+            # so the BeliefsDataFrame is constructed with its final index right away,
             # rather than building a belief_horizon index first and replacing it afterwards
             event_starts = pd.DatetimeIndex(df["event_start"])
             knowledge_times = sensor.knowledge_time(
