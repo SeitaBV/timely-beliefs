@@ -20,7 +20,20 @@ def ensure_source_exists(
 
 
 def ensure_sources_exists(sources: pd.Series, allow_none: bool = False) -> pd.Series:
-    """Apply ensure_source_exists on a Series of sources."""
+    """Apply ensure_source_exists on a Series of sources.
+
+    For a categorical Series, this is done once for each category rather than once for each row,
+    leaving out the categories without rows.
+    """
+    if isinstance(sources.dtype, pd.CategoricalDtype) and not sources.isna().any():
+        sources = sources.cat.remove_unused_categories()
+        categories = [
+            ensure_source_exists(s, allow_none=allow_none)
+            for s in sources.cat.categories
+        ]
+        if len(set(categories)) == len(categories):
+            return sources.cat.rename_categories(categories)
+        sources = sources.astype(object)
     unique_sources = sources.unique()
     source_map = {
         s: ensure_source_exists(s, allow_none=allow_none) for s in unique_sources

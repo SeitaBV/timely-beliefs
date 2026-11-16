@@ -1154,9 +1154,14 @@ class TimedBeliefDBMixin(TimedBelief):
             sources = session.scalars(
                 select(source_class).filter(source_class.id.in_(source_ids))
             ).all()
+        # Fill in each source once, rather than once per row:
+        # factorizing the integer source ids is cheap, whereas hashing a source object is not,
+        # and BeliefsDataFrame only needs to handle the categories of a categorical column
         source_map = {source.id: source for source in sources}
-        df["source_id"] = df["source_id"].map(source_map)
-        df = df.rename(columns={"source_id": "source"})
+        codes, unique_source_ids = pd.factorize(df.pop("source_id"))
+        df["source"] = pd.Categorical.from_codes(
+            codes, categories=[source_map[source_id] for source_id in unique_source_ids]
+        )
 
         def finish(sensor, df, belief_horizons) -> BeliefsDataFrame:
             """Turn the rows of one sensor into its BeliefsDataFrame."""
@@ -1587,8 +1592,6 @@ class BeliefsDataFrame(pd.DataFrame):
                     self["source"] = source_utils.ensure_source_exists(source)
                 elif "source" not in self:
                     raise KeyError("DataFrame should contain column named 'source'.")
-                elif not isinstance(self["source"].dtype, BeliefSource):
-                    source_utils.ensure_sources_exists(self["source"])
                 if event_start is not None:
                     self["event_start"] = tb_utils.parse_datetime_like(
                         event_start, "event_start"
@@ -1631,9 +1634,11 @@ class BeliefsDataFrame(pd.DataFrame):
                     )
 
                 # Check for correct types and convert if possible
-                self["event_start"] = pd.to_datetime(self["event_start"])
-                if "belief_time" in self:
-                    self["belief_time"] = pd.to_datetime(self["belief_time"])
+                for col in ("event_start", "belief_time"):
+                    if col in self and not pd.api.types.is_datetime64_any_dtype(
+                        self[col]
+                    ):
+                        self[col] = pd.to_datetime(self[col])
                 self["source"] = source_utils.ensure_sources_exists(self["source"])
 
                 # Set index levels and metadata
@@ -1648,6 +1653,13 @@ class BeliefsDataFrame(pd.DataFrame):
                         for index in indices
                     ]
                 self.set_index(indices, inplace=True)
+                source_level = self.index.levels[self.index.names.index("source")]
+                if isinstance(source_level, pd.CategoricalIndex):
+                    # Keep the source level an object Index,
+                    # as if the frame had been built from a column of source objects
+                    self.index = self.index.set_levels(
+                        source_level.astype(object), level="source"
+                    )
 
         assign_sensor_and_event_resolution(
             self, sensor, tb_utils.parse_timedelta_like(event_resolution)
