@@ -1587,8 +1587,6 @@ class BeliefsDataFrame(pd.DataFrame):
                     self["source"] = source_utils.ensure_source_exists(source)
                 elif "source" not in self:
                     raise KeyError("DataFrame should contain column named 'source'.")
-                elif not isinstance(self["source"].dtype, BeliefSource):
-                    source_utils.ensure_sources_exists(self["source"])
                 if event_start is not None:
                     self["event_start"] = tb_utils.parse_datetime_like(
                         event_start, "event_start"
