@@ -3016,11 +3016,18 @@ def _as_copy_value(value):
         return "NaN"
     if isinstance(value, (pd.Timedelta, timedelta)):
         # An interval literal, rather than str(timedelta), whose "1 day, 2:00:00" form
-        # PostgreSQL does not accept. Whole microseconds, rather than total_seconds(),
-        # whose float repr turns into exponent notation below 1e-4 ("1.5e-05 seconds"),
-        # which the interval parser rejects. Integer division keeps negative horizons
-        # intact, and microseconds are the resolution an interval column stores anyway.
-        return f"{value // timedelta(microseconds=1)} microseconds"
+        # PostgreSQL does not accept. Formatted as days and HH:MM:SS.ffffff via integer
+        # division to preserve microsecond resolution and negative signs without
+        # exceeding 32-bit integer limits on single interval fields in PostgreSQL <= 14.
+        total_us = value // timedelta(microseconds=1)
+        sign = "-" if total_us < 0 else ""
+        days, rest = divmod(abs(total_us), 86_400_000_000)
+        hours, rest = divmod(rest, 3_600_000_000)
+        minutes, rest = divmod(rest, 60_000_000)
+        seconds, micros = divmod(rest, 1_000_000)
+        if days:
+            return f"{sign}{days} days {sign}{hours:02d}:{minutes:02d}:{seconds:02d}.{micros:06d}"
+        return f"{sign}{hours:02d}:{minutes:02d}:{seconds:02d}.{micros:06d}"
     if isinstance(value, (pd.Timestamp, datetime)):
         return value.isoformat()
     return value
