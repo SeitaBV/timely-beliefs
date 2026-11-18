@@ -212,6 +212,51 @@ def test_copy_handles_microsecond_horizons(time_slot_sensor, test_source_a):
     assert (got["belief_time"] - got["event_start"]).nunique() == 1
 
 
+@pytest.mark.parametrize(
+    "horizon",
+    [
+        timedelta(hours=2),
+        timedelta(hours=-2),
+        timedelta(days=2, hours=3, minutes=4, seconds=5, microseconds=6),
+        timedelta(days=-2, hours=-3, minutes=-4, seconds=-5, microseconds=-6),
+    ],
+)
+def test_copy_handles_large_and_negative_horizons(
+    time_slot_sensor, test_source_a, horizon
+):
+    """Belief horizons longer than ~35 minutes must not overflow PostgreSQL 12's interval parser (#261)."""
+    DBTimedBelief.add_to_session(
+        session,
+        frame_of(time_slot_sensor, test_source_a, belief_horizon=horizon),
+        allow_overwrite=True,
+        commit_transaction=True,
+    )
+    got = read_back(time_slot_sensor, test_source_a)
+    assert len(got) == N
+    assert (got["belief_time"] - got["event_start"]).nunique() == 1
+
+
+def test_as_copy_value_interval_formatting():
+    """Intervals are formatted as days and HH:MM:SS.ffffff to prevent overflow on PostgreSQL 12 (#261)."""
+    assert classes._as_copy_value(timedelta(0)) == "00:00:00.000000"
+    assert classes._as_copy_value(timedelta(hours=2)) == "02:00:00.000000"
+    assert classes._as_copy_value(timedelta(hours=-2)) == "-02:00:00.000000"
+    assert classes._as_copy_value(timedelta(seconds=-1.5)) == "-00:00:01.500000"
+    assert classes._as_copy_value(timedelta(microseconds=15)) == "00:00:00.000015"
+    assert (
+        classes._as_copy_value(
+            timedelta(days=2, hours=3, minutes=4, seconds=5, microseconds=6)
+        )
+        == "2 days 03:04:05.000006"
+    )
+    assert (
+        classes._as_copy_value(
+            timedelta(days=-2, hours=-3, minutes=-4, seconds=-5, microseconds=-6)
+        )
+        == "-2 days -03:04:05.000006"
+    )
+
+
 def test_copy_writes_nan_event_values_as_nan(time_slot_sensor, test_source_a):
     """A NaN event value stays NaN, as it was under the multi-row INSERT.
 
